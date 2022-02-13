@@ -5,8 +5,7 @@ theme:
   features:
   - navigation.tabs
   - navigation.tabs.sticky
-  - navigation.sections
-  - navigation.indexes
+  - navigation.expand
   - navigation.top
   icon:
     repo: fontawesome/brands/github
@@ -18,12 +17,18 @@ plugins:
       watch: 
       - spellmatch
       default_handler: python
-      handlers:
-        python:
-          rendering:
+
 extra:
+  generator: false
   version:
     provider: mike
+
+markdown_extensions:
+  - admonition
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
 
 extra_css:
   - _stylesheets/mkdocstrings.css
@@ -33,5 +38,15 @@ copyright: Copyright &copy; 2022 Jonas Windhager
 repo_url: https://github.com/BodenmillerGroup/spellmatch
 
 nav:
-  - index.md
-  - Reference: reference/index.md
+  - Documentation:
+    - index.md
+    - install.md
+    - Usage:
+      - usage/intro.md
+      - usage/registration.md
+      - usage/matching.md
+    - contributing.md
+    - changelog.md
+    - license.md
+  - Reference:
+    - reference/index.md
