@@ -1,0 +1,8 @@
+-e .
+black
+flake8
+mike
+mkdocs
+mkdocs-material
+mkdocstrings[python]
+pytest
