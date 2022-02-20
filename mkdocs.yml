@@ -13,6 +13,10 @@ theme:
 
 plugins:
   - search
+  - mermaid2:
+      version: 8.6.4
+      arguments:
+        securityLevel: 'loose'
   - mkdocstrings:
       watch: 
       - spellmatch
@@ -33,6 +37,9 @@ markdown_extensions:
 extra_css:
   - _stylesheets/mkdocstrings.css
 
+extra_javascript:
+     - https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js
+
 copyright: Copyright &copy; 2022 Jonas Windhager
 
 repo_url: https://github.com/BodenmillerGroup/spellmatch
@@ -40,13 +47,19 @@ repo_url: https://github.com/BodenmillerGroup/spellmatch
 nav:
   - Documentation:
     - index.md
-    - install.md
+    - installation.md
     - Usage:
-      - usage/intro.md
-      - usage/registration.md
-      - usage/matching.md
+      - usage/index.md
+      - usage/mask_alignment.md
+      - usage/image_registration.md
+      - usage/spatial_cell_matching.md
+      - usage/cell_assignment.md
     - contributing.md
     - changelog.md
     - license.md
+  - Algorithms:
+    - algorithms/index.md
+  - Benchmark:
+    - benchmark/index.md
   - Reference:
     - reference/index.md

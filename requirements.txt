@@ -5,6 +5,7 @@ isort
 mike
 mkdocs
 mkdocs-material
+mkdocs-mermaid2-plugin
 mkdocstrings[python]
 pytest
 pytest-cov

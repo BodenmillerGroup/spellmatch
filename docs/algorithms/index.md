@@ -1,3 +1,3 @@
-# Reference
+# Algorithms
 
 <!-- TODO docs -->
