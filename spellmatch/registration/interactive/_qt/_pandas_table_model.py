@@ -8,12 +8,17 @@ class QPandasTableModel(QAbstractTableModel):
     def __init__(
         self,
         columns: Optional[Sequence[str]] = None,
-        editable: bool = False,
         parent: Optional[QObject] = None,
     ) -> None:
         super(QPandasTableModel, self).__init__(parent)
         self._table = pd.DataFrame(columns=columns)
-        self._editable = editable
+
+    def append(self, df: pd.DataFrame) -> None:
+        row = self.rowCount(QModelIndex())
+        self.beginInsertRows(QModelIndex(), row, row + len(df.index) - 1)
+        df = pd.DataFrame(data=df.values, columns=self._table.columns)
+        self._table = pd.concat((self._table, df), ignore_index=True)
+        self.endInsertRows()
 
     def rowCount(self, parent: QModelIndex) -> int:
         if parent.isValid():
@@ -58,12 +63,6 @@ class QPandasTableModel(QAbstractTableModel):
             return True
         return False
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlags:
-        flags = super(QPandasTableModel, self).flags(index)
-        if self._editable:
-            flags |= Qt.ItemFlag.ItemIsEditable
-        return flags
-
     def insertRows(self, row: int, count: int, parent: QModelIndex) -> bool:
         if parent.isValid():
             return False
@@ -92,13 +91,6 @@ class QPandasTableModel(QAbstractTableModel):
             self.endRemoveRows()
             return True
         return False
-
-    def append(self, table: pd.DataFrame) -> None:
-        row = self.rowCount(QModelIndex())
-        self.beginInsertRows(QModelIndex(), row, row + len(table.index) - 1)
-        table = pd.DataFrame(data=table.values, columns=self._table.columns)
-        self._table = pd.concat((self._table, table), ignore_index=True)
-        self.endInsertRows()
 
     @property
     def table(self) -> pd.DataFrame:

@@ -1,8 +1,5 @@
 import logging
 
-
-class SpellmatchError(Exception):
-    pass
-
-
 logger = logging.getLogger(__name__)
+
+# TODO implement spellmatch algorithm
