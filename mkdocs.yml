@@ -35,12 +35,12 @@ markdown_extensions:
       permalink: true
 
 extra_css:
-  - _stylesheets/mkdocstrings.css
+  - _css/mkdocstrings.css
 
 extra_javascript:
-     - https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js
+  - https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js
 
-copyright: Copyright &copy; 2022 Jonas Windhager
+copyright: Copyright &copy; 2022 University of Zurich
 
 repo_url: https://github.com/BodenmillerGroup/spellmatch
 
