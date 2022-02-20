@@ -24,8 +24,6 @@ You can install *spellmatch* [from PyPI](https://pypi.org/project/spellmatch/) u
 
     pip install spellmatch
 
-<!-- TODO PyPI -->
-
 Alternatively, you can install *spellmatch*
 [from conda-forge](https://github.com/conda-forge/spellmatch-feedstock) using
 [conda](https://docs.conda.io/en/latest/):
