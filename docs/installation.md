@@ -4,7 +4,7 @@
 
 ## Requirements
 
-The `spellmatch` Python package requires Python 3.9 or newer.
+The `spellmatch` Python package requires Python 3.9.
 
 A user interface for Jupyter notebooks, e.g.
 [JupyterLab](https://jupyterlab.readthedocs.io) (optional, for opening notebooks).
