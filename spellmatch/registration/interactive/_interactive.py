@@ -9,7 +9,7 @@ from napari.viewer import Viewer
 from qtpy.QtWidgets import QApplication
 from skimage.transform import AffineTransform, ProjectiveTransform
 
-from ...utils import compute_centroids
+from ...utils import compute_points
 from .._registration import SpellmatchRegistrationError
 from ._qt import QPointMatchingDialog
 
@@ -44,8 +44,8 @@ def align_masks(
     )
 
     point_matching_dialog = QPointMatchingDialog(
-        compute_centroids(source_mask),
-        compute_centroids(target_mask),
+        compute_points(source_mask),
+        compute_points(target_mask),
         transform_type=transform_type,
         label_pairs_columns=(
             cell_pairs.columns.tolist()
@@ -103,7 +103,7 @@ def _create_viewer(
         if "c" in img.dims:
             img_data = img.data[::-1]
             if "c" in img.coords:
-                img_name = img.coords["c"].values[::-1]
+                img_name = img.coords["c"][::-1]
             img_channel_axis = img.dims.index("c")
         img_scale = None
         if "scale" in img.attrs:

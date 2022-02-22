@@ -1,13 +1,15 @@
 from ._algorithms import (
-    IterativeMatchingAlgorithm,
+    IterativePointsMatchingAlgorithm,
     MatchingAlgorithm,
+    PointsMatchingAlgorithm,
     SpellmatchMatchingAlgorithmError,
     logger,
 )
 
 __all__ = [
-    "IterativeMatchingAlgorithm",
+    "IterativePointsMatchingAlgorithm",
     "MatchingAlgorithm",
+    "PointsMatchingAlgorithm",
     "SpellmatchMatchingAlgorithmError",
     "logger",
 ]

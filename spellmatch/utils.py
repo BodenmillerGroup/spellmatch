@@ -5,20 +5,36 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from skimage.measure import regionprops
-from skimage.transform import ProjectiveTransform
 
 logger = logging.getLogger(__name__)
 
 
-def compute_centroids(
-    mask: xr.DataArray, transform: Optional[np.ndarray] = None, regions=None
+def compute_points(
+    mask: xr.DataArray, regions: Optional[list] = None, points_feature: str = "centroid"
 ) -> pd.DataFrame:
     if regions is None:
         regions = regionprops(mask.to_numpy())
-    centroids = np.array([r["centroid"] for r in regions])
-    centroids -= 0.5 * np.array([mask.shape])
+    points = np.array([r[points_feature] for r in regions])
+    points -= 0.5 * np.array([mask.shape])
     if "scale" in mask.attrs:
-        centroids *= mask.attrs["scale"]
-    if transform is not None:
-        centroids = ProjectiveTransform(matrix=transform)(centroids)
-    return pd.DataFrame(data=centroids, index=[r["label"] for r in regions])
+        points *= mask.attrs["scale"]
+    return pd.DataFrame(
+        data=points,
+        index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
+        columns=["y", "x"],
+    )
+
+
+def compute_intensities(
+    img: xr.DataArray,
+    mask: xr.DataArray,
+    regions: Optional[list] = None,
+    intensities_feature: str = "intensity_mean",
+) -> pd.DataFrame:
+    if regions is None:
+        regions = regionprops(mask.to_numpy(), intensity_image=img.to_numpy())
+    return pd.DataFrame(
+        data=np.array([r[intensities_feature] for r in regions]),
+        index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
+        columns=img.coords.get("c"),
+    )

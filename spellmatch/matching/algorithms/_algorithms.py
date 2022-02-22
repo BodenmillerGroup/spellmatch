@@ -1,8 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, Tuple
+from typing import Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from skimage.measure import regionprops
 from skimage.transform import (
@@ -12,45 +13,36 @@ from skimage.transform import (
     SimilarityTransform,
 )
 
-from ...utils import compute_centroids
+from ...utils import compute_intensities, compute_points
 from .._matching import SpellmatchMatchingError
 
 logger = logging.getLogger(__name__)
 
 
 class MatchingAlgorithm(ABC):
-    def __init__(self) -> None:
-        self._current_source_regions: Optional[list] = None
-        self._current_target_regions: Optional[list] = None
-
-    def __call__(
+    def match_masks(
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
         transform: Optional[np.ndarray] = None,
-        reverse: bool = False,
     ) -> xr.DataArray:
-        if reverse:
-            source_mask, target_mask = target_mask, source_mask
-            source_img, target_img = target_img, source_img
-            transform = np.linalg.inv(transform)
-        self._pre_run(
+        self._pre_match_masks(
             source_mask,
             target_mask,
             source_img=source_img,
             target_img=target_img,
             transform=transform,
         )
-        scores = self._run(
+        scores = self._match_masks(
             source_mask,
             target_mask,
             source_img=source_img,
             target_img=target_img,
             transform=transform,
         )
-        scores = self._post_run(
+        scores = self._post_match_masks(
             scores,
             source_mask,
             target_mask,
@@ -58,8 +50,9 @@ class MatchingAlgorithm(ABC):
             target_img=target_img,
             transform=transform,
         )
+        return scores
 
-    def _pre_run(
+    def _pre_match_masks(
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
@@ -67,6 +60,62 @@ class MatchingAlgorithm(ABC):
         target_img: Optional[xr.DataArray] = None,
         transform: Optional[np.ndarray] = None,
     ) -> None:
+        pass
+
+    @abstractmethod
+    def _match_masks(
+        self,
+        source_mask: xr.DataArray,
+        target_mask: xr.DataArray,
+        source_img: Optional[xr.DataArray] = None,
+        target_img: Optional[xr.DataArray] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        raise NotImplementedError()
+
+    def _post_match_masks(
+        self,
+        scores: xr.DataArray,
+        source_mask: xr.DataArray,
+        target_mask: xr.DataArray,
+        source_img: Optional[xr.DataArray] = None,
+        target_img: Optional[xr.DataArray] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        return scores
+
+
+class PointsMatchingAlgorithm(MatchingAlgorithm):
+    def __init__(
+        self,
+        points_feature: str = "centroid",
+        intensities_feature: str = "intensity_mean",
+    ) -> None:
+        super(PointsMatchingAlgorithm, self).__init__()
+        self.points_feature = points_feature
+        self.intensities_feature = intensities_feature
+        self._current_source_mask: Optional[xr.DataArray] = None
+        self._current_target_mask: Optional[xr.DataArray] = None
+        self._current_source_img: Optional[xr.DataArray] = None
+        self._current_target_img: Optional[xr.DataArray] = None
+        self._current_source_regions: Optional[list] = None
+        self._current_target_regions: Optional[list] = None
+
+    def _pre_match_masks(
+        self,
+        source_mask: xr.DataArray,
+        target_mask: xr.DataArray,
+        source_img: Optional[xr.DataArray] = None,
+        target_img: Optional[xr.DataArray] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> None:
+        super(PointsMatchingAlgorithm, self)._pre_match_masks(
+            source_mask, target_mask, source_img, target_img, transform
+        )
+        self._current_source_mask = source_mask
+        self._current_target_mask = target_mask
+        self._current_source_img = source_img
+        self._current_target_img = target_img
         self._current_source_regions = regionprops(
             source_mask.to_numpy(),
             intensity_image=source_img.to_numpy() if source_img is not None else None,
@@ -76,8 +125,7 @@ class MatchingAlgorithm(ABC):
             intensity_image=target_img.to_numpy() if target_img is not None else None,
         )
 
-    @abstractmethod
-    def _run(
+    def _match_masks(
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
@@ -85,9 +133,43 @@ class MatchingAlgorithm(ABC):
         target_img: Optional[xr.DataArray] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
-        raise NotImplementedError()
+        source_points = compute_points(
+            source_mask,
+            regions=self._current_source_regions,
+            points_feature=self.points_feature,
+        )
+        target_points = compute_points(
+            target_mask,
+            regions=self._current_target_regions,
+            points_feature=self.points_feature,
+        )
+        source_intensities = None
+        if source_img is not None:
+            source_intensities = compute_intensities(
+                source_img,
+                source_mask,
+                regions=self._current_source_regions,
+                intensities_feature=self.intensities_feature,
+            )
+        target_intensities = None
+        if target_img is not None:
+            target_intensities = compute_intensities(
+                target_img,
+                target_mask,
+                regions=self._current_target_regions,
+                intensities_feature=self.intensities_feature,
+            )
+        return self.match_points(
+            source_points,
+            target_points,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            source_shape=source_mask.shape,
+            target_shape=target_mask.shape,
+            transform=transform,
+        )
 
-    def _post_run(
+    def _post_match_masks(
         self,
         scores: xr.DataArray,
         source_mask: xr.DataArray,
@@ -96,13 +178,97 @@ class MatchingAlgorithm(ABC):
         target_img: Optional[xr.DataArray] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
+        scores = super(PointsMatchingAlgorithm, self)._post_match_masks(
+            scores, source_mask, target_mask, source_img, target_img, transform
+        )
+        self._current_source_mask = None
+        self._current_target_mask = None
+        self._current_source_img = None
+        self._current_target_img = None
         self._current_source_regions = None
         self._current_target_regions = None
         return scores
 
+    def match_points(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        self._pre_match_points(
+            source_points,
+            target_points,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            source_shape=source_shape,
+            target_shape=target_shape,
+            transform=transform,
+        )
+        scores = self._match_points(
+            source_points,
+            target_points,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            source_shape=source_shape,
+            target_shape=target_shape,
+            transform=transform,
+        )
+        scores = self._post_match_points(
+            scores,
+            source_points,
+            target_points,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            source_shape=source_shape,
+            target_shape=target_shape,
+            transform=transform,
+        )
+        return scores
 
-class IterativeMatchingAlgorithm(MatchingAlgorithm):
-    IterationCallback = Callable[[int, xr.DataArray, np.ndarray], bool]
+    def _pre_match_points(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def _match_points(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        raise NotImplementedError()
+
+    def _post_match_points(
+        self,
+        scores: xr.DataArray,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        return scores
+
+
+class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     TRANSFORM_TYPES: dict[str, ProjectiveTransform] = {
         "euclidean": EuclideanTransform,
         "similarity": SimilarityTransform,
@@ -111,87 +277,64 @@ class IterativeMatchingAlgorithm(MatchingAlgorithm):
 
     def __init__(
         self,
-        num_iter: int,
+        max_iter: int,
         top_k_estim: int,
-        transform_type: str,
+        transform_type: str = "affine",
+        points_feature: str = "centroid",
+        intensities_feature: str = "intensity_mean",
     ) -> None:
-        super(IterativeMatchingAlgorithm, self).__init__()
-        self.num_iter = num_iter
+        super(IterativePointsMatchingAlgorithm, self).__init__(
+            points_feature, intensities_feature
+        )
+        self.max_iter = max_iter
         self.top_k_estim = top_k_estim
         self.transform_type = self.TRANSFORM_TYPES[transform_type]
-        self.iter_callbacks: list[IterativeMatchingAlgorithm.IterationCallback] = []
-        self._current_source_centroids: Optional[np.ndarray] = None
-        self._current_target_centroids: Optional[np.ndarray] = None
 
-    def _pre_run(
+    def _match_points(
         self,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
-    ) -> None:
-        super(IterativeMatchingAlgorithm, self)._pre_run(
-            source_mask, target_mask, source_img, target_img, transform
-        )
-        self._current_target_centroids = compute_centroids(
-            target_mask, regions=self._current_target_regions
-        )
-
-    def _run(
-        self,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
         current_transform = transform
-        for iteration in range(self.num_iter):
+        for iteration in range(self.max_iter):
             self._pre_iter(
                 iteration,
-                source_mask,
-                target_mask,
-                source_img=source_img,
-                target_img=target_img,
+                source_points,
+                target_points,
+                source_intensities=source_intensities,
+                target_intensities=target_intensities,
+                source_shape=source_shape,
+                target_shape=target_shape,
                 transform=current_transform,
             )
             scores = self._iter(
                 iteration,
-                source_mask,
-                target_mask,
-                source_img=source_img,
-                target_img=target_img,
+                source_points,
+                target_points,
+                source_intensities=source_intensities,
+                target_intensities=target_intensities,
+                source_shape=source_shape,
+                target_shape=target_shape,
                 transform=current_transform,
             )
-            max_source_scores = np.amax(scores, axis=1)
-            top_source_indices = np.argpartition(
-                -max_source_scores, self.top_k_estim - 1
-            )[: self.top_k_estim]
-            top_target_indices = np.argmax(scores[top_source_indices, :], axis=1)
-            top_source_indices = top_source_indices[max_source_scores > 0.0]
-            top_target_indices = top_target_indices[max_source_scores > 0.0]
-            updated_transform = self.transform_type()
-            if updated_transform.estimate(
-                self._current_source_centroids[top_source_indices],
-                self._current_target_centroids[top_target_indices],
-            ):
-                updated_transform = updated_transform.params
-            else:
-                updated_transform = None
+            updated_transform = self._update_transform()
             scores, updated_transform, stop = self._post_iter(
                 iteration,
                 scores,
                 updated_transform,
-                source_mask,
-                target_mask,
-                source_img=source_img,
-                target_img=target_img,
+                source_points,
+                target_points,
+                source_intensities=source_intensities,
+                target_intensities=target_intensities,
+                source_shape=source_shape,
+                target_shape=target_shape,
                 transform=current_transform,
             )
-            for callback in self.iter_callbacks:
-                if not callback(iteration, scores, updated_transform):
-                    stop = True
             if updated_transform is None or stop:
                 break
             current_transform = updated_transform
@@ -200,56 +343,64 @@ class IterativeMatchingAlgorithm(MatchingAlgorithm):
     def _pre_iter(
         self,
         iteration: int,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
         transform: Optional[np.ndarray] = None,
     ) -> None:
-        self._current_source_centroids = compute_centroids(
-            source_mask, transform=transform
-        )
+        pass
 
     @abstractmethod
     def _iter(
         self,
         iteration: int,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
         raise NotImplementedError()
+
+    def _update_transform(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        scores: xr.DataArray,
+    ) -> Optional[np.ndarray]:
+        max_source_scores = np.amax(scores, axis=1)
+        top_source_indices = np.argpartition(-max_source_scores, self.top_k_estim - 1)[
+            : self.top_k_estim
+        ]
+        top_target_indices = np.argmax(scores[top_source_indices, :], axis=1)
+        top_source_indices = top_source_indices[max_source_scores > 0.0]
+        top_target_indices = top_target_indices[max_source_scores > 0.0]
+        updated_transform: ProjectiveTransform = self.transform_type()
+        if updated_transform.estimate(
+            source_points[top_source_indices], target_points[top_target_indices]
+        ):
+            return updated_transform.params
+        return None
 
     def _post_iter(
         self,
         iteration: int,
         scores: xr.DataArray,
         updated_transform: Optional[np.ndarray],
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> Tuple[xr.DataArray, np.ndarray, bool]:
-        self._current_source_centroids = None
         return scores, updated_transform, False
-
-    def _post_run(
-        self,
-        scores: xr.DataArray,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
-    ) -> xr.DataArray:
-        scores = super(IterativeMatchingAlgorithm, self)._post_run(
-            scores, source_mask, target_mask, source_img, target_img, transform
-        )
-        self._current_target_centroids = None
-        return scores
 
 
 class SpellmatchMatchingAlgorithmError(SpellmatchMatchingError):

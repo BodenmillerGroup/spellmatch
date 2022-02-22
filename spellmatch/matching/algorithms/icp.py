@@ -1,88 +1,169 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 from sklearn.neighbors import NearestNeighbors
 
-from ._algorithms import IterativeMatchingAlgorithm
-
-# TODO add criterion: distance mean/std change tolerance
+from ._algorithms import IterativePointsMatchingAlgorithm
 
 logger = logging.getLogger(__name__)
 
 
-class IterativeClosestPointsMatchingAlgorithm(IterativeMatchingAlgorithm):
+class IterativeClosestPointsMatchingAlgorithm(IterativePointsMatchingAlgorithm):
     def __init__(
         self,
         *,
-        num_iter: int,
+        max_iter: int,
         top_k_estim: int,
         max_dist: Optional[float] = None,
+        min_change: Optional[float] = None,
         transform_type: str = "affine",
+        points_feature: str = "centroid",
+        intensities_feature: str = "intensity_mean",
     ) -> None:
         super(IterativeClosestPointsMatchingAlgorithm, self).__init__(
-            num_iter, top_k_estim, transform_type
+            max_iter, top_k_estim, transform_type, points_feature, intensities_feature
         )
         self.max_dist = max_dist
-        self._current_target_nn: Optional[NearestNeighbors] = None
+        self.min_change = min_change
+        self._nn: Optional[NearestNeighbors] = None
+        self._current_dists_mean: Optional[float] = None
+        self._current_dists_std: Optional[float] = None
+        self._last_dists_mean: Optional[float] = None
+        self._last_dists_std: Optional[float] = None
 
-    def _pre_run(
+    def _pre_match_points(
         self,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> None:
-        super(IterativeClosestPointsMatchingAlgorithm, self)._pre_run(
-            source_mask, target_mask, source_img, target_img, transform
+        super(IterativeClosestPointsMatchingAlgorithm, self)._pre_match_points(
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
+            source_shape,
+            target_shape,
+            transform,
         )
-        self._current_target_nn = NearestNeighbors(n_neighbors=1).fit(
-            self._current_target_centroids
+        self._nn = NearestNeighbors(n_neighbors=1).fit(target_points)
+
+    def _post_match_points(
+        self,
+        scores: xr.DataArray,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
+        transform: Optional[np.ndarray] = None,
+    ) -> xr.DataArray:
+        scores = super(
+            IterativeClosestPointsMatchingAlgorithm, self
+        )._post_match_points(
+            scores,
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
+            source_shape,
+            target_shape,
+            transform,
         )
+        self._nn = None
+        return scores
 
     def _iter(
         self,
         iteration: int,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
-        source_indices = np.arange(len(self._current_source_regions))
-        dists, target_indices = self._current_target_nn.kneighbors(
-            self._current_source_centroids
-        )
+        transformed_points = source_points.values
+        if transform is not None:
+            tf = self.transform_type(matrix=transform)
+            transformed_points = tf(transformed_points)
+        source_indices = np.arange(len(transformed_points))
+        dists, target_indices = self._nn.kneighbors(transformed_points)
         dists, target_indices = dists[:, 0], target_indices[:, 0]
-        if self.max_dist is not None:
+        if self.max_dist:
             source_indices = source_indices[dists <= self.max_dist]
             target_indices = target_indices[dists <= self.max_dist]
-        scores_data = np.zeros(
-            (len(self._current_source_regions), len(self._current_target_regions))
-        )
+            dists = dists[dists <= self.max_dist]
+        self._current_dists_mean = np.mean(dists)
+        self._current_dists_std = np.std(dists)
+        source_name = source_points.index.name or "source"
+        target_name = target_points.index.name or "target"
+        scores_data = np.zeros((len(source_points.index), len(target_points.index)))
         scores_data[source_indices, target_indices] = 1.0
         return xr.DataArray(
             data=scores_data,
             coords={
-                source_mask.name: [r.label for r in self._current_source_regions],
-                target_mask.name: [r.label for r in self._current_target_regions],
+                source_name: source_points.index.values,
+                target_name: target_points.index.values,
             },
-            dims=(source_mask.name, target_mask.name),
         )
 
-    def _post_run(
+    def _post_iter(
         self,
+        iteration: int,
         scores: xr.DataArray,
-        source_mask: xr.DataArray,
-        target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
+        updated_transform: Optional[np.ndarray],
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame] = None,
+        target_intensities: Optional[pd.DataFrame] = None,
+        source_shape: Optional[Tuple[int, int]] = None,
+        target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
-    ) -> xr.DataArray:
-        scores = super(IterativeClosestPointsMatchingAlgorithm, self)._post_run(
-            scores, source_mask, target_mask, source_img, target_img, transform
+    ) -> Tuple[xr.DataArray, np.ndarray, bool]:
+        scores, updated_transform, stop = super(
+            IterativeClosestPointsMatchingAlgorithm, self
+        )._post_iter(
+            iteration,
+            scores,
+            updated_transform,
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
+            source_shape,
+            target_shape,
+            transform,
         )
-        self._current_target_nn = None
-        return scores
+        if (
+            not stop
+            and iteration > 0
+            and self.min_change is not None
+            and self._compute_dists_mean_change() < self.min_change
+            and self._compute_dists_std_change() < self.min_change
+        ):
+            stop = True
+        self._last_dists_mean = self._current_dists_mean
+        self._last_dists_std = self._current_dists_std
+        self._current_dists_mean = None
+        self._current_dists_std = None
+        return scores, updated_transform, stop
+
+    def _compute_dists_mean_change(self) -> float:
+        return np.abs(
+            (self._current_dists_mean - self._last_dists_mean) / self._last_dists_mean
+        )
+
+    def _compute_dists_std_change(self) -> float:
+        return np.abs(
+            (self._current_dists_std - self._last_dists_std) / self._last_dists_std
+        )
