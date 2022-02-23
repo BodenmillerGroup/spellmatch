@@ -41,9 +41,11 @@ def compute_intensities(
     )
 
 
-def transform_points(points: pd.DataFrame, transform: np.ndarray) -> pd.DataFrame:
+def transform_points(
+    points: pd.DataFrame, transform: ProjectiveTransform
+) -> pd.DataFrame:
     return pd.DataFrame(
-        data=ProjectiveTransform(matrix=transform)(points),
+        data=transform(points),
         index=points.index.copy(),
         columns=points.columns.copy(),
     )

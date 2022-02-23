@@ -4,18 +4,19 @@ from typing import Optional, Type, Union
 import numpy as np
 import SimpleITK as sitk
 import xarray as xr
+from skimage.transform import ProjectiveTransform
 
 from .._registration import SpellmatchRegistrationError
 from .metrics import Metric
 from .optimizers import Optimizer
 
-Transform = Union[
+SITKProjectiveTransform = Union[
     sitk.Euler2DTransform, sitk.Similarity2DTransform, sitk.AffineTransform
 ]
 
 logger = logging.getLogger(__name__)
 
-transform_types: dict[str, Transform] = {
+sitk_transform_types: dict[str, SITKProjectiveTransform] = {
     "euclidean": sitk.Euler2DTransform,
     "similarity": sitk.Similarity2DTransform,
     "affine": sitk.AffineTransform,
@@ -29,13 +30,13 @@ def register_images(
     target_img: xr.DataArray,
     metric: Metric,
     optimizer: Optimizer,
-    transform_type: Type[Transform] = sitk.AffineTransform,
-    initial_transform_matrix: Optional[np.ndarray] = None,
+    sitk_transform_type: Type[SITKProjectiveTransform] = sitk.AffineTransform,
+    initial_transform: Optional[ProjectiveTransform] = None,
     denoise_source: Optional[float] = None,
     denoise_target: Optional[float] = None,
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
-) -> np.ndarray:
+) -> ProjectiveTransform:
     moving = sitk.GetImageFromArray(source_img.to_numpy())
     if "scale" in source_img.attrs:
         moving.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
@@ -63,19 +64,20 @@ def register_images(
     method = sitk.ImageRegistrationMethod()
     metric.configure(method)
     optimizer.configure(method)
-    initial_transform: Transform = sitk.CenteredTransformInitializer(
+    initial_sitk_transform: SITKProjectiveTransform = sitk.CenteredTransformInitializer(
         fixed,
         moving,
-        transform_type(),
+        sitk_transform_type(),
         sitk.CenteredTransformInitializerFilter.GEOMETRY,
     )
-    if initial_transform_matrix is not None:
-        initial_transform.SetMatrix(initial_transform_matrix.flatten())
-    method.SetInitialTransform(initial_transform)
+    if initial_transform is not None:
+        initial_sitk_transform.SetMatrix(initial_transform.params.flatten())
+    method.SetInitialTransform(initial_sitk_transform)
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(lambda: _logging_command(method))
-    transform: Transform = method.Execute(fixed, moving)
-    return np.asarray(transform.GetMatrix()).reshape((3, 3))
+    sitk_transform: SITKProjectiveTransform = method.Execute(fixed, moving)
+    transform_matrix = np.asarray(sitk_transform.GetMatrix()).reshape((3, 3))
+    return ProjectiveTransform(matrix=transform_matrix)
 
 
 def _logging_command(method: sitk.ImageRegistrationMethod) -> None:

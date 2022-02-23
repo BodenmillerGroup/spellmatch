@@ -23,7 +23,7 @@ def align_masks(
     target_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
     transform_type: Type[ProjectiveTransform] = AffineTransform,
     cell_pairs: Optional[pd.DataFrame] = None,
-) -> Optional[Tuple[pd.DataFrame, ProjectiveTransform]]:
+) -> Optional[Tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
     if source_img is not None and source_img.shape[:-2] != source_mask.shape:
         raise SpellmatchInteractiveRegistrationError(
             f"Source image has shape {source_img.shape}, "

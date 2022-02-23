@@ -98,7 +98,7 @@ def cli() -> None:
 )
 @click.option(
     "--transform-type",
-    "skimage_transform_type_name",
+    "transform_type_name",
     default="affine",
     show_default=True,
     type=click.Choice(list(transform_types.keys())),
@@ -123,7 +123,7 @@ def align(
     target_panel_file: Path,
     source_scale: float,
     target_scale: float,
-    skimage_transform_type_name: str,
+    transform_type_name: str,
     cell_pairs_file: Path,
     transform_file: Path,
 ) -> None:
@@ -153,13 +153,14 @@ def align(
         target_mask,
         source_img=source_img,
         target_img=target_img,
-        transform_type=transform_types[skimage_transform_type_name],
+        transform_type=transform_types[transform_type_name],
         cell_pairs=cell_pairs,
     )
     if result is not None:
-        cell_pairs, skimage_transform = result
+        cell_pairs, transform = result
         io.write_cell_pairs(cell_pairs_file, cell_pairs)
-        io.write_transform(transform_file, skimage_transform.params)
+        if transform is not None:
+            io.write_transform(transform_file, transform)
     else:
         raise click.Abort()
 
@@ -263,10 +264,10 @@ def align(
 )
 @click.option(
     "--transform-type",
-    "transform_type_name",
+    "sitk_transform_type_name",
     default="affine",
     show_default=True,
-    type=click.Choice(list(automatic_registration.transform_types.keys())),
+    type=click.Choice(list(automatic_registration.sitk_transform_types.keys())),
 )
 @click.option(
     "--initial-transforms",
@@ -296,7 +297,7 @@ def register(
     metric_kwargs_str: str,
     optimizer_name: str,
     optimizer_kwargs_str: str,
-    transform_type_name: str,
+    sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
     transform_path: Path,
 ) -> None:
@@ -306,7 +307,9 @@ def register(
     optimizer_type = automatic_registration_optimizer_types[optimizer_name]
     optimizer_kwargs = _parse_kwargs(optimizer_kwargs_str)
     optimizer = optimizer_type(**optimizer_kwargs)
-    transform_type = automatic_registration.transform_types[transform_type_name]
+    sitk_transform_type = automatic_registration.sitk_transform_types[
+        sitk_transform_type_name
+    ]
     if (
         source_img_path.is_file()
         and target_img_path.is_file()
@@ -416,8 +419,8 @@ def register(
             target_img,
             metric,
             optimizer,
-            transform_type=transform_type,
-            initial_transform_matrix=initial_transform,
+            sitk_transform_type=sitk_transform_type,
+            initial_transform=initial_transform,
             denoise_source=denoise_source,
             denoise_target=denoise_target,
             blur_source=blur_source,

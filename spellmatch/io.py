@@ -7,9 +7,9 @@ import numpy as np
 import pandas as pd
 import tifffile
 import xarray as xr
+from skimage.transform import ProjectiveTransform
 
 from ._spellmatch import SpellmatchError
-
 
 _DEFAULT_PANEL_NAME_COL = "name"
 _DEFAULT_PANEL_KEEP_COL = "keep"
@@ -100,23 +100,22 @@ def write_cell_pairs(
     cell_pairs.to_csv(cell_pairs_file, index=False)
 
 
-def read_transform(transform_file: Union[str, PathLike]) -> np.ndarray:
+def read_transform(transform_file: Union[str, PathLike]) -> ProjectiveTransform:
     transform_file = Path(transform_file)
-    transform: np.ndarray = np.load(transform_file, allow_pickle=False)
-    if transform.shape != (3, 3):
+    transform_matrix: np.ndarray = np.load(transform_file, allow_pickle=False)
+    if transform_matrix.shape != (3, 3):
         raise SpellmatchIOError(
-            f"Transform {transform_file.name} has shape {transform.shape}, "
+            f"Transform {transform_file.name} has shape {transform_matrix.shape}, "
             "expected (3, 3)"
         )
-    return transform
+    return ProjectiveTransform(matrix=transform_matrix)
 
 
 def write_transform(
-    transform_file: Union[str, PathLike], transform: np.ndarray
+    transform_file: Union[str, PathLike], transform: ProjectiveTransform
 ) -> None:
     transform_file = Path(transform_file)
-    assert transform.shape == (3, 3)
-    np.save(transform_file, transform, allow_pickle=False)
+    np.save(transform_file, transform.params, allow_pickle=False)
 
 
 def read_scores(scores_file: Union[str, PathLike]) -> xr.DataArray:

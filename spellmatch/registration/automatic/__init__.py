@@ -1,15 +1,15 @@
 from ._automatic import (
+    SITKProjectiveTransform,
     SpellmatchAutomaticRegistrationError,
-    Transform,
     logger,
     register_images,
-    transform_types,
+    sitk_transform_types,
 )
 
 __all__ = [
+    "SITKProjectiveTransform",
     "SpellmatchAutomaticRegistrationError",
-    "Transform",
     "logger",
     "register_images",
-    "transform_types",
+    "sitk_transform_types",
 ]
