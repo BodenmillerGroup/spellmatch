@@ -3,7 +3,6 @@ from typing import Any, Optional, Type
 
 import click
 import click_log
-import numpy as np
 import pluggy
 import yaml
 from skimage.transform import (
@@ -15,8 +14,7 @@ from skimage.transform import (
 
 from . import hookspecs, io
 from ._spellmatch import logger as root_logger
-from .matching.algorithms import MatchingAlgorithm
-from .matching.algorithms.icp import IterativeClosestPointsMatchingAlgorithm
+from .matching.algorithms import icp
 from .registration import automatic as automatic_registration
 from .registration import interactive as interactive_registration
 from .registration.automatic.metrics import (
@@ -26,24 +24,20 @@ from .registration.automatic.optimizers import (
     optimizer_types as automatic_registration_optimizer_types,
 )
 
-click_log.basic_config(logger=root_logger)
-
-skimage_transform_types: dict[str, Type[ProjectiveTransform]] = {
+transform_types: dict[str, Type[ProjectiveTransform]] = {
     "euclidean": EuclideanTransform,
     "similarity": SimilarityTransform,
     "affine": AffineTransform,
 }
 
-matching_algorithm_types: dict[str, Type[MatchingAlgorithm]] = {
-    "icp": IterativeClosestPointsMatchingAlgorithm,
-    # TODO add further matching algorithm types
-}
+click_log.basic_config(logger=root_logger)
 
 
 def get_plugin_manager() -> pluggy.PluginManager:
     pm = pluggy.PluginManager("spellmatch")
     pm.add_hookspecs(hookspecs)
     pm.load_setuptools_entrypoints("spellmatch")
+    pm.register(icp, name="spellmatch-icp")
     return pm
 
 
@@ -107,7 +101,7 @@ def cli() -> None:
     "skimage_transform_type_name",
     default="affine",
     show_default=True,
-    type=click.Choice(list(skimage_transform_types.keys())),
+    type=click.Choice(list(transform_types.keys())),
 )
 @click.argument(
     "cell_pairs_file",
@@ -159,7 +153,7 @@ def align(
         target_mask,
         source_img=source_img,
         target_img=target_img,
-        transform_type=skimage_transform_types[skimage_transform_type_name],
+        transform_type=transform_types[skimage_transform_type_name],
         cell_pairs=cell_pairs,
     )
     if result is not None:
@@ -269,7 +263,7 @@ def align(
 )
 @click.option(
     "--transform-type",
-    "sitk_transform_type_name",
+    "transform_type_name",
     default="affine",
     show_default=True,
     type=click.Choice(list(automatic_registration.transform_types.keys())),
@@ -302,7 +296,7 @@ def register(
     metric_kwargs_str: str,
     optimizer_name: str,
     optimizer_kwargs_str: str,
-    sitk_transform_type_name: str,
+    transform_type_name: str,
     initial_transform_path: Optional[Path],
     transform_path: Path,
 ) -> None:
@@ -312,7 +306,7 @@ def register(
     optimizer_type = automatic_registration_optimizer_types[optimizer_name]
     optimizer_kwargs = _parse_kwargs(optimizer_kwargs_str)
     optimizer = optimizer_type(**optimizer_kwargs)
-    transform_type = automatic_registration.transform_types[sitk_transform_type_name]
+    transform_type = automatic_registration.transform_types[transform_type_name]
     if (
         source_img_path.is_file()
         and target_img_path.is_file()
@@ -417,7 +411,7 @@ def register(
         initial_transform = None
         if initial_transform_file is not None:
             initial_transform = io.read_transform(initial_transform_file)
-        sitk_transform = automatic_registration.register_images(
+        transform = automatic_registration.register_images(
             source_img,
             target_img,
             metric,
@@ -429,7 +423,6 @@ def register(
             blur_source=blur_source,
             blur_target=blur_target,
         )
-        transform = np.asarray(sitk_transform.GetMatrix()).reshape((3, 3))
         io.write_transform(transform_file, transform)
 
 
@@ -487,12 +480,12 @@ def register(
     "matching_algorithm_name",
     default="icp",
     show_default=True,
-    type=click.Choice(list(matching_algorithm_types.keys())),
+    type=click.STRING,
 )
 @click.option(
     "--algorithm-args",
     "matching_algorithm_kwargs_str",
-    default="num_iter=10,top_k_estim=50,max_dist=5.0",
+    default="max_iter=10,top_k_estim=50,max_dist=5.0",
     show_default=True,
     type=click.STRING,
 )
@@ -528,10 +521,12 @@ def match(
     reverse: bool,
     scores_path: Path,
 ) -> None:
-    matching_algorithm_kwargs = _parse_kwargs(matching_algorithm_kwargs_str)
-    matching_algorithm = matching_algorithm_types[matching_algorithm_name](
-        **matching_algorithm_kwargs
+    pm = get_plugin_manager()
+    matching_algorithm_type = pm.hook.spellmatch_get_matching_algorithm(
+        name=matching_algorithm_name
     )
+    matching_algorithm_kwargs = _parse_kwargs(matching_algorithm_kwargs_str)
+    matching_algorithm = matching_algorithm_type(**matching_algorithm_kwargs)
     if (
         source_mask_path.is_file()
         and target_mask_path.is_file()
@@ -668,7 +663,7 @@ def _parse_kwargs(kwargs_str: str) -> dict[str, Any]:
         key_value_pair_str.split(sep="=", maxsplit=1)
         for key_value_pair_str in kwargs_str.split(sep=",")
     ]
-    return yaml.load("\n".join(f"{key}: {value}" for key, value in key_value_pairs))
+    return yaml.load("\n".join(f"{k}: {v}" for k, v in key_value_pairs), yaml.Loader)
 
 
 if __name__ == "__main__":

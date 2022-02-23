@@ -1,15 +1,23 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Type
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 from sklearn.neighbors import NearestNeighbors
 
+from ..._spellmatch import hookimpl
 from ...utils import transform_points
-from ._algorithms import IterativePointsMatchingAlgorithm
+from ._algorithms import IterativePointsMatchingAlgorithm, MatchingAlgorithm
 
 logger = logging.getLogger(__name__)
+
+
+@hookimpl
+def spellmatch_get_matching_algorithm(name: str) -> Optional[Type[MatchingAlgorithm]]:
+    if name == "icp":
+        return IterativeClosestPointsMatchingAlgorithm
+    return None
 
 
 class IterativeClosestPointsMatchingAlgorithm(IterativePointsMatchingAlgorithm):

@@ -35,7 +35,7 @@ def register_images(
     denoise_target: Optional[float] = None,
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
-) -> Transform:
+) -> np.ndarray:
     moving = sitk.GetImageFromArray(source_img.to_numpy())
     if "scale" in source_img.attrs:
         moving.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
@@ -74,7 +74,8 @@ def register_images(
     method.SetInitialTransform(initial_transform)
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(lambda: _logging_command(method))
-    return method.Execute(fixed, moving)
+    transform: Transform = method.Execute(fixed, moving)
+    return np.asarray(transform.GetMatrix()).reshape((3, 3))
 
 
 def _logging_command(method: sitk.ImageRegistrationMethod) -> None:
