@@ -26,7 +26,7 @@ class MatchingAlgorithm(ABC):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         self._pre_match_masks(
             source_mask,
@@ -58,7 +58,7 @@ class MatchingAlgorithm(ABC):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> None:
         pass
 
@@ -69,7 +69,7 @@ class MatchingAlgorithm(ABC):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -80,7 +80,7 @@ class MatchingAlgorithm(ABC):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         return scores
 
@@ -107,7 +107,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> None:
         super(PointsMatchingAlgorithm, self)._pre_match_masks(
             source_mask, target_mask, source_img, target_img, transform
@@ -131,7 +131,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         source_points = compute_points(
             source_mask,
@@ -176,7 +176,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         scores = super(PointsMatchingAlgorithm, self)._post_match_masks(
             scores, source_mask, target_mask, source_img, target_img, transform
@@ -197,7 +197,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         self._pre_match_points(
             source_points,
@@ -237,7 +237,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> None:
         pass
 
@@ -250,7 +250,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -263,7 +263,7 @@ class PointsMatchingAlgorithm(MatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         return scores
 
@@ -298,7 +298,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         current_transform = transform
         for iteration in range(self.max_iter):
@@ -322,7 +322,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 target_shape=target_shape,
                 transform=current_transform,
             )
-            updated_transform = self._update_transform()
+            updated_transform = self._estimate_transform(
+                source_points, target_points, scores
+            )
             scores, updated_transform, stop = self._post_iter(
                 iteration,
                 scores,
@@ -349,7 +351,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_shape: Optional[Tuple[int, int]] = None,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> None:
         pass
 
@@ -363,16 +365,16 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
+        transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         raise NotImplementedError()
 
-    def _update_transform(
+    def _estimate_transform(
         self,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         scores: xr.DataArray,
-    ) -> Optional[np.ndarray]:
+    ) -> Optional[ProjectiveTransform]:
         max_source_scores = np.amax(scores, axis=1)
         top_source_indices = np.argpartition(-max_source_scores, self.top_k_estim - 1)[
             : self.top_k_estim
@@ -384,23 +386,121 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         if updated_transform.estimate(
             source_points[top_source_indices], target_points[top_target_indices]
         ):
-            return updated_transform.params
+            return updated_transform
         return None
 
     def _post_iter(
         self,
         iteration: int,
         scores: xr.DataArray,
-        updated_transform: Optional[np.ndarray],
+        updated_transform: Optional[ProjectiveTransform],
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
         source_shape: Optional[Tuple[int, int]] = None,
         target_shape: Optional[Tuple[int, int]] = None,
-        transform: Optional[np.ndarray] = None,
-    ) -> Tuple[xr.DataArray, np.ndarray, bool]:
+        transform: Optional[ProjectiveTransform] = None,
+    ) -> Tuple[xr.DataArray, Optional[ProjectiveTransform], bool]:
         return scores, updated_transform, False
+
+
+# class EuclideanGraphMatchingAlgorithm(PointsMatchingAlgorithm):
+#     def __init__(
+#         self,
+#         points_feature: str = "centroid",
+#         intensities_feature: str = "intensity_mean",
+#     ) -> None:
+#         super(EuclideanGraphMatchingAlgorithm, self).__init__(
+#             points_feature, intensities_feature
+#         )
+
+#     def _match_points(
+#         self,
+#         source_points: pd.DataFrame,
+#         target_points: pd.DataFrame,
+#         source_intensities: Optional[pd.DataFrame] = None,
+#         target_intensities: Optional[pd.DataFrame] = None,
+#         source_shape: Optional[Tuple[int, int]] = None,
+#         target_shape: Optional[Tuple[int, int]] = None,
+#         transform: Optional[ProjectiveTransform] = None,
+#     ) -> xr.DataArray:
+#         pass  # TODO
+
+#     def match_graphs(
+#         self,
+#         source_adj: xr.DataArray,
+#         target_adj: xr.DataArray,
+#         source_dists: Optional[xr.DataArray] = None,
+#         target_dists: Optional[xr.DataArray] = None,
+#         source_intensities: Optional[pd.DataFrame] = None,
+#         target_intensities: Optional[pd.DataFrame] = None,
+#     ) -> xr.DataArray:
+#         self._pre_match_graphs(
+#             source_adj,
+#             target_adj,
+#             source_dists=source_dists,
+#             target_dists=target_dists,
+#             source_intensities=source_intensities,
+#             target_intensities=target_intensities,
+#         )
+#         scores = self._match_graphs(
+#             source_adj,
+#             target_adj,
+#             source_dists=source_dists,
+#             target_dists=target_dists,
+#             source_intensities=source_intensities,
+#             target_intensities=target_intensities,
+#         )
+#         scores = self._post_match_graphs(
+#             scores,
+#             source_adj,
+#             target_adj,
+#             source_dists=source_dists,
+#             target_dists=target_dists,
+#             source_intensities=source_intensities,
+#             target_intensities=target_intensities,
+#         )
+#         return scores
+
+#     def _pre_match_graphs(
+#         self,
+#         source_adj: xr.DataArray,
+#         target_adj: xr.DataArray,
+#         source_dists: Optional[xr.DataArray] = None,
+#         target_dists: Optional[xr.DataArray] = None,
+#         source_intensities: Optional[pd.DataFrame] = None,
+#         target_intensities: Optional[pd.DataFrame] = None,
+#     ) -> None:
+#         pass
+
+#     @abstractmethod
+#     def _match_graphs(
+#         self,
+#         source_adj: xr.DataArray,
+#         target_adj: xr.DataArray,
+#         source_dists: Optional[xr.DataArray] = None,
+#         target_dists: Optional[xr.DataArray] = None,
+#         source_intensities: Optional[pd.DataFrame] = None,
+#         target_intensities: Optional[pd.DataFrame] = None,
+#     ) -> xr.DataArray:
+#         raise NotImplementedError()
+
+#     def _post_match_graphs(
+#         self,
+#         scores: xr.DataArray,
+#         source_adj: xr.DataArray,
+#         target_adj: xr.DataArray,
+#         source_dists: Optional[xr.DataArray] = None,
+#         target_dists: Optional[xr.DataArray] = None,
+#         source_intensities: Optional[pd.DataFrame] = None,
+#         target_intensities: Optional[pd.DataFrame] = None,
+#     ) -> xr.DataArray:
+#         return scores
+
+
+# class IterativeGraphMatchingAlgorithm(EuclideanGraphMatchingAlgorithm):
+#     pass  # TODO
 
 
 class SpellmatchMatchingAlgorithmError(SpellmatchMatchingError):
