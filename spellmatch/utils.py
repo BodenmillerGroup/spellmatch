@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from skimage.measure import regionprops
+from skimage.transform import ProjectiveTransform
 
 logger = logging.getLogger(__name__)
 
@@ -37,4 +38,12 @@ def compute_intensities(
         data=np.array([r[intensities_feature] for r in regions]),
         index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
         columns=img.coords.get("c"),
+    )
+
+
+def transform_points(points: pd.DataFrame, transform: np.ndarray) -> pd.DataFrame:
+    return pd.DataFrame(
+        data=ProjectiveTransform(matrix=transform)(points),
+        index=points.index.copy(),
+        columns=points.columns.copy(),
     )

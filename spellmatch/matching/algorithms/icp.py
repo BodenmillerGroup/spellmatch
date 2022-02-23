@@ -6,6 +6,7 @@ import pandas as pd
 import xarray as xr
 from sklearn.neighbors import NearestNeighbors
 
+from ...utils import transform_points
 from ._algorithms import IterativePointsMatchingAlgorithm
 
 logger = logging.getLogger(__name__)
@@ -92,12 +93,11 @@ class IterativeClosestPointsMatchingAlgorithm(IterativePointsMatchingAlgorithm):
         target_shape: Optional[Tuple[int, int]] = None,
         transform: Optional[np.ndarray] = None,
     ) -> xr.DataArray:
-        transformed_points = source_points.values
+        source_points = source_points
         if transform is not None:
-            tf = self.transform_type(matrix=transform)
-            transformed_points = tf(transformed_points)
-        source_indices = np.arange(len(transformed_points))
-        dists, target_indices = self._nn.kneighbors(transformed_points)
+            source_points = transform_points(source_points)
+        source_indices = np.arange(len(source_points.index))
+        dists, target_indices = self._nn.kneighbors(source_points.index)
         dists, target_indices = dists[:, 0], target_indices[:, 0]
         if self.max_dist:
             source_indices = source_indices[dists <= self.max_dist]

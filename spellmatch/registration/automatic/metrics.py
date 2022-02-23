@@ -1,6 +1,7 @@
 import logging
 from abc import ABC
 from enum import Enum
+from typing import Type
 
 import SimpleITK as sitk
 from pydantic import BaseModel
@@ -13,9 +14,16 @@ class Metric(BaseModel, ABC):
     sampling_strategy: str = "NONE"
     sampling_seed: int = sitk.sitkWallClock
 
+    class SamplingStrategy(Enum):
+        NONE = sitk.ImageRegistrationMethod.NONE
+        REGULAR = sitk.ImageRegistrationMethod.REGULAR
+        RANDOM = sitk.ImageRegistrationMethod.RANDOM
+
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         r.SetMetricSamplingPercentage(self.sampling_percentage, seed=self.sampling_seed)
-        r.SetMetricSamplingStrategy(_SamplingStrategy[self.sampling_strategy].value)
+        r.SetMetricSamplingStrategy(
+            Metric.SamplingStrategy[self.sampling_strategy].value
+        )
 
 
 class ANTSNeighborhoodCorrelationMetric(Metric):
@@ -66,7 +74,11 @@ class MeanSquaresMetric(Metric):
         r.SetMetricAsMeanSquares()
 
 
-class _SamplingStrategy(Enum):
-    NONE = sitk.ImageRegistrationMethod.NONE
-    REGULAR = sitk.ImageRegistrationMethod.REGULAR
-    RANDOM = sitk.ImageRegistrationMethod.RANDOM
+metric_types: dict[str, Type[Metric]] = {
+    "ants_neighborhood_correlation": ANTSNeighborhoodCorrelationMetric,
+    "correlation": CorrelationMetric,
+    "demons": DemonsMetric,
+    "joint_histogram_mutual_information": JointHistogramMutualInformationMetric,
+    "mattes_mutual_information": MattesMutualInformationMetric,
+    "mean_squares": MeanSquaresMetric,
+}

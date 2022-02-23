@@ -1,7 +1,7 @@
 import logging
 from abc import ABC
 from enum import Enum
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Type
 
 import SimpleITK as sitk
 from pydantic import BaseModel
@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 class Optimizer(BaseModel, ABC):
     scales: Optional[Sequence[float]] = None
     weights: Optional[Sequence[float]] = None
+
+    class LearningRateEstimationType(Enum):
+        Never = sitk.ImageRegistrationMethod.Never
+        Once = sitk.ImageRegistrationMethod.Once
+        EachIteration = sitk.ImageRegistrationMethod.EachIteration
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         if self.scales is not None:
@@ -61,7 +66,9 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
             lineSearchMaximumIterations=self.line_search_max_iter,
-            estimateLearningRate=_LearningRateEstimationType[self.lr_estim_type].value,
+            estimateLearningRate=Optimizer.LearningRateEstimationType[
+                self.lr_estim_type
+            ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
@@ -90,7 +97,9 @@ class GradientDescentOptimizer(Optimizer):
             self.num_iter,
             convergenceMinimumValue=self.conv_min_val,
             convergenceWindowSize=self.conv_window_size,
-            estimateLearningRate=_LearningRateEstimationType[self.lr_estim_type].value,
+            estimateLearningRate=Optimizer.LearningRateEstimationType[
+                self.lr_estim_type
+            ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
@@ -118,7 +127,9 @@ class GradientDescentLineSearchOptimizer(Optimizer):
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
             lineSearchMaximumIterations=self.line_search_max_iter,
-            estimateLearningRate=_LearningRateEstimationType[self.lr_estim_type].value,
+            estimateLearningRate=Optimizer.LearningRateEstimationType[
+                self.lr_estim_type
+            ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
@@ -231,12 +242,22 @@ class RegularStepGradientDescentOptimizer(Optimizer):
             self.num_iter,
             relaxationFactor=self.relax_factor,
             gradientMagnitudeTolerance=self.grad_magnitude_tol,
-            estimateLearningRate=_LearningRateEstimationType[self.lr_estim_type].value,
+            estimateLearningRate=Optimizer.LearningRateEstimationType[
+                self.lr_estim_type
+            ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
 
-class _LearningRateEstimationType(Enum):
-    Never = sitk.ImageRegistrationMethod.Never
-    Once = sitk.ImageRegistrationMethod.Once
-    EachIteration = sitk.ImageRegistrationMethod.EachIteration
+optimizer_types: dict[str, Type[Optimizer]] = {
+    "amoeba": AmoebaOptimizer,
+    "conjugate_gradient_line_search": ConjugateGradientLineSearchOptimizer,
+    "exhaustive": ExhaustiveOptimizer,
+    "gradient_descent": GradientDescentOptimizer,
+    "gradient_descent_line_search": GradientDescentLineSearchOptimizer,
+    "lbfgs2": LBFGS2Optimizer,
+    "lbfgsb": LBFGSBOptimizer,
+    "one_plus_one_evolutionary": OnePlusOneEvolutionaryOptimizer,
+    "powell": PowellOptimizer,
+    "regular_step_gradient_descent": RegularStepGradientDescentOptimizer,
+}

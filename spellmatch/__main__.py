@@ -4,7 +4,7 @@ from typing import Any, Optional, Type
 import click
 import click_log
 import numpy as np
-import SimpleITK as sitk
+import pluggy
 import yaml
 from skimage.transform import (
     AffineTransform,
@@ -13,13 +13,18 @@ from skimage.transform import (
     SimilarityTransform,
 )
 
-from . import io
+from . import hookspecs, io
 from ._spellmatch import logger as root_logger
 from .matching.algorithms import MatchingAlgorithm
 from .matching.algorithms.icp import IterativeClosestPointsMatchingAlgorithm
 from .registration import automatic as automatic_registration
 from .registration import interactive as interactive_registration
-from .registration.automatic import SimpleITKTransform, metrics, optimizers
+from .registration.automatic.metrics import (
+    metric_types as automatic_registration_metric_types,
+)
+from .registration.automatic.optimizers import (
+    optimizer_types as automatic_registration_optimizer_types,
+)
 
 click_log.basic_config(logger=root_logger)
 
@@ -29,38 +34,17 @@ skimage_transform_types: dict[str, Type[ProjectiveTransform]] = {
     "affine": AffineTransform,
 }
 
-sitk_transform_types: dict[str, Type[SimpleITKTransform]] = {
-    "euclidean": sitk.Euler2DTransform,
-    "similarity": sitk.Similarity2DTransform,
-    "affine": sitk.AffineTransform,
-}
-
-sitk_metric_types: dict[str, Type[metrics.Metric]] = {
-    "ants_neighborhood_correlation": metrics.ANTSNeighborhoodCorrelationMetric,
-    "correlation": metrics.CorrelationMetric,
-    "demons": metrics.DemonsMetric,
-    "joint_histogram_mutual_information": metrics.JointHistogramMutualInformationMetric,
-    "mattes_mutual_information": metrics.MattesMutualInformationMetric,
-    "mean_squares": metrics.MeanSquaresMetric,
-}
-
-sitk_optimizer_types: dict[str, Type[optimizers.Optimizer]] = {
-    "amoeba": optimizers.AmoebaOptimizer,
-    "conjugate_gradient_line_search": optimizers.ConjugateGradientLineSearchOptimizer,
-    "exhaustive": optimizers.ExhaustiveOptimizer,
-    "gradient_descent": optimizers.GradientDescentOptimizer,
-    "gradient_descent_line_search": optimizers.GradientDescentLineSearchOptimizer,
-    "lbfgs2": optimizers.LBFGS2Optimizer,
-    "lbfgsb": optimizers.LBFGSBOptimizer,
-    "one_plus_one_evolutionary": optimizers.OnePlusOneEvolutionaryOptimizer,
-    "powell": optimizers.PowellOptimizer,
-    "regular_step_gradient_descent": optimizers.RegularStepGradientDescentOptimizer,
-}
-
 matching_algorithm_types: dict[str, Type[MatchingAlgorithm]] = {
     "icp": IterativeClosestPointsMatchingAlgorithm,
     # TODO add further matching algorithm types
 }
+
+
+def get_plugin_manager() -> pluggy.PluginManager:
+    pm = pluggy.PluginManager("spellmatch")
+    pm.add_hookspecs(hookspecs)
+    pm.load_setuptools_entrypoints("spellmatch")
+    return pm
 
 
 @click.group()
@@ -260,7 +244,7 @@ def align(
     "metric_name",
     default="correlation",
     show_default=True,
-    type=click.Choice(list(sitk_metric_types.keys())),
+    type=click.Choice(list(automatic_registration_metric_types.keys())),
 )
 @click.option(
     "--metric-args",
@@ -274,7 +258,7 @@ def align(
     "optimizer_name",
     default="regular_step_gradient_descent",
     show_default=True,
-    type=click.Choice(list(sitk_optimizer_types.keys())),
+    type=click.Choice(list(automatic_registration_optimizer_types.keys())),
 )
 @click.option(
     "--optimizer-args",
@@ -288,7 +272,7 @@ def align(
     "sitk_transform_type_name",
     default="affine",
     show_default=True,
-    type=click.Choice(list(sitk_transform_types.keys())),
+    type=click.Choice(list(automatic_registration.transform_types.keys())),
 )
 @click.option(
     "--initial-transforms",
@@ -322,10 +306,13 @@ def register(
     initial_transform_path: Optional[Path],
     transform_path: Path,
 ) -> None:
+    metric_type = automatic_registration_metric_types[metric_name]
     metric_kwargs = _parse_kwargs(metric_kwargs_str)
-    metric = sitk_metric_types[metric_name](**metric_kwargs)
+    metric = metric_type(**metric_kwargs)
+    optimizer_type = automatic_registration_optimizer_types[optimizer_name]
     optimizer_kwargs = _parse_kwargs(optimizer_kwargs_str)
-    optimizer = sitk_optimizer_types[optimizer_name](**optimizer_kwargs)
+    optimizer = optimizer_type(**optimizer_kwargs)
+    transform_type = automatic_registration.transform_types[sitk_transform_type_name]
     if (
         source_img_path.is_file()
         and target_img_path.is_file()
@@ -435,7 +422,7 @@ def register(
             target_img,
             metric,
             optimizer,
-            transform_type=sitk_transform_types[sitk_transform_type_name],
+            transform_type=transform_type,
             initial_transform_matrix=initial_transform,
             denoise_source=denoise_source,
             denoise_target=denoise_target,

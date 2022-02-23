@@ -1,13 +1,15 @@
 from ._automatic import (
-    SimpleITKTransform,
     SpellmatchAutomaticRegistrationError,
+    Transform,
     logger,
     register_images,
+    transform_types,
 )
 
 __all__ = [
-    "SimpleITKTransform",
     "SpellmatchAutomaticRegistrationError",
+    "Transform",
     "logger",
     "register_images",
+    "transform_types",
 ]

@@ -9,11 +9,17 @@ from .._registration import SpellmatchRegistrationError
 from .metrics import Metric
 from .optimizers import Optimizer
 
-SimpleITKTransform = Union[
+Transform = Union[
     sitk.Euler2DTransform, sitk.Similarity2DTransform, sitk.AffineTransform
 ]
 
 logger = logging.getLogger(__name__)
+
+transform_types: dict[str, Transform] = {
+    "euclidean": sitk.Euler2DTransform,
+    "similarity": sitk.Similarity2DTransform,
+    "affine": sitk.AffineTransform,
+}
 
 # TODO automatic registation visualization
 
@@ -23,13 +29,13 @@ def register_images(
     target_img: xr.DataArray,
     metric: Metric,
     optimizer: Optimizer,
-    transform_type: Type[SimpleITKTransform] = sitk.AffineTransform,
+    transform_type: Type[Transform] = sitk.AffineTransform,
     initial_transform_matrix: Optional[np.ndarray] = None,
     denoise_source: Optional[float] = None,
     denoise_target: Optional[float] = None,
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
-) -> SimpleITKTransform:
+) -> Transform:
     moving = sitk.GetImageFromArray(source_img.to_numpy())
     if "scale" in source_img.attrs:
         moving.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
@@ -57,7 +63,7 @@ def register_images(
     method = sitk.ImageRegistrationMethod()
     metric.configure(method)
     optimizer.configure(method)
-    initial_transform: SimpleITKTransform = sitk.CenteredTransformInitializer(
+    initial_transform: Transform = sitk.CenteredTransformInitializer(
         fixed,
         moving,
         transform_type(),
