@@ -43,11 +43,11 @@ def get_plugin_manager() -> pluggy.PluginManager:
 
 @click.group()
 @click.version_option()
-def cli() -> None:
+def spellmatch() -> None:
     pass
 
 
-@cli.command()
+@spellmatch.command()
 @click.argument(
     "source_mask_file",
     metavar="SOURCE_MASK",
@@ -165,7 +165,7 @@ def align(
         raise click.Abort()
 
 
-@cli.command()
+@spellmatch.command()
 @click.argument(
     "source_img_path",
     metavar="SOURCE_IMAGES",
@@ -429,7 +429,7 @@ def register(
         io.write_transform(transform_file, transform)
 
 
-@cli.command()
+@spellmatch.command()
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASKS",
@@ -655,7 +655,7 @@ def match(
         io.write_scores(scores_file, scores)
 
 
-@cli.command()
+@spellmatch.command()
 @click_log.simple_verbosity_option(logger=root_logger)
 def assign() -> None:
     pass  # TODO implement assign command
@@ -670,4 +670,4 @@ def _parse_kwargs(kwargs_str: str) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    cli()
+    spellmatch()
