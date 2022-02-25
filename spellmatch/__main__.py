@@ -17,10 +17,12 @@ from skimage.transform import (
 from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
 from .alignment import align_masks
-from .matching.algorithms import MaskMatchingAlgorithm, icp
+from .matching.algorithms import MaskMatchingAlgorithm, icp, probreg, spellmatch
 from .registration import register_images, sitk_transform_types
 from .registration.metrics import metric_types as registration_metric_types
 from .registration.optimizers import optimizer_types as registration_optimizer_types
+
+click_log.basic_config(logger=logger)
 
 transform_types: dict[str, Type[ProjectiveTransform]] = {
     "rigid": EuclideanTransform,
@@ -28,7 +30,15 @@ transform_types: dict[str, Type[ProjectiveTransform]] = {
     "affine": AffineTransform,
 }
 
-click_log.basic_config(logger=logger)
+
+def get_plugin_manager() -> pluggy.PluginManager:
+    pm = pluggy.PluginManager("spellmatch")
+    pm.add_hookspecs(hookspecs)
+    pm.load_setuptools_entrypoints("spellmatch")
+    pm.register(icp, name="spellmatch-icp")
+    pm.register(probreg, name="spellmatch-probreg")
+    pm.register(spellmatch, name="spellmatch-spellmatch")
+    return pm
 
 
 def catch_exception(func=None, *, handle=SpellmatchException):
@@ -45,20 +55,33 @@ def catch_exception(func=None, *, handle=SpellmatchException):
     return wrapper
 
 
-def get_plugin_manager() -> pluggy.PluginManager:
-    pm = pluggy.PluginManager("spellmatch")
-    pm.add_hookspecs(hookspecs)
-    pm.load_setuptools_entrypoints("spellmatch")
-    pm.register(icp, name="spellmatch-icp")
-    return pm
+class KeywordArgumentsParamType(click.ParamType):
+    def convert(
+        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
+    ) -> Any:
+        if not isinstance(value, str):
+            return self.fail(f"{value} is not a string", param=param, ctx=ctx)
+        if not value:
+            return {}
+        key_value_pairs = []
+        for key_value_pair_str in value.split(","):
+            key_value_pair = key_value_pair_str.split(sep="=", maxsplit=1)
+            if len(key_value_pair) != 2:
+                return self.fail(
+                    f"{key_value_pair_str} is not a valid key-value pair",
+                    param=param,
+                    ctx=ctx,
+                )
+            key_value_pairs.append(key_value_pair)
+        yaml_doc = "\n".join(f"{key}: {value}" for key, value in key_value_pairs)
+        try:
+            kwargs = yaml.load(yaml_doc, yaml.Loader)
+        except yaml.YAMLError as e:
+            return self.fail(f"cannot be parsed as YAML: {e}", param=param, ctx=ctx)
+        return kwargs
 
 
-def parse_kwargs(kwargs_str: str) -> dict[str, Any]:
-    key_value_pairs = [
-        key_value_pair_str.split(sep="=", maxsplit=1)
-        for key_value_pair_str in kwargs_str.split(sep=",")
-    ]
-    return yaml.load("\n".join(f"{k}: {v}" for k, v in key_value_pairs), yaml.Loader)
+KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
 
 
 @click.group(name="spellmatch")
@@ -276,10 +299,10 @@ def align(
 )
 @click.option(
     "--metric-args",
-    "metric_kwargs_str",
+    "metric_kwargs",
     default="",
     show_default=True,
-    type=click.STRING,
+    type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--optimizer",
@@ -290,10 +313,10 @@ def align(
 )
 @click.option(
     "--optimizer-args",
-    "optimizer_kwargs_str",
+    "optimizer_kwargs",
     default="lr=2.0,min_step=1e-4,num_iter=500,grad_magnitude_tol=1e-8",
     show_default=True,
-    type=click.STRING,
+    type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--transform-type",
@@ -327,19 +350,15 @@ def register(
     blur_source: Optional[float],
     blur_target: Optional[float],
     metric_name: str,
-    metric_kwargs_str: str,
+    metric_kwargs: dict[str, Any],
     optimizer_name: str,
-    optimizer_kwargs_str: str,
+    optimizer_kwargs: dict[str, Any],
     sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
     transform_path: Path,
 ) -> None:
-    metric_type = registration_metric_types[metric_name]
-    metric_kwargs = parse_kwargs(metric_kwargs_str)
-    metric = metric_type(**metric_kwargs)
-    optimizer_type = registration_optimizer_types[optimizer_name]
-    optimizer_kwargs = parse_kwargs(optimizer_kwargs_str)
-    optimizer = optimizer_type(**optimizer_kwargs)
+    metric = registration_metric_types[metric_name](**metric_kwargs)
+    optimizer = registration_optimizer_types[optimizer_name](**optimizer_kwargs)
     sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
     if (
         source_img_path.is_file()
@@ -411,7 +430,7 @@ def register(
                         source_img = source_img[int(source_channel)]
                     except (ValueError, IndexError):
                         raise click.UsageError(
-                            f"Source channel {source_channel} is not a channel name"
+                            f"Source channel {source_channel} is not a channel name "
                             f"or valid index in source image {source_img_file.name}"
                         )
             else:
@@ -434,7 +453,7 @@ def register(
                         target_img = target_img[int(target_channel)]
                     except (ValueError, IndexError):
                         raise click.UsageError(
-                            f"Target channel {target_channel} is not a channel name"
+                            f"Target channel {target_channel} is not a channel name "
                             f"or valid index in target image {target_img_file.name}"
                         )
             else:
@@ -518,10 +537,10 @@ def register(
 )
 @click.option(
     "--algorithm-args",
-    "mask_matching_algorithm_kwargs_str",
+    "mask_matching_algorithm_kwargs",
     default="max_iter=10,top_k_estim=50,max_dist=5.0",
     show_default=True,
-    type=click.STRING,
+    type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--transforms",
@@ -550,7 +569,7 @@ def match(
     source_scale: float,
     target_scale: float,
     mask_matching_algorithm_name: str,
-    mask_matching_algorithm_kwargs_str: str,
+    mask_matching_algorithm_kwargs: dict[str, Any],
     transform_path: Optional[Path],
     reverse: bool,
     scores_path: Path,
@@ -561,7 +580,6 @@ def match(
     ] = pm.hook.spellmatch_get_mask_matching_algorithm(
         name=mask_matching_algorithm_name
     )
-    mask_matching_algorithm_kwargs = parse_kwargs(mask_matching_algorithm_kwargs_str)
     mask_matching_algorithm = mask_matching_algorithm_type(
         **mask_matching_algorithm_kwargs
     )

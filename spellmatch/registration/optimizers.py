@@ -228,7 +228,7 @@ class RegularStepGradientDescentOptimizer(Optimizer):
     num_iter: int
     relax_factor: float = 0.5
     grad_magnitude_tol: float = 1e-4
-    lr_estim_type: str = "NEVER"
+    lr_estim_type: str = "Never"
     max_step_size: float = 0.0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
