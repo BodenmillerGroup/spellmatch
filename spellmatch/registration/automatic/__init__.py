@@ -1,7 +1,6 @@
 from ._automatic import (
     SITKProjectiveTransform,
     SpellmatchAutomaticRegistrationError,
-    logger,
     register_images,
     sitk_transform_types,
 )
@@ -9,7 +8,6 @@ from ._automatic import (
 __all__ = [
     "SITKProjectiveTransform",
     "SpellmatchAutomaticRegistrationError",
-    "logger",
     "register_images",
     "sitk_transform_types",
 ]

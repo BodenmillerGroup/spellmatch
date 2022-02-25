@@ -1,4 +1,3 @@
-import logging
 from typing import Optional, Tuple, Type, Union
 
 import numpy as np
@@ -13,8 +12,6 @@ from ...utils import compute_points
 from .._registration import SpellmatchRegistrationError
 from ._qt import QPointMatchingDialog
 
-logger = logging.getLogger(__name__)
-
 
 def align_masks(
     source_mask: xr.DataArray,
@@ -27,12 +24,12 @@ def align_masks(
     if source_img is not None and source_img.shape[:-2] != source_mask.shape:
         raise SpellmatchInteractiveRegistrationError(
             f"Source image has shape {source_img.shape}, "
-            f"source mask has shape {source_mask.shape}"
+            f"but source mask has shape {source_mask.shape}"
         )
     if target_img is not None and target_img.shape[:-2] != target_mask.shape:
         raise SpellmatchInteractiveRegistrationError(
             f"Source image has shape {target_img.shape}, "
-            f"source mask has shape {target_mask.shape}"
+            f"but source mask has shape {target_mask.shape}"
         )
     app = QApplication([])
 

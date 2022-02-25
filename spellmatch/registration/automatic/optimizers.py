@@ -1,12 +1,9 @@
-import logging
 from abc import ABC
 from enum import Enum
 from typing import Optional, Sequence, Type
 
 import SimpleITK as sitk
 from pydantic import BaseModel
-
-logger = logging.getLogger(__name__)
 
 
 class Optimizer(BaseModel, ABC):

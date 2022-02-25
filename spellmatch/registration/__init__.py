@@ -1,3 +1,3 @@
-from ._registration import SpellmatchRegistrationError, logger
+from ._registration import SpellmatchRegistrationError
 
-__all__ = ["SpellmatchRegistrationError", "logger"]
+__all__ = ["SpellmatchRegistrationError"]

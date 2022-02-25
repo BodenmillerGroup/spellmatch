@@ -22,8 +22,6 @@ sitk_transform_types: dict[str, SITKProjectiveTransform] = {
     "affine": sitk.AffineTransform,
 }
 
-# TODO automatic registation visualization
-
 
 def register_images(
     source_img: xr.DataArray,

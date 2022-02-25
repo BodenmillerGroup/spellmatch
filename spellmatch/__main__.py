@@ -3,6 +3,7 @@ from typing import Any, Optional, Type
 
 import click
 import click_log
+import numpy as np
 import pluggy
 import yaml
 from skimage.transform import (
@@ -13,8 +14,8 @@ from skimage.transform import (
 )
 
 from . import hookspecs, io
-from ._spellmatch import logger as root_logger
-from .matching.algorithms import icp
+from ._spellmatch import logger as spellmatch_logger
+from .matching.algorithms import MaskMatchingAlgorithm, icp
 from .registration import automatic as automatic_registration
 from .registration import interactive as interactive_registration
 from .registration.automatic.metrics import (
@@ -30,7 +31,7 @@ transform_types: dict[str, Type[ProjectiveTransform]] = {
     "affine": AffineTransform,
 }
 
-click_log.basic_config(logger=root_logger)
+click_log.basic_config(logger=spellmatch_logger)
 
 
 def get_plugin_manager() -> pluggy.PluginManager:
@@ -43,6 +44,7 @@ def get_plugin_manager() -> pluggy.PluginManager:
 
 @click.group()
 @click.version_option()
+@click_log.simple_verbosity_option(logger=spellmatch_logger)
 def spellmatch() -> None:
     pass
 
@@ -113,7 +115,6 @@ def spellmatch() -> None:
     metavar="TRANSFORM",
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=root_logger)
 def align(
     source_mask_file: Path,
     target_mask_file: Path,
@@ -279,7 +280,6 @@ def align(
     metavar="TRANSFORMS",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=root_logger)
 def register(
     source_img_path: Path,
     target_img_path: Path,
@@ -480,14 +480,14 @@ def register(
 )
 @click.option(
     "--algorithm",
-    "matching_algorithm_name",
+    "mask_matching_algorithm_name",
     default="icp",
     show_default=True,
     type=click.STRING,
 )
 @click.option(
     "--algorithm-args",
-    "matching_algorithm_kwargs_str",
+    "mask_matching_algorithm_kwargs_str",
     default="max_iter=10,top_k_estim=50,max_dist=5.0",
     show_default=True,
     type=click.STRING,
@@ -508,7 +508,6 @@ def register(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=root_logger)
 def match(
     source_mask_path: Path,
     target_mask_path: Path,
@@ -518,18 +517,22 @@ def match(
     target_panel_file: Path,
     source_scale: float,
     target_scale: float,
-    matching_algorithm_name: str,
-    matching_algorithm_kwargs_str: str,
+    mask_matching_algorithm_name: str,
+    mask_matching_algorithm_kwargs_str: str,
     transform_path: Optional[Path],
     reverse: bool,
     scores_path: Path,
 ) -> None:
     pm = get_plugin_manager()
-    matching_algorithm_type = pm.hook.spellmatch_get_matching_algorithm(
-        name=matching_algorithm_name
+    mask_matching_algorithm_type: Type[
+        MaskMatchingAlgorithm
+    ] = pm.hook.spellmatch_get_mask_matching_algorithm(
+        name=mask_matching_algorithm_name
     )
-    matching_algorithm_kwargs = _parse_kwargs(matching_algorithm_kwargs_str)
-    matching_algorithm = matching_algorithm_type(**matching_algorithm_kwargs)
+    mask_matching_algorithm_kwargs = _parse_kwargs(mask_matching_algorithm_kwargs_str)
+    mask_matching_algorithm = mask_matching_algorithm_type(
+        **mask_matching_algorithm_kwargs
+    )
     if (
         source_mask_path.is_file()
         and target_mask_path.is_file()
@@ -644,19 +647,22 @@ def match(
         transform = None
         if transform_file is not None:
             transform = io.read_transform(transform_file)
-        scores = matching_algorithm(
+        if reverse:
+            source_mask, target_mask = target_mask, source_mask
+            source_img, target_img = target_img, source_img
+            if transform is not None:
+                transform = np.linalg.inv(transform)
+        scores = mask_matching_algorithm.match_masks(
             source_mask,
             target_mask,
             source_img=source_img,
             target_img=target_img,
             transform=transform,
-            reverse=reverse,
         )
         io.write_scores(scores_file, scores)
 
 
 @spellmatch.command()
-@click_log.simple_verbosity_option(logger=root_logger)
 def assign() -> None:
     pass  # TODO implement assign command
 

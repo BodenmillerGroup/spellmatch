@@ -1,4 +1,3 @@
-import logging
 from os import PathLike
 from pathlib import Path
 from typing import Optional, Union
@@ -13,8 +12,6 @@ from ._spellmatch import SpellmatchError
 
 _DEFAULT_PANEL_NAME_COL = "name"
 _DEFAULT_PANEL_KEEP_COL = "keep"
-
-logger = logging.getLogger(__name__)
 
 
 def read_panel(
