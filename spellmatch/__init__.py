@@ -3,6 +3,6 @@ try:
 except ImportError:
     __version__ = "unknown"
 
-from ._spellmatch import SpellmatchError, hookimpl, logger
+from ._spellmatch import SpellmatchException, hookimpl, logger
 
-__all__ = ["SpellmatchError", "hookimpl", "logger"]
+__all__ = ["SpellmatchException", "hookimpl", "logger"]

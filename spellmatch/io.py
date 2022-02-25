@@ -8,7 +8,7 @@ import tifffile
 import xarray as xr
 from skimage.transform import ProjectiveTransform
 
-from ._spellmatch import SpellmatchError
+from ._spellmatch import SpellmatchException
 
 _DEFAULT_PANEL_NAME_COL = "name"
 _DEFAULT_PANEL_KEEP_COL = "keep"
@@ -20,7 +20,7 @@ def read_panel(
     panel_file = Path(panel_file)
     panel = pd.read_csv(panel_file)
     if panel_name_col not in panel:
-        raise SpellmatchIOError(
+        raise SpellmatchIOException(
             f"Column '{panel_name_col}' is missing in panel {panel_file.name}"
         )
     return panel
@@ -40,13 +40,16 @@ def read_image(
         coords = None
     elif img.ndim == 3:
         if panel is None:
-            raise SpellmatchIOError(
+            raise SpellmatchIOException(
                 f"No panel provided for multi-channel image {img_file.name}"
             )
         if panel_name_col not in panel:
-            raise SpellmatchIOError(f"Column '{panel_name_col}' is missing in panel")
+            raise SpellmatchIOException(
+                f"Column '{panel_name_col}' is missing in panel"
+                f" for image {img_file.name}"
+            )
         if len(panel.index) != img.shape[0]:
-            raise SpellmatchIOError(
+            raise SpellmatchIOException(
                 f"Panel contains {len(panel.index)} channels, "
                 f"but {img_file.name} has {img.shape[0]} channels"
             )
@@ -56,13 +59,13 @@ def read_image(
             channel_names = channel_names[panel[panel_keep_col] == 1]
         dupl_channel_names = channel_names.loc[channel_names.duplicated()]
         if len(dupl_channel_names) > 0:
-            raise SpellmatchIOError(
+            raise SpellmatchIOException(
                 f"Duplicated channel names in panel: {dupl_channel_names.tolist()}"
             )
         dims = ("c", "y", "x")
         coords = {"c": channel_names.tolist()}
     else:
-        raise SpellmatchIOError(
+        raise SpellmatchIOException(
             f"{img_file.name} has shape {img.shape}, expected two or three dimensions"
         )
     return xr.DataArray(
@@ -74,7 +77,7 @@ def read_mask(mask_file: Union[str, PathLike], scale: float = 1.0) -> xr.DataArr
     mask_file = Path(mask_file)
     mask: np.ndarray = tifffile.imread(mask_file)
     if mask.ndim != 2:
-        raise SpellmatchIOError(
+        raise SpellmatchIOException(
             f"{mask_file.name} has shape {mask.shape}, expected 2 dimensions (y, x)"
         )
     return xr.DataArray(
@@ -82,26 +85,26 @@ def read_mask(mask_file: Union[str, PathLike], scale: float = 1.0) -> xr.DataArr
     )
 
 
-def read_cell_pairs(cell_pairs_file: Union[str, PathLike]) -> pd.DataFrame:
-    cell_pairs_file = Path(cell_pairs_file)
-    return pd.read_csv(cell_pairs_file, usecols=["Source", "Target"])
+def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
+    assignment_file = Path(assignment_file)
+    return pd.read_csv(assignment_file, usecols=["Source", "Target"])
 
 
-def write_cell_pairs(
-    cell_pairs_file: Union[str, PathLike], cell_pairs: pd.DataFrame
+def write_assignment(
+    assignment_file: Union[str, PathLike], assignment: pd.DataFrame
 ) -> None:
-    cell_pairs_file = Path(cell_pairs_file)
-    assert len(cell_pairs.columns) == 2
-    assert cell_pairs.columns[0] == "Source"
-    assert cell_pairs.columns[1] == "Target"
-    cell_pairs.to_csv(cell_pairs_file, index=False)
+    assignment_file = Path(assignment_file)
+    assert len(assignment.columns) == 2
+    assert assignment.columns[0] == "Source"
+    assert assignment.columns[1] == "Target"
+    assignment.to_csv(assignment_file, index=False)
 
 
 def read_transform(transform_file: Union[str, PathLike]) -> ProjectiveTransform:
     transform_file = Path(transform_file)
     transform_matrix: np.ndarray = np.load(transform_file, allow_pickle=False)
     if transform_matrix.shape != (3, 3):
-        raise SpellmatchIOError(
+        raise SpellmatchIOException(
             f"Transform {transform_file.name} has shape {transform_matrix.shape}, "
             "expected (3, 3)"
         )
@@ -123,5 +126,5 @@ def write_scores(scores_file: Union[str, PathLike], scores: xr.DataArray) -> Non
     scores.to_netcdf(scores_file, format="NETCDF3_CLASSIC", engine="scipy")
 
 
-class SpellmatchIOError(SpellmatchError):
+class SpellmatchIOException(SpellmatchException):
     pass

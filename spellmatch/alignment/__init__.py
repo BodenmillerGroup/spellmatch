@@ -1,3 +1,3 @@
-from ._alignment import SpellmatchAlignmentError, align_masks
+from ._alignment import SpellmatchAlignmentException, align_masks
 
-__all__ = ["SpellmatchAlignmentError", "align_masks"]
+__all__ = ["SpellmatchAlignmentException", "align_masks"]

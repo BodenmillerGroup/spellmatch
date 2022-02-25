@@ -1,3 +1,4 @@
+from functools import partial, wraps
 from pathlib import Path
 from typing import Any, Optional, Type
 
@@ -14,6 +15,7 @@ from skimage.transform import (
 )
 
 from . import hookspecs, io
+from ._spellmatch import SpellmatchException
 from ._spellmatch import logger as spellmatch_logger
 from .alignment import align_masks
 from .matching.algorithms import MaskMatchingAlgorithm, icp
@@ -36,6 +38,20 @@ def get_plugin_manager() -> pluggy.PluginManager:
     pm.load_setuptools_entrypoints("spellmatch")
     pm.register(icp, name="spellmatch-icp")
     return pm
+
+
+def catch_exception(func=None, *, handle):
+    if not func:
+        return partial(catch_exception, handle=handle)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except handle as e:
+            raise click.ClickException(e)
+
+    return wrapper
 
 
 @click.group(name="spellmatch")
@@ -102,8 +118,8 @@ def cli() -> None:
     type=click.Choice(list(transform_types.keys())),
 )
 @click.argument(
-    "cell_pairs_file",
-    metavar="CELL_PAIRS",
+    "assignment_file",
+    metavar="ASSIGNMENT",
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
 )
 @click.argument(
@@ -111,6 +127,7 @@ def cli() -> None:
     metavar="TRANSFORM",
     type=click.Path(dir_okay=False, writable=True, path_type=Path),
 )
+@catch_exception(handle=SpellmatchException)
 def align(
     source_mask_file: Path,
     target_mask_file: Path,
@@ -121,7 +138,7 @@ def align(
     source_scale: float,
     target_scale: float,
     transform_type_name: str,
-    cell_pairs_file: Path,
+    assignment_file: Path,
     transform_file: Path,
 ) -> None:
     source_mask = io.read_mask(source_mask_file, scale=source_scale)
@@ -142,20 +159,20 @@ def align(
         target_img = io.read_image(
             target_img_file, panel=target_panel, scale=target_scale
         )
-    cell_pairs = None
-    if cell_pairs_file.exists():
-        cell_pairs = io.read_cell_pairs(cell_pairs_file)
+    assignment = None
+    if assignment_file.exists():
+        assignment = io.read_assignment(assignment_file)
     result = align_masks(
         source_mask,
         target_mask,
         source_img=source_img,
         target_img=target_img,
         transform_type=transform_types[transform_type_name],
-        cell_pairs=cell_pairs,
+        assignment=assignment,
     )
     if result is not None:
-        cell_pairs, transform = result
-        io.write_cell_pairs(cell_pairs_file, cell_pairs)
+        assignment, transform = result
+        io.write_assignment(assignment_file, assignment)
         if transform is not None:
             io.write_transform(transform_file, transform)
     else:
@@ -276,6 +293,7 @@ def align(
     metavar="TRANSFORMS",
     type=click.Path(path_type=Path),
 )
+@catch_exception(handle=SpellmatchException)
 def register(
     source_img_path: Path,
     target_img_path: Path,
@@ -502,6 +520,7 @@ def register(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
+@catch_exception(handle=SpellmatchException)
 def match(
     source_mask_path: Path,
     target_mask_path: Path,

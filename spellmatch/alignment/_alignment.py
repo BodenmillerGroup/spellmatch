@@ -8,7 +8,7 @@ from napari.viewer import Viewer
 from qtpy.QtWidgets import QApplication
 from skimage.transform import AffineTransform, ProjectiveTransform
 
-from .._spellmatch import SpellmatchError
+from .._spellmatch import SpellmatchException
 from ..utils import compute_points
 from ._qt import QPointMatchingDialog
 
@@ -19,15 +19,15 @@ def align_masks(
     source_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
     target_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
     transform_type: Type[ProjectiveTransform] = AffineTransform,
-    cell_pairs: Optional[pd.DataFrame] = None,
+    assignment: Optional[pd.DataFrame] = None,
 ) -> Optional[Tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
     if source_img is not None and source_img.shape[:-2] != source_mask.shape:
-        raise SpellmatchAlignmentError(
+        raise SpellmatchAlignmentException(
             f"Source image has shape {source_img.shape}, "
             f"but source mask has shape {source_mask.shape}"
         )
     if target_img is not None and target_img.shape[:-2] != target_mask.shape:
-        raise SpellmatchAlignmentError(
+        raise SpellmatchAlignmentException(
             f"Source image has shape {target_img.shape}, "
             f"but source mask has shape {target_mask.shape}"
         )
@@ -45,13 +45,13 @@ def align_masks(
         compute_points(target_mask),
         transform_type=transform_type,
         label_pairs_columns=(
-            cell_pairs.columns.tolist()
-            if cell_pairs is not None
+            assignment.columns.tolist()
+            if assignment is not None
             else ("Source", "Target")
         ),
     )
-    if cell_pairs is not None:
-        point_matching_dialog.label_pairs = cell_pairs
+    if assignment is not None:
+        point_matching_dialog.label_pairs = assignment
 
     def on_layer_mouse_drag(mask_layer: Labels, event) -> None:
         selected_label = mask_layer.get_value(event.position, world=True)
@@ -127,5 +127,5 @@ def _create_viewer(
     return viewer, mask_layer, img_layers
 
 
-class SpellmatchAlignmentError(SpellmatchError):
+class SpellmatchAlignmentException(SpellmatchException):
     pass

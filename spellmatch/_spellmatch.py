@@ -8,5 +8,5 @@ logger = logging.getLogger(__name__)
 hookimpl = pluggy.HookimplMarker("spellmatch")
 
 
-class SpellmatchError(Exception):
+class SpellmatchException(Exception):
     pass
