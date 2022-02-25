@@ -15,15 +15,11 @@ from skimage.transform import (
 
 from . import hookspecs, io
 from ._spellmatch import logger as spellmatch_logger
+from .alignment import align_masks
 from .matching.algorithms import MaskMatchingAlgorithm, icp
-from .registration import automatic as automatic_registration
-from .registration import interactive as interactive_registration
-from .registration.automatic.metrics import (
-    metric_types as automatic_registration_metric_types,
-)
-from .registration.automatic.optimizers import (
-    optimizer_types as automatic_registration_optimizer_types,
-)
+from .registration import register_images, sitk_transform_types
+from .registration.metrics import metric_types as registration_metric_types
+from .registration.optimizers import optimizer_types as registration_optimizer_types
 
 transform_types: dict[str, Type[ProjectiveTransform]] = {
     "euclidean": EuclideanTransform,
@@ -42,14 +38,14 @@ def get_plugin_manager() -> pluggy.PluginManager:
     return pm
 
 
-@click.group()
+@click.group(name="spellmatch")
 @click.version_option()
 @click_log.simple_verbosity_option(logger=spellmatch_logger)
-def spellmatch() -> None:
+def cli() -> None:
     pass
 
 
-@spellmatch.command()
+@cli.command()
 @click.argument(
     "source_mask_file",
     metavar="SOURCE_MASK",
@@ -149,7 +145,7 @@ def align(
     cell_pairs = None
     if cell_pairs_file.exists():
         cell_pairs = io.read_cell_pairs(cell_pairs_file)
-    result = interactive_registration.align_masks(
+    result = align_masks(
         source_mask,
         target_mask,
         source_img=source_img,
@@ -166,7 +162,7 @@ def align(
         raise click.Abort()
 
 
-@spellmatch.command()
+@cli.command()
 @click.argument(
     "source_img_path",
     metavar="SOURCE_IMAGES",
@@ -240,7 +236,7 @@ def align(
     "metric_name",
     default="correlation",
     show_default=True,
-    type=click.Choice(list(automatic_registration_metric_types.keys())),
+    type=click.Choice(list(registration_metric_types.keys())),
 )
 @click.option(
     "--metric-args",
@@ -254,7 +250,7 @@ def align(
     "optimizer_name",
     default="regular_step_gradient_descent",
     show_default=True,
-    type=click.Choice(list(automatic_registration_optimizer_types.keys())),
+    type=click.Choice(list(registration_optimizer_types.keys())),
 )
 @click.option(
     "--optimizer-args",
@@ -268,7 +264,7 @@ def align(
     "sitk_transform_type_name",
     default="affine",
     show_default=True,
-    type=click.Choice(list(automatic_registration.sitk_transform_types.keys())),
+    type=click.Choice(list(sitk_transform_types.keys())),
 )
 @click.option(
     "--initial-transforms",
@@ -301,15 +297,13 @@ def register(
     initial_transform_path: Optional[Path],
     transform_path: Path,
 ) -> None:
-    metric_type = automatic_registration_metric_types[metric_name]
+    metric_type = registration_metric_types[metric_name]
     metric_kwargs = _parse_kwargs(metric_kwargs_str)
     metric = metric_type(**metric_kwargs)
-    optimizer_type = automatic_registration_optimizer_types[optimizer_name]
+    optimizer_type = registration_optimizer_types[optimizer_name]
     optimizer_kwargs = _parse_kwargs(optimizer_kwargs_str)
     optimizer = optimizer_type(**optimizer_kwargs)
-    sitk_transform_type = automatic_registration.sitk_transform_types[
-        sitk_transform_type_name
-    ]
+    sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
     if (
         source_img_path.is_file()
         and target_img_path.is_file()
@@ -414,7 +408,7 @@ def register(
         initial_transform = None
         if initial_transform_file is not None:
             initial_transform = io.read_transform(initial_transform_file)
-        transform = automatic_registration.register_images(
+        transform = register_images(
             source_img,
             target_img,
             metric,
@@ -429,7 +423,7 @@ def register(
         io.write_transform(transform_file, transform)
 
 
-@spellmatch.command()
+@cli.command()
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASKS",
@@ -662,11 +656,6 @@ def match(
         io.write_scores(scores_file, scores)
 
 
-@spellmatch.command()
-def assign() -> None:
-    pass  # TODO implement assign command
-
-
 def _parse_kwargs(kwargs_str: str) -> dict[str, Any]:
     key_value_pairs = [
         key_value_pair_str.split(sep="=", maxsplit=1)
@@ -676,4 +665,4 @@ def _parse_kwargs(kwargs_str: str) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    spellmatch()
+    cli()
