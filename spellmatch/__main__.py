@@ -23,7 +23,7 @@ from .registration.metrics import metric_types as registration_metric_types
 from .registration.optimizers import optimizer_types as registration_optimizer_types
 
 transform_types: dict[str, Type[ProjectiveTransform]] = {
-    "euclidean": EuclideanTransform,
+    "rigid": EuclideanTransform,
     "similarity": SimilarityTransform,
     "affine": AffineTransform,
 }
@@ -120,7 +120,7 @@ def cli() -> None:
 @click.option(
     "--transform-type",
     "transform_type_name",
-    default="affine",
+    default="rigid",
     show_default=True,
     type=click.Choice(list(transform_types.keys())),
 )
@@ -298,7 +298,7 @@ def align(
 @click.option(
     "--transform-type",
     "sitk_transform_type_name",
-    default="affine",
+    default="rigid",
     show_default=True,
     type=click.Choice(list(sitk_transform_types.keys())),
 )

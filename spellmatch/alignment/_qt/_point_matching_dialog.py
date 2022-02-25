@@ -94,7 +94,7 @@ class QPointMatchingDialog(QDialog):
                 for label in self.label_pairs.iloc[:, 1]
             ]
         )
-        if transform.estimate(src, dst):
+        if len(src) > 0 and len(dst) > 0 and transform.estimate(src, dst):
             self._transform = transform
             transform_rmsd = np.mean(transform.residuals(src, dst) ** 2) ** 0.5
             self._transform_rmsd_line_edit.setText(f"{transform_rmsd:.6f}")

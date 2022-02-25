@@ -16,7 +16,7 @@ SITKProjectiveTransform = Union[
 logger = logging.getLogger(__name__)
 
 sitk_transform_types: dict[str, SITKProjectiveTransform] = {
-    "euclidean": sitk.Euler2DTransform,
+    "rigid": sitk.Euler2DTransform,
     "similarity": sitk.Similarity2DTransform,
     "affine": sitk.AffineTransform,
 }
@@ -77,7 +77,7 @@ def register_images(
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(lambda: _logging_command(method))
     sitk_transform: SITKProjectiveTransform = method.Execute(fixed, moving)
-    transform_matrix = np.asarray(sitk_transform.GetMatrix()).reshape((3, 3))
+    transform_matrix = np.asarray(sitk_transform.GetMatrix()).reshape((3, 3))  # FIXME
     return ProjectiveTransform(matrix=transform_matrix)
 
 

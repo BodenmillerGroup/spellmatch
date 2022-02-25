@@ -271,7 +271,7 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
 
 class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     TRANSFORM_TYPES: dict[str, Type[ProjectiveTransform]] = {
-        "euclidean": EuclideanTransform,
+        "rigid": EuclideanTransform,
         "similarity": SimilarityTransform,
         "affine": AffineTransform,
     }
@@ -343,6 +343,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         top_target_indices = np.argmax(scores[top_source_indices, :], axis=1)
         top_source_indices = top_source_indices[max_source_scores > 0.0]
         top_target_indices = top_target_indices[max_source_scores > 0.0]
+        # TODO use weights in transform estimation
         updated_transform = self.transform_type()
         if updated_transform.estimate(
             source_points[top_source_indices], target_points[top_target_indices]

@@ -127,6 +127,7 @@ def _create_viewer(
         name=mask.name,
         scale=mask_scale,
         translate=-0.5 * np.array(mask.shape),
+        opacity=0.2,
     )
     mask_layer.contour = 1
     mask_layer.selected_label = 0

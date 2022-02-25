@@ -27,7 +27,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
         max_iter: int = 200,
-        transform_type: str = "affine",
+        transform_type: str = "rigid",
         transform_estim_top_k: int = 50,
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",

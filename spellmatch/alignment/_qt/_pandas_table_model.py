@@ -1,5 +1,6 @@
 from typing import Optional, Sequence
 
+import numpy as np
 import pandas as pd
 from qtpy.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 
@@ -35,7 +36,10 @@ class QPandasTableModel(QAbstractTableModel):
             if 0 <= index.row() < len(self._table.index) and 0 <= index.column() < len(
                 self._table.columns
             ):
-                return self._table.iloc[index.row(), index.column()].item()
+                value = self._table.iat[index.row(), index.column()]
+                if isinstance(value, np.generic):
+                    value = value.item()
+                return value
         return None
 
     def headerData(
