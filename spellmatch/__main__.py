@@ -15,8 +15,7 @@ from skimage.transform import (
 )
 
 from . import hookspecs, io
-from ._spellmatch import SpellmatchException
-from ._spellmatch import logger as spellmatch_logger
+from ._spellmatch import SpellmatchException, logger
 from .alignment import align_masks
 from .matching.algorithms import MaskMatchingAlgorithm, icp
 from .registration import register_images, sitk_transform_types
@@ -29,7 +28,7 @@ transform_types: dict[str, Type[ProjectiveTransform]] = {
     "affine": AffineTransform,
 }
 
-click_log.basic_config(logger=spellmatch_logger)
+click_log.basic_config(logger=logger)
 
 
 def get_plugin_manager() -> pluggy.PluginManager:
@@ -56,7 +55,7 @@ def catch_exception(func=None, *, handle):
 
 @click.group(name="spellmatch")
 @click.version_option()
-@click_log.simple_verbosity_option(logger=spellmatch_logger)
+@click_log.simple_verbosity_option(logger=logger)
 def cli() -> None:
     pass
 
@@ -173,20 +172,20 @@ def align(
     if result is not None:
         assignment, transform = result
         io.write_assignment(assignment_file, assignment)
-        click.echo(f"ASSIGNMENT: {len(assignment.index)} cell pairs")
+        logger.info(f"ASSIGNMENT: {len(assignment.index)} cell pairs")
         if transform is not None:
             io.write_transform(transform_file, transform)
-            click.echo("TRANSFORM:")
+            logger.info("TRANSFORM:")
             if hasattr(transform, "scale"):
-                click.echo(f"  scale={transform.scale}")
+                logger.info(f"  scale={transform.scale}")
             if hasattr(transform, "translation"):
-                click.echo(f"  translation={transform.translation}")
+                logger.info(f"  translation={transform.translation}")
             if hasattr(transform, "rotation"):
-                click.echo(f"  rotation={transform.rotation}")
+                logger.info(f"  rotation={transform.rotation}")
             if hasattr(transform, "shear"):
-                click.echo(f"  shear={transform.shear}")
+                logger.info(f"  shear={transform.shear}")
         else:
-            click.echo("TRANSFORM: None")
+            logger.info("TRANSFORM: None")
     else:
         raise click.Abort()
 
