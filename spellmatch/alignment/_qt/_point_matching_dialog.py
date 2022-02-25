@@ -127,6 +127,10 @@ class QPointMatchingDialog(QDialog):
     def label_pairs(self) -> pd.DataFrame:
         return self._label_pairs_table_model.table
 
+    @label_pairs.setter
+    def label_pairs(self, label_pairs: pd.DataFrame) -> None:
+        self._label_pairs_table_model.table = label_pairs
+
     @property
     def transform(self) -> Optional[ProjectiveTransform]:
         return self._transform

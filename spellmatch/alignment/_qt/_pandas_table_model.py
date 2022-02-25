@@ -35,7 +35,7 @@ class QPandasTableModel(QAbstractTableModel):
             if 0 <= index.row() < len(self._table.index) and 0 <= index.column() < len(
                 self._table.columns
             ):
-                return self._table.values[index.row(), index.column()].item()
+                return self._table.iloc[index.row(), index.column()].item()
         return None
 
     def headerData(

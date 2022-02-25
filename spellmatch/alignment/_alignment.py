@@ -21,12 +21,12 @@ def align_masks(
     transform_type: Type[ProjectiveTransform] = AffineTransform,
     assignment: Optional[pd.DataFrame] = None,
 ) -> Optional[Tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
-    if source_img is not None and source_img.shape[:-2] != source_mask.shape:
+    if source_img is not None and source_img.shape[-2:] != source_mask.shape:
         raise SpellmatchAlignmentException(
             f"Source image has shape {source_img.shape}, "
             f"but source mask has shape {source_mask.shape}"
         )
-    if target_img is not None and target_img.shape[:-2] != target_mask.shape:
+    if target_img is not None and target_img.shape[-2:] != target_mask.shape:
         raise SpellmatchAlignmentException(
             f"Source image has shape {target_img.shape}, "
             f"but source mask has shape {target_mask.shape}"
@@ -65,6 +65,10 @@ def align_masks(
                 target_mask_layer.metadata["selected_label"] = None
         else:
             mask_layer.metadata["selected_label"] = None
+        yield
+        while event.type == "mouse_move":
+            mask_layer.metadata["selected_label"] = None
+            yield
 
     source_mask_layer.mouse_drag_callbacks.append(on_layer_mouse_drag)
     target_mask_layer.mouse_drag_callbacks.append(on_layer_mouse_drag)
@@ -100,7 +104,7 @@ def _create_viewer(
         if "c" in img.dims:
             img_data = img.data[::-1]
             if "c" in img.coords:
-                img_name = img.coords["c"][::-1]
+                img_name = img.coords["c"].values[::-1]
             img_channel_axis = img.dims.index("c")
         img_scale = None
         if "scale" in img.attrs:
