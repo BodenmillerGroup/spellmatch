@@ -53,25 +53,25 @@ def align_masks(
     if assignment is not None:
         point_matching_dialog.label_pairs = assignment
 
-    def on_layer_mouse_drag(mask_layer: Labels, event) -> None:
+    def on_mask_layer_mouse_drag(mask_layer: Labels, event) -> None:
         selected_label = mask_layer.get_value(event.position, world=True)
-        if selected_label != 0:
-            mask_layer.metadata["selected_label"] = selected_label
-            source_label = source_mask_layer.metadata.get("selected_label")
-            target_label = target_mask_layer.metadata.get("selected_label")
-            if source_label is not None and target_label is not None:
-                point_matching_dialog.append_label_pair(source_label, target_label)
-                source_mask_layer.metadata["selected_label"] = None
-                target_mask_layer.metadata["selected_label"] = None
+        if selected_label:
+            mask_layer.selected_label = selected_label
+            if source_mask_layer.selected_label and target_mask_layer.selected_label:
+                point_matching_dialog.append_label_pair(
+                    source_mask_layer.selected_label, target_mask_layer.selected_label
+                )
+                source_mask_layer.selected_label = 0
+                target_mask_layer.selected_label = 0
         else:
-            mask_layer.metadata["selected_label"] = None
+            mask_layer.selected_label = 0
         yield
         while event.type == "mouse_move":
-            mask_layer.metadata["selected_label"] = None
+            mask_layer.selected_label = 0
             yield
 
-    source_mask_layer.mouse_drag_callbacks.append(on_layer_mouse_drag)
-    target_mask_layer.mouse_drag_callbacks.append(on_layer_mouse_drag)
+    source_mask_layer.mouse_drag_callbacks.append(on_mask_layer_mouse_drag)
+    target_mask_layer.mouse_drag_callbacks.append(on_mask_layer_mouse_drag)
     point_matching_dialog.finished.connect(lambda _: app.exit())
 
     source_viewer.show()
@@ -128,6 +128,9 @@ def _create_viewer(
         scale=mask_scale,
         translate=-0.5 * np.array(mask.shape),
     )
+    mask_layer.contour = 1
+    mask_layer.selected_label = 0
+    mask_layer.show_selected_label = True
     return viewer, mask_layer, img_layers
 
 

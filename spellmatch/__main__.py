@@ -31,15 +31,7 @@ transform_types: dict[str, Type[ProjectiveTransform]] = {
 click_log.basic_config(logger=logger)
 
 
-def get_plugin_manager() -> pluggy.PluginManager:
-    pm = pluggy.PluginManager("spellmatch")
-    pm.add_hookspecs(hookspecs)
-    pm.load_setuptools_entrypoints("spellmatch")
-    pm.register(icp, name="spellmatch-icp")
-    return pm
-
-
-def catch_exception(func=None, *, handle):
+def catch_exception(func=None, *, handle=SpellmatchException):
     if not func:
         return partial(catch_exception, handle=handle)
 
@@ -51,6 +43,22 @@ def catch_exception(func=None, *, handle):
             raise click.ClickException(e)
 
     return wrapper
+
+
+def get_plugin_manager() -> pluggy.PluginManager:
+    pm = pluggy.PluginManager("spellmatch")
+    pm.add_hookspecs(hookspecs)
+    pm.load_setuptools_entrypoints("spellmatch")
+    pm.register(icp, name="spellmatch-icp")
+    return pm
+
+
+def parse_kwargs(kwargs_str: str) -> dict[str, Any]:
+    key_value_pairs = [
+        key_value_pair_str.split(sep="=", maxsplit=1)
+        for key_value_pair_str in kwargs_str.split(sep=",")
+    ]
+    return yaml.load("\n".join(f"{k}: {v}" for k, v in key_value_pairs), yaml.Loader)
 
 
 @click.group(name="spellmatch")
@@ -327,10 +335,10 @@ def register(
     transform_path: Path,
 ) -> None:
     metric_type = registration_metric_types[metric_name]
-    metric_kwargs = _parse_kwargs(metric_kwargs_str)
+    metric_kwargs = parse_kwargs(metric_kwargs_str)
     metric = metric_type(**metric_kwargs)
     optimizer_type = registration_optimizer_types[optimizer_name]
-    optimizer_kwargs = _parse_kwargs(optimizer_kwargs_str)
+    optimizer_kwargs = parse_kwargs(optimizer_kwargs_str)
     optimizer = optimizer_type(**optimizer_kwargs)
     sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
     if (
@@ -531,7 +539,7 @@ def register(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
-@catch_exception(handle=SpellmatchException)
+@catch_exception
 def match(
     source_mask_path: Path,
     target_mask_path: Path,
@@ -553,7 +561,7 @@ def match(
     ] = pm.hook.spellmatch_get_mask_matching_algorithm(
         name=mask_matching_algorithm_name
     )
-    mask_matching_algorithm_kwargs = _parse_kwargs(mask_matching_algorithm_kwargs_str)
+    mask_matching_algorithm_kwargs = parse_kwargs(mask_matching_algorithm_kwargs_str)
     mask_matching_algorithm = mask_matching_algorithm_type(
         **mask_matching_algorithm_kwargs
     )
@@ -684,14 +692,6 @@ def match(
             transform=transform,
         )
         io.write_scores(scores_file, scores)
-
-
-def _parse_kwargs(kwargs_str: str) -> dict[str, Any]:
-    key_value_pairs = [
-        key_value_pair_str.split(sep="=", maxsplit=1)
-        for key_value_pair_str in kwargs_str.split(sep=",")
-    ]
-    return yaml.load("\n".join(f"{k}: {v}" for k, v in key_value_pairs), yaml.Loader)
 
 
 if __name__ == "__main__":
