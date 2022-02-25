@@ -173,8 +173,20 @@ def align(
     if result is not None:
         assignment, transform = result
         io.write_assignment(assignment_file, assignment)
+        click.echo(f"ASSIGNMENT: {len(assignment.index)} cell pairs")
         if transform is not None:
             io.write_transform(transform_file, transform)
+            click.echo("TRANSFORM:")
+            if hasattr(transform, "scale"):
+                click.echo(f"  scale={transform.scale}")
+            if hasattr(transform, "translation"):
+                click.echo(f"  translation={transform.translation}")
+            if hasattr(transform, "rotation"):
+                click.echo(f"  rotation={transform.rotation}")
+            if hasattr(transform, "shear"):
+                click.echo(f"  shear={transform.shear}")
+        else:
+            click.echo("TRANSFORM: None")
     else:
         raise click.Abort()
 
