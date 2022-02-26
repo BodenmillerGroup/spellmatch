@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 
 class Metric(BaseModel, ABC):
-    sampling_percentage: float = 1.0
+    sampling_percentage: float = 1
     sampling_strategy: str = "NONE"
     sampling_seed: int = sitk.sitkWallClock
 

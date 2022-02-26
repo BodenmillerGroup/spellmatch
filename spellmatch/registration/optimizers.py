@@ -45,12 +45,12 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
     num_iter: int
     conv_min_val: float = 1e-6
     conv_window_size: int = 10
-    line_search_lower: float = 0.0
-    line_search_upper: float = 5.0
+    line_search_lower: float = 0
+    line_search_upper: float = 5
     line_search_eps: float = 0.01
     line_search_max_iter: int = 20
     lr_estim_type: str = "ONCE"
-    max_step_size: float = 0.0
+    max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         super(ConjugateGradientLineSearchOptimizer, self).configure(r)
@@ -72,7 +72,7 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
 
 class ExhaustiveOptimizer(Optimizer):
     num_steps: Sequence[int]
-    step_length: float = 1.0
+    step_length: float = 1
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         super(ExhaustiveOptimizer, self).configure(r)
@@ -85,7 +85,7 @@ class GradientDescentOptimizer(Optimizer):
     conv_min_val: float = 1e-6
     conv_window_size: int = 10
     lr_estim_type: str = "ONCE"
-    max_step_size: float = 0.0
+    max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         super(GradientDescentOptimizer, self).configure(r)
@@ -106,12 +106,12 @@ class GradientDescentLineSearchOptimizer(Optimizer):
     num_iter: int
     conv_min_val: float = 1e-6
     conv_window_size: int = 10
-    line_search_lower: float = 0.0
-    line_search_upper: float = 5.0
+    line_search_lower: float = 0
+    line_search_upper: float = 5
     line_search_eps: float = 0.01
     line_search_max_iter: int = 20
     lr_estim_type: str = "ONCE"
-    max_step_size: float = 0.0
+    max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         super(GradientDescentLineSearchOptimizer, self).configure(r)
@@ -188,8 +188,8 @@ class OnePlusOneEvolutionaryOptimizer(Optimizer):
     num_iter: int = 100
     eps: float = 1.5e-4
     initial_radius: float = 1.01
-    growth_factor: float = -1.0
-    shrink_factor: float = -1.0
+    growth_factor: float = -1
+    shrink_factor: float = -1
     seed: int = sitk.sitkWallClock
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
@@ -207,7 +207,7 @@ class OnePlusOneEvolutionaryOptimizer(Optimizer):
 class PowellOptimizer(Optimizer):
     num_iter: int = 100
     max_line_iter: int = 100
-    step_length: float = 1.0
+    step_length: float = 1
     step_tol: float = 1e-6
     val_tol: float = 1e-6
 
@@ -229,7 +229,7 @@ class RegularStepGradientDescentOptimizer(Optimizer):
     relax_factor: float = 0.5
     grad_magnitude_tol: float = 1e-4
     lr_estim_type: str = "Never"
-    max_step_size: float = 0.0
+    max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         super(RegularStepGradientDescentOptimizer, self).configure(r)

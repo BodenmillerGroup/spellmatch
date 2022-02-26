@@ -22,10 +22,6 @@ sitk_transform_types: dict[str, SITKProjectiveTransform] = {
 }
 
 
-# TODO registration logging
-# TODO registration visualization
-
-
 def register_images(
     source_img: xr.DataArray,
     target_img: xr.DataArray,

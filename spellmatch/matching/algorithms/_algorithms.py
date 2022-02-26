@@ -337,17 +337,17 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         scores: xr.DataArray,
     ) -> Optional[ProjectiveTransform]:
         max_source_scores = np.amax(scores, axis=1)
-        top_source_indices = np.argpartition(
+        top_source_ind = np.argpartition(
             -max_source_scores, self.transform_estim_top_k - 1
         )[: self.transform_estim_top_k]
-        top_target_indices = np.argmax(scores[top_source_indices, :], axis=1)
-        top_source_indices = top_source_indices[max_source_scores > 0.0]
-        top_target_indices = top_target_indices[max_source_scores > 0.0]
+        top_target_ind = np.argmax(scores[top_source_ind, :], axis=1)
+        top_source_ind = top_source_ind[max_source_scores > 0]
+        top_target_ind = top_target_ind[max_source_scores > 0]
         updated_transform = self.transform_type()
         if updated_transform.estimate(
-            source_points[top_source_indices],
-            target_points[top_target_indices],
-            weights=max_source_scores[top_source_indices],
+            source_points[top_source_ind],
+            target_points[top_target_ind],
+            weights=max_source_scores[top_source_ind],
         ):
             return updated_transform
         return None

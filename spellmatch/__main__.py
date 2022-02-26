@@ -129,16 +129,16 @@ def cli() -> None:
 @click.option(
     "--source-scale",
     "source_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--target-scale",
     "target_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--transform-type",
@@ -249,16 +249,16 @@ def align(
 @click.option(
     "--source-scale",
     "source_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--target-scale",
     "target_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--source-channel",
@@ -273,22 +273,22 @@ def align(
 @click.option(
     "--denoise-source",
     "denoise_source",
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--denoise-target",
     "denoise_target",
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--blur-source",
     "blur_source",
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--blur-target",
     "blur_target",
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--metric",
@@ -517,16 +517,16 @@ def register(
 @click.option(
     "--source-scale",
     "source_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--target-scale",
     "target_scale",
-    default=1.0,
+    default=1,
     show_default=True,
-    type=click.FloatRange(min=0.0, min_open=True),
+    type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--algorithm",

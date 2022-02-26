@@ -24,7 +24,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     def __init__(
         self,
         *,
-        max_dist: Optional[float] = None,
+        max_nn_dist: Optional[float] = None,
         min_change: Optional[float] = None,
         max_iter: int = 200,
         transform_type: str = "rigid",
@@ -41,7 +41,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             points_feature,
             intensities_feature,
         )
-        self.max_dist = max_dist
+        self.max_nn_dist = max_nn_dist
         self.min_change = min_change
         self._current_nn: Optional[NearestNeighbors] = None
         self._current_dists_mean: Optional[float] = None
@@ -83,24 +83,22 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
-        source_indices = np.arange(len(source_points.index))
-        dists, target_indices = self._current_nn.kneighbors(source_points.index)
-        dists, target_indices = dists[:, 0], target_indices[:, 0]
-        if self.max_dist:
-            source_indices = source_indices[dists <= self.max_dist]
-            target_indices = target_indices[dists <= self.max_dist]
-            dists = dists[dists <= self.max_dist]
-        self._current_dists_mean = np.mean(dists)
-        self._current_dists_std = np.std(dists)
-        source_name = source_points.index.name or "source"
-        target_name = target_points.index.name or "target"
+        source_ind = np.arange(len(source_points.index))
+        nn_dists, target_ind = self._current_nn.kneighbors(source_points.index)
+        nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
+        if self.max_nn_dist:
+            source_ind = source_ind[nn_dists <= self.max_nn_dist]
+            target_ind = target_ind[nn_dists <= self.max_nn_dist]
+            nn_dists = nn_dists[nn_dists <= self.max_nn_dist]
+        self._current_dists_mean = np.mean(nn_dists)
+        self._current_dists_std = np.std(nn_dists)
         scores_data = np.zeros((len(source_points.index), len(target_points.index)))
-        scores_data[source_indices, target_indices] = 1.0
+        scores_data[source_ind, target_ind] = 1
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_name: source_points.index.values,
-                target_name: target_points.index.values,
+                source_points.index.name: source_points.index.values,
+                target_points.index.name: target_points.index.values,
             },
         )
         return scores

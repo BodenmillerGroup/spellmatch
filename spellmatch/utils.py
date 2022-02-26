@@ -84,7 +84,7 @@ def transform_points(
 def filter_outlier_points(
     points: pd.DataFrame, bbox: Polygon, outlier_dist: float
 ) -> pd.DataFrame:
-    if outlier_dist > 0.0:
+    if outlier_dist > 0:
         bbox = bbox.buffer(outlier_dist)
     filtered_mask = [Point(point).within(bbox) for point in points.values]
     return points[filtered_mask]

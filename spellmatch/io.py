@@ -31,7 +31,7 @@ def read_image(
     panel: Optional[pd.DataFrame] = None,
     panel_name_col: str = _DEFAULT_PANEL_NAME_COL,
     panel_keep_col: str = _DEFAULT_PANEL_KEEP_COL,
-    scale: float = 1.0,
+    scale: float = 1,
 ) -> xr.DataArray:
     img_file = Path(img_file)
     img: np.ndarray = tifffile.imread(img_file)
@@ -73,7 +73,7 @@ def read_image(
     )
 
 
-def read_mask(mask_file: Union[str, PathLike], scale: float = 1.0) -> xr.DataArray:
+def read_mask(mask_file: Union[str, PathLike], scale: float = 1) -> xr.DataArray:
     mask_file = Path(mask_file)
     mask: np.ndarray = tifffile.imread(mask_file)
     if mask.ndim != 2:
