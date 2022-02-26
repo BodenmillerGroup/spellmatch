@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type, Union
+from typing import Optional, Type, TypeVar, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -38,47 +38,54 @@ def register_images(
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
 ) -> ProjectiveTransform:
-    moving = sitk.GetImageFromArray(source_img.to_numpy())
+    moving_img = sitk.GetImageFromArray(source_img.to_numpy())
+    moving_origin = (
+        -0.5 * source_img.shape[-1] + 0.5,
+        -0.5 * source_img.shape[-2] + 0.5,
+    )
     if "scale" in source_img.attrs:
-        moving.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
+        moving_origin = tuple(x * source_img.attrs["scale"] for x in moving_origin)
+        moving_img.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
+    moving_img.SetOrigin(moving_origin)
     if denoise_source is not None:
-        median_filter = sitk.MedianImageFilter()
-        median_filter.SetRadius(denoise_source)
-        moving = median_filter.Execute(moving)
+        moving_median_filter = sitk.MedianImageFilter()
+        moving_median_filter.SetRadius(denoise_source)
+        moving_img = moving_median_filter.Execute(moving_img)
     if blur_source is not None:
-        gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
-        gaussian_filter.SetNormalizeAcrossScale(True)
-        gaussian_filter.SetSigma(blur_source)
-        moving = gaussian_filter.Execute(moving)
-    fixed = sitk.GetImageFromArray(target_img)
+        moving_gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
+        moving_gaussian_filter.SetNormalizeAcrossScale(True)
+        moving_gaussian_filter.SetSigma(blur_source)
+        moving_img = moving_gaussian_filter.Execute(moving_img)
+    fixed_img = sitk.GetImageFromArray(target_img)
+    fixed_origin = (
+        -0.5 * target_img.shape[-1] + 0.5,
+        -0.5 * target_img.shape[-2] + 0.5,
+    )
     if "scale" in target_img.attrs:
-        fixed.SetSpacing((target_img.attrs["scale"], target_img.attrs["scale"]))
+        fixed_origin = tuple(x * target_img.attrs["scale"] for x in fixed_origin)
+        fixed_img.SetSpacing((target_img.attrs["scale"], target_img.attrs["scale"]))
+    fixed_img.SetOrigin(fixed_origin)
     if denoise_target is not None:
-        median_filter = sitk.MedianImageFilter()
-        median_filter.SetRadius(denoise_target)
-        fixed = median_filter.Execute(fixed)
+        fixed_median_filter = sitk.MedianImageFilter()
+        fixed_median_filter.SetRadius(denoise_target)
+        fixed_img = fixed_median_filter.Execute(fixed_img)
     if blur_target is not None:
-        gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
-        gaussian_filter.SetNormalizeAcrossScale(True)
-        gaussian_filter.SetSigma(blur_target)
-        fixed = gaussian_filter.Execute(fixed)
+        fixed_gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
+        fixed_gaussian_filter.SetNormalizeAcrossScale(True)
+        fixed_gaussian_filter.SetSigma(blur_target)
+        fixed_img = fixed_gaussian_filter.Execute(fixed_img)
     method = sitk.ImageRegistrationMethod()
     metric.configure(method)
     optimizer.configure(method)
-    initial_sitk_transform: SITKProjectiveTransform = sitk.CenteredTransformInitializer(
-        fixed,
-        moving,
-        sitk_transform_type(),
-        sitk.CenteredTransformInitializerFilter.GEOMETRY,
-    )
     if initial_transform is not None:
-        initial_sitk_transform.SetMatrix(initial_transform.params.flatten())
+        initial_sitk_transform = _from_transform(initial_transform, sitk_transform_type)
+    else:
+        initial_sitk_transform = sitk_transform_type()
     method.SetInitialTransform(initial_sitk_transform)
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(lambda: _logging_command(method))
-    sitk_transform: SITKProjectiveTransform = method.Execute(fixed, moving)
-    transform_matrix = np.asarray(sitk_transform.GetMatrix()).reshape((3, 3))  # FIXME
-    return ProjectiveTransform(matrix=transform_matrix)
+    sitk_transform: SITKProjectiveTransform = method.Execute(fixed_img, moving_img)
+    return _to_transform(sitk_transform, ProjectiveTransform)
 
 
 def _logging_command(method: sitk.ImageRegistrationMethod) -> None:
@@ -88,3 +95,29 @@ def _logging_command(method: sitk.ImageRegistrationMethod) -> None:
     logger.info(
         f"{optimizer_iteration:03} = {metric_value:9.6f} : {optimizer_position}"
     )
+
+
+SITKTransformType = TypeVar(
+    "SITKTransformType", SITKProjectiveTransform, contravariant=True
+)
+
+
+def _from_transform(
+    transform: ProjectiveTransform, sitk_transform_type: Type[SITKTransformType]
+) -> SITKTransformType:
+    sitk_transform = sitk_transform_type()
+    sitk_transform.SetTranslation(transform.params[:2, 2])
+    sitk_transform.SetMatrix(transform.params[:2, :2].flatten())
+    return sitk_transform
+
+
+TransformType = TypeVar("TransformType", ProjectiveTransform, contravariant=True)
+
+
+def _to_transform(
+    sitk_transform: SITKProjectiveTransform, transform_type: Type[TransformType]
+) -> TransformType:
+    transform_matrix = np.eye(3)
+    transform_matrix[:2, 2] = sitk_transform.GetTranslation()
+    transform_matrix[:2, :2] = np.reshape(sitk_transform.GetMatrix(), (2, 2))
+    return transform_type(matrix=transform_matrix)
