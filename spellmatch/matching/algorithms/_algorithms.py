@@ -366,12 +366,14 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
     def __init__(
         self,
         adj_radius: float,
-        outlier_dist: Optional[float],
+        exclude_outliers: bool,
         points_feature: str,
         intensities_feature: str,
     ) -> None:
         super(GraphMatchingAlgorithm, self).__init__(
-            outlier_dist, points_feature, intensities_feature
+            adj_radius if exclude_outliers else None,
+            points_feature,
+            intensities_feature,
         )
         self._init_graph_matching(adj_radius)
 
@@ -396,7 +398,7 @@ class IterativeGraphMatchingAlgorithm(
         max_iter: int,
         transform_type: str,
         transform_estim_top_k: int,
-        outlier_dist: Optional[float],
+        exclude_outliers: bool,
         points_feature: str,
         intensities_feature: str,
     ) -> None:
@@ -404,7 +406,7 @@ class IterativeGraphMatchingAlgorithm(
             max_iter,
             transform_type,
             transform_estim_top_k,
-            outlier_dist,
+            adj_radius if exclude_outliers else None,
             points_feature,
             intensities_feature,
         )
