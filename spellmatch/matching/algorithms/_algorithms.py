@@ -526,6 +526,7 @@ class IterativeGraphMatchingAlgorithm(
         adj_radius: float,
         max_iter: int,
         transform_type: str,
+        transform_estim_type: str,
         transform_estim_top_k: int,
         exclude_outliers: bool,
         points_feature: str,
@@ -534,6 +535,7 @@ class IterativeGraphMatchingAlgorithm(
         super(IterativeGraphMatchingAlgorithm, self).__init__(
             max_iter,
             transform_type,
+            transform_estim_type,
             transform_estim_top_k,
             adj_radius if exclude_outliers else None,
             points_feature,
