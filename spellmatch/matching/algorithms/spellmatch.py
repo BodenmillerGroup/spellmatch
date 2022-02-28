@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -7,6 +7,8 @@ import xarray as xr
 from scipy import sparse
 from scipy.spatial import distance
 from skimage.transform import ProjectiveTransform
+from sklearn.cross_decomposition import CCA
+from sklearn.decomposition import PCA
 
 from ..._spellmatch import hookimpl
 from ._algorithms import IterativeGraphMatchingAlgorithm, MaskMatchingAlgorithm
@@ -27,16 +29,21 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
     def __init__(
         self,
         *,
-        alpha: float = 0.8,  # TODO
-        degree_weight: float = 0,  # TODO
-        distance_weight: float = 0,  # TODO
-        intensity_weight: float = 0,  # TODO
-        degree_diff_thres: int = 0,  # TODO
-        distance_diff_thres: float = 0,  # TODO
-        # TODO intensity params
+        alpha: float = 0.8,
+        degree_weight: float = 1,
+        distance_weight: float = 1,
+        shared_intensity_weight: float = 1,
+        full_intensity_weight: float = 1,
+        degree_diff_thres: int = 3,
+        distance_diff_thres: float = 10,
+        shared_intensity_n_components: Union[int, float, str] = 10,
+        full_intensity_alignment_top_k: int = 100,
+        full_intensity_n_components: int = 10,
+        full_intensity_max_iter: int = 200,
+        full_intensity_tol: float = 1e-3,
         use_initial_spatial_prior: bool = False,
         use_updated_spatial_prior: bool = False,
-        prior_distance_thres: float = 0,  # TODO
+        prior_distance_thres: float = 15,
         opt_max_iter: int = 100,
         opt_tol: float = 1e-3,
         adj_radius: float = 10,
@@ -60,9 +67,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.alpha = alpha
         self.degree_weight = degree_weight
         self.distance_weight = distance_weight
-        self.intensity_weight = intensity_weight
+        self.shared_intensity_weight = shared_intensity_weight
+        self.full_intensity_weight = full_intensity_weight
         self.degree_diff_thres = degree_diff_thres
         self.distance_diff_thres = distance_diff_thres
+        self.shared_intensity_n_components = shared_intensity_n_components
+        self.full_intensity_alignment_top_k = full_intensity_alignment_top_k
+        self.full_intensity_n_components = full_intensity_n_components
+        self.full_intensity_max_iter = full_intensity_max_iter
+        self.full_intensity_tol = full_intensity_tol
         self.use_initial_spatial_prior = use_initial_spatial_prior
         self.use_updated_spatial_prior = use_updated_spatial_prior
         self.prior_distance_thres = prior_distance_thres
@@ -106,16 +119,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         n2 = len(target_adj)
         adj1 = source_adj.to_numpy()
         adj2 = target_adj.to_numpy()
-        adj: sparse.spmatrix = sparse.kron(source_adj.to_numpy(), target_adj.to_numpy())
+        adj: sparse.spmatrix = sparse.kron(adj1, adj2)
         deg1: np.ndarray = np.sum(adj1, axis=0)
         deg2: np.ndarray = np.sum(adj2, axis=0)
         deg = deg1[:, np.newaxis] * deg2[np.newaxis, :]
         w = sparse.csr_matrix((n1 * n2, n1 * n2))
         if self.degree_weight > 0:
             logger.info("Computing degree cross-distance")
-            deg_cdist = self._compute_degree_cross_distance(deg1, deg2).ravel()
-            w += adj * (0.5 * self.degree_weight * deg_cdist[:, np.newaxis])
-            w += adj * (0.5 * self.degree_weight * deg_cdist[np.newaxis, :])
+            deg_cdist = self._compute_degree_cross_distance(deg1, deg2)
+            w += adj * (self.degree_weight * deg_cdist.ravel()[:, np.newaxis])
+            w += adj * (self.degree_weight * deg_cdist.ravel()[np.newaxis, :])
             del deg_cdist
         if (
             self.distance_weight > 0
@@ -128,12 +141,51 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
             w += self.distance_weight * spdist_cdist
             del spdist_cdist
-        if self.intensity_weight > 0:
-            logger.info("Computing intensity cross-distance")
-            intensity_cdist = self._compute_intensity_cross_distance().ravel()
-            w += adj * (0.5 * self.intensity_weight * intensity_cdist[:, np.newaxis])
-            w += adj * (0.5 * self.intensity_weight * intensity_cdist[np.newaxis, :])
-        w /= self.degree_weight + self.distance_weight + self.intensity_weight
+        if (
+            self.shared_intensity_weight > 0
+            and source_intensities is not None
+            and target_intensities is not None
+        ):
+            logger.info("Computing shared intensity cross-distance")
+            shared_intensity_cdist = self._compute_shared_intensity_cross_distance(
+                source_intensities, target_intensities
+            )
+            w += adj * (
+                self.shared_intensity_weight
+                * shared_intensity_cdist.ravel()[:, np.newaxis]
+            )
+            w += adj * (
+                self.shared_intensity_weight
+                * shared_intensity_cdist.ravel()[np.newaxis, :]
+            )
+            del shared_intensity_cdist
+        if (
+            self.full_intensity_weight > 0
+            and source_intensities is not None
+            and target_intensities is not None
+            and self._current_source_points is not None
+            and self._current_target_points is not None
+        ):
+            logger.info("Computing full intensity cross-distance")
+            full_intensity_cdist = self._compute_full_intensity_cross_distance(
+                self._current_source_points,
+                self._current_target_points,
+                source_intensities,
+                target_intensities,
+            )
+            w += adj * (
+                self.full_intensity_weight * full_intensity_cdist.ravel()[:, np.newaxis]
+            )
+            w += adj * (
+                self.full_intensity_weight * full_intensity_cdist.ravel()[np.newaxis, :]
+            )
+            del full_intensity_cdist
+        w /= (
+            2 * self.degree_weight
+            + self.distance_weight
+            + 2 * self.shared_intensity_weight
+            + 2 * self.full_intensity_weight
+        )
         logging.info("Normalizing optimization matrix")
         d = deg.copy()
         d[d != 0] = d[d != 0] ** (-0.5)
@@ -147,7 +199,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         ):
             logger.info("Initializing spatial cross-distance similarity prior")
             h = self._compute_spatial_cross_distance_similarity_prior(
-                self._current_source_points.values, self._current_target_points.values
+                self._current_source_points.to_numpy(),
+                self._current_target_points.to_numpy(),
             )
         else:
             logger.info("Initializing uniform prior")
@@ -191,15 +244,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             and self._current_target_points is not None
         ):
             self._h = self._compute_spatial_cross_distance_similarity_prior(
-                self._current_source_points.values,
-                self._current_target_points.values,
+                self._current_source_points,
+                self._current_target_points,
             )
         self._s = self.alpha * self._w.dot(self._s_last) + (1 - self.alpha) * self._h
         scores = xr.DataArray(
             data=np.reshape(self._s, (len(source_adj), len(target_adj))),
             coords={
-                source_adj.name: source_adj.coords["a"].values,
-                target_adj.name: target_adj.coords["x"].values,
+                source_adj.name: source_adj.coords["a"].to_numpy(),
+                target_adj.name: target_adj.coords["x"].to_numpy(),
             },
         )
         return scores
@@ -243,11 +296,49 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         spdist_cdist = m**2
         return spdist_cdist
 
-    def _compute_intensity_cross_distance(self) -> np.ndarray:
-        pass  # TODO
+    def _compute_shared_intensity_cross_distance(
+        self,
+        intensities1: pd.DataFrame,
+        intensities2: pd.DataFrame,
+    ) -> np.ndarray:
+        shared_intensities = pd.concat(
+            (intensities1, intensities2), join="inner", ignore_index=True
+        )
+        pca = PCA(n_components=self.shared_intensity_n_components)
+        pca.fit(shared_intensities)
+        pca1: pd.DataFrame = pca.transform(intensities1[shared_intensities.columns])
+        pca2: pd.DataFrame = pca.transform(intensities2[shared_intensities.columns])
+        shared_intensity_cdist = distance.cdist(pca1, pca2, metric="correlation")
+        return shared_intensity_cdist
+
+    def _compute_full_intensity_cross_distance(
+        self,
+        points1: pd.DataFrame,
+        points2: pd.DataFrame,
+        intensities1: pd.DataFrame,
+        intensities2: pd.DataFrame,
+    ) -> np.ndarray:
+        spatial_cdist = distance.cdist(points1, points2)
+        source_2nn_ind = np.argpartition(-spatial_cdist, 1, axis=1)[:, :2]
+        source_2nn_dists = np.take_along_axis(spatial_cdist, source_2nn_ind, axis=1)
+        source_margins = source_2nn_dists[:, 0] - source_2nn_dists[:, 1]
+        top_source_ind = np.argpartition(
+            -source_margins, self.full_intensity_alignment_top_k - 1
+        )[: self.full_intensity_alignment_top_k]
+        top_target_ind = source_2nn_ind[top_source_ind, 0]
+        cca = CCA(
+            n_components=self.full_intensity_n_components,
+            max_iter=self.full_intensity_max_iter,
+            tol=self.full_intensity_tol,
+        )
+        cca.fit(intensities1.iloc[top_source_ind], intensities2.iloc[top_target_ind])
+        cca1: pd.DataFrame = cca.transform(intensities1)
+        cca2: pd.DataFrame = cca.transform(intensities2)
+        full_intensity_cdist = distance.cdist(cca1, cca2, metric="correlation")
+        return full_intensity_cdist
 
     def _compute_spatial_cross_distance_similarity_prior(
-        self, points1: np.ndarray, points2: np.ndarray
+        self, points1: pd.DataFrame, points2: pd.DataFrame
     ) -> np.ndarray:
         spatial_cdist = distance.cdist(points1, points2)
         clipped_spatial_cdist = np.clip(spatial_cdist / self.prior_distance_thres, 0, 1)
