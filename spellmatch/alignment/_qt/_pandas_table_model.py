@@ -17,7 +17,7 @@ class QPandasTableModel(QAbstractTableModel):
     def append(self, df: pd.DataFrame) -> None:
         row = self.rowCount(QModelIndex())
         self.beginInsertRows(QModelIndex(), row, row + len(df.index) - 1)
-        df = pd.DataFrame(data=df.values, columns=self._table.columns)
+        df = pd.DataFrame(data=df.to_numpy(), columns=self._table.columns)
         self._table = pd.concat((self._table, df), ignore_index=True)
         self.endInsertRows()
 
@@ -103,5 +103,5 @@ class QPandasTableModel(QAbstractTableModel):
     @table.setter
     def table(self, table: pd.DataFrame) -> None:
         self.beginResetModel()
-        self._table = pd.DataFrame(data=table.values, columns=self._table.columns)
+        self._table = pd.DataFrame(data=table.to_numpy(), columns=self._table.columns)
         self.endResetModel()

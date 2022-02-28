@@ -84,13 +84,13 @@ class QPointMatchingDialog(QDialog):
         transform = self._transform_type()
         src = np.array(
             [
-                self._source_points.loc[label, :].values
+                self._source_points.loc[label, :].to_numpy()
                 for label in self.label_pairs.iloc[:, 0]
             ]
         )
         dst = np.array(
             [
-                self._target_points.loc[label, :].values
+                self._target_points.loc[label, :].to_numpy()
                 for label in self.label_pairs.iloc[:, 1]
             ]
         )

@@ -104,7 +104,7 @@ def _create_viewer(
         if "c" in img.dims:
             img_data = img.data[::-1]
             if "c" in img.coords:
-                img_name = img.coords["c"].values[::-1]
+                img_name = img.coords["c"].to_numpy()[::-1]
             img_channel_axis = img.dims.index("c")
         img_scale = None
         if "scale" in img.attrs:

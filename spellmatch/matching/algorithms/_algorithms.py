@@ -442,10 +442,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         scores: xr.DataArray,
     ) -> Optional[ProjectiveTransform]:
         if self.transform_estim_type == self.TransformEstimationType.MAX_SCORE:
-            scores_arr = scores.to_numpy()
-            max_source_scores_ind = np.argmax(scores_arr, axis=1)
+            max_source_scores_ind = np.argmax(scores.to_numpy(), axis=1)
             max_source_scores = np.take_along_axis(
-                scores_arr, np.expand_dims(max_source_scores_ind, axis=1), axis=1
+                scores.to_numpy(), np.expand_dims(max_source_scores_ind, axis=1), axis=1
             ).squeeze(axis=1)
             top_source_ind = np.argpartition(
                 -max_source_scores, self.transform_estim_top_k - 1
@@ -454,10 +453,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             top_target_ind = max_source_scores_ind[top_source_ind]
             weights = max_source_scores[top_source_ind]
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
-            scores_arr = scores.to_numpy()
-            max2_source_scores_ind = np.argpartition(-scores_arr, 1, axis=1)
+            max2_source_scores_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)
             max2_source_scores = np.take_along_axis(
-                scores_arr, max2_source_scores_ind, axis=1
+                scores.to_numpy(), max2_source_scores_ind, axis=1
             )
             source_margins = max2_source_scores[:, 0] - max2_source_scores[:, 1]
             top_source_ind = np.argpartition(
@@ -473,8 +471,8 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             len(top_source_ind) > 0
             and len(top_target_ind) > 0
             and updated_transform.estimate(
-                source_points.values[top_source_ind, :],
-                target_points.values[top_target_ind, :],
+                source_points.iloc[top_source_ind, :],
+                target_points.iloc[top_target_ind, :],
                 weights=weights,
             )
         ):

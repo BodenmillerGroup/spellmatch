@@ -99,8 +99,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_points.index.name: source_points.index.values,
-                target_points.index.name: target_points.index.values,
+                source_points.index.name: source_points.index.to_numpy(),
+                target_points.index.name: target_points.index.to_numpy(),
             },
         )
         return scores

@@ -71,14 +71,15 @@ class _Probreg(PointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         self._current_iteration = 0
-        transform = self._register_points(source_points.values, target_points.values)
+        transform = self._register_points(
+            source_points.to_numpy(), target_points.to_numpy()
+        )
         self._current_iteration = None
         source_ind = np.arange(len(source_points.index))
-        target_nn: NearestNeighbors = NearestNeighbors(n_neighbors=1).fit(
-            target_points.values
-        )
+        target_nn = NearestNeighbors(n_neighbors=1)
+        target_nn.fit(target_points)
         nn_dists, target_ind = target_nn.kneighbors(
-            transform.transform(source_points.values)
+            transform.transform(source_points.to_numpy())
         )
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
         if self.max_nn_dist:
@@ -90,8 +91,8 @@ class _Probreg(PointsMatchingAlgorithm):
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_points.index.name: source_points.index.values,
-                target_points.index.name: target_points.index.values,
+                source_points.index.name: source_points.index.to_numpy(),
+                target_points.index.name: target_points.index.to_numpy(),
             },
         )
         return scores

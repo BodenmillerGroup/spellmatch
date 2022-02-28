@@ -75,7 +75,7 @@ def transform_points(
     points: pd.DataFrame, transform: ProjectiveTransform
 ) -> pd.DataFrame:
     return pd.DataFrame(
-        data=transform(points.values),
+        data=transform(points.to_numpy()),
         index=points.index.copy(),
         columns=points.columns.copy(),
     )
@@ -86,7 +86,7 @@ def filter_outlier_points(
 ) -> pd.DataFrame:
     if outlier_dist > 0:
         bbox = bbox.buffer(outlier_dist)
-    filtered_mask = [Point(point).within(bbox) for point in points.values]
+    filtered_mask = [Point(point).within(bbox) for point in points.to_numpy()]
     return points[filtered_mask]
 
 
@@ -96,8 +96,8 @@ def restore_outlier_scores(
     scores = xr.DataArray(
         data=np.zeros((len(source_index), len(target_index))),
         coords={
-            source_index.name: source_index.values,
-            target_index.name: target_index.values,
+            source_index.name: source_index.to_numpy(),
+            target_index.name: target_index.to_numpy(),
         },
     )
     scores.loc[filtered_scores.coords] = filtered_scores
