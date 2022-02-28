@@ -40,9 +40,26 @@ class _MaskMatchingMixin:
         target_img: Optional[xr.DataArray] = None,
         transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
-        return self._match_masks(
+        self._pre_match_masks(
             source_mask, target_mask, source_img, target_img, transform
         )
+        scores = self._match_masks(
+            source_mask, target_mask, source_img, target_img, transform
+        )
+        scores = self._post_match_masks(
+            source_mask, target_mask, source_img, target_img, transform, scores
+        )
+        return scores
+
+    def _pre_match_masks(
+        self,
+        source_mask: xr.DataArray,
+        target_mask: xr.DataArray,
+        source_img: Optional[xr.DataArray],
+        target_img: Optional[xr.DataArray],
+        transform: Optional[ProjectiveTransform],
+    ) -> None:
+        pass
 
     @abstractmethod
     def _match_masks(
@@ -54,6 +71,17 @@ class _MaskMatchingMixin:
         transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
         raise NotImplementedError()
+
+    def _post_match_masks(
+        self,
+        source_mask: xr.DataArray,
+        target_mask: xr.DataArray,
+        source_img: Optional[xr.DataArray],
+        target_img: Optional[xr.DataArray],
+        transform: Optional[ProjectiveTransform],
+        scores: xr.DataArray,
+    ) -> xr.DataArray:
+        return scores
 
 
 class _PointsMatchingMixin:
@@ -156,16 +184,38 @@ class _PointsMatchingMixin:
                     filtered_target_intensities = target_intensities.loc[
                         filtered_target_points.index
                     ]
+        self._pre_match_points(
+            filtered_source_points,
+            filtered_target_points,
+            filtered_source_intensities,
+            filtered_target_intensities,
+        )
         filtered_scores = self._match_points(
             filtered_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
         )
+        filtered_scores = self._post_match_points(
+            filtered_source_points,
+            filtered_target_points,
+            filtered_source_intensities,
+            filtered_target_intensities,
+            filtered_scores,
+        )
         scores = restore_outlier_scores(
             source_points.index, target_points.index, filtered_scores
         )
         return scores
+
+    def _pre_match_points(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame],
+        target_intensities: Optional[pd.DataFrame],
+    ) -> None:
+        pass
 
     @abstractmethod
     def _match_points(
@@ -176,6 +226,16 @@ class _PointsMatchingMixin:
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         raise NotImplementedError()
+
+    def _post_match_points(
+        self,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_intensities: Optional[pd.DataFrame],
+        target_intensities: Optional[pd.DataFrame],
+        scores: xr.DataArray,
+    ) -> xr.DataArray:
+        return scores
 
 
 class _GraphMatchingMixin:
@@ -214,7 +274,7 @@ class _GraphMatchingMixin:
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
     ) -> xr.DataArray:
-        return self._match_graphs(
+        self._pre_match_graphs(
             source_adj,
             target_adj,
             source_dists,
@@ -222,6 +282,35 @@ class _GraphMatchingMixin:
             source_intensities,
             target_intensities,
         )
+        scores = self._match_graphs(
+            source_adj,
+            target_adj,
+            source_dists,
+            target_dists,
+            source_intensities,
+            target_intensities,
+        )
+        scores = self._post_match_graphs(
+            source_adj,
+            target_adj,
+            source_dists,
+            target_dists,
+            source_intensities,
+            target_intensities,
+            scores,
+        )
+        return scores
+
+    def _pre_match_graphs(
+        self,
+        source_adj: xr.DataArray,
+        target_adj: xr.DataArray,
+        source_dists: Optional[xr.DataArray],
+        target_dists: Optional[xr.DataArray],
+        source_intensities: Optional[pd.DataFrame],
+        target_intensities: Optional[pd.DataFrame],
+    ) -> None:
+        pass
 
     @abstractmethod
     def _match_graphs(
@@ -234,6 +323,18 @@ class _GraphMatchingMixin:
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         raise NotImplementedError()
+
+    def _post_match_graphs(
+        self,
+        source_adj: xr.DataArray,
+        target_adj: xr.DataArray,
+        source_dists: Optional[xr.DataArray],
+        target_dists: Optional[xr.DataArray],
+        source_intensities: Optional[pd.DataFrame],
+        target_intensities: Optional[pd.DataFrame],
+        scores: xr.DataArray,
+    ) -> xr.DataArray:
+        return scores
 
 
 class MatchingAlgorithm(ABC):
