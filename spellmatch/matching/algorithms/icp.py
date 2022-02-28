@@ -28,6 +28,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         min_change: Optional[float] = None,
         max_iter: int = 200,
         transform_type: str = "rigid",
+        transform_estim_type: str = "max_score",
         transform_estim_top_k: int = 50,
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
@@ -36,6 +37,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         super(IterativeClosestPoints, self).__init__(
             max_iter,
             transform_type,
+            transform_estim_type,
             transform_estim_top_k,
             outlier_dist,
             points_feature,

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Optional, Type
 
 import numpy as np
@@ -23,9 +24,6 @@ from ...utils import (
     transform_bounding_box,
     transform_points,
 )
-
-
-# TODO matching logging
 
 
 class _MaskMatchingMixin:
@@ -377,10 +375,15 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         "affine": AffineTransform,
     }
 
+    class TransformEstimationType(Enum):
+        MAX_SCORE = "max_score"
+        MAX_MARGIN = "max_margin"
+
     def __init__(
         self,
         max_iter: int,
         transform_type: str,
+        transform_estim_type: str,
         transform_estim_top_k: int,
         outlier_dist: Optional[float],
         points_feature: str,
@@ -391,6 +394,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         )
         self.max_iter = max_iter
         self.transform_type = self.TRANSFORM_TYPES[transform_type]
+        self.transform_estim_type = self.TransformEstimationType(transform_estim_type)
         self.transform_estim_top_k = transform_estim_top_k
 
     def match_points(
@@ -437,18 +441,42 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         scores: xr.DataArray,
     ) -> Optional[ProjectiveTransform]:
-        max_source_scores = np.amax(scores, axis=1)
-        top_source_ind = np.argpartition(
-            -max_source_scores, self.transform_estim_top_k - 1
-        )[: self.transform_estim_top_k]
-        top_target_ind = np.argmax(scores[top_source_ind, :], axis=1)
-        top_source_ind = top_source_ind[max_source_scores > 0]
-        top_target_ind = top_target_ind[max_source_scores > 0]
+        if self.transform_estim_type == self.TransformEstimationType.MAX_SCORE:
+            scores_arr = scores.to_numpy()
+            max_source_scores_ind = np.argmax(scores_arr, axis=1)
+            max_source_scores = np.take_along_axis(
+                scores_arr, np.expand_dims(max_source_scores_ind, axis=1), axis=1
+            ).squeeze(axis=1)
+            top_source_ind = np.argpartition(
+                -max_source_scores, self.transform_estim_top_k - 1
+            )[: self.transform_estim_top_k]
+            top_source_ind = top_source_ind[max_source_scores[top_source_ind] > 0]
+            top_target_ind = max_source_scores_ind[top_source_ind]
+            weights = max_source_scores[top_source_ind]
+        elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
+            scores_arr = scores.to_numpy()
+            max2_source_scores_ind = np.argpartition(-scores_arr, 1, axis=1)
+            max2_source_scores = np.take_along_axis(
+                scores_arr, max2_source_scores_ind, axis=1
+            )
+            source_margins = max2_source_scores[:, 0] - max2_source_scores[:, 1]
+            top_source_ind = np.argpartition(
+                -source_margins, self.transform_estim_top_k - 1
+            )[: self.transform_estim_top_k]
+            top_source_ind = top_source_ind[source_margins[top_source_ind] > 0]
+            top_target_ind = max2_source_scores_ind[top_source_ind, 0]
+            weights = max2_source_scores[top_source_ind, 0]
+        else:
+            raise NotImplementedError()
         updated_transform = self.transform_type()
-        if updated_transform.estimate(
-            source_points[top_source_ind],
-            target_points[top_target_ind],
-            weights=max_source_scores[top_source_ind],
+        if (
+            len(top_source_ind) > 0
+            and len(top_target_ind) > 0
+            and updated_transform.estimate(
+                source_points.values[top_source_ind, :],
+                target_points.values[top_target_ind, :],
+                weights=weights,
+            )
         ):
             return updated_transform
         return None
