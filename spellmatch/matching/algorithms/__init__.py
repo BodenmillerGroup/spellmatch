@@ -4,6 +4,7 @@ from ._algorithms import (
     IterativePointsMatchingAlgorithm,
     MaskMatchingAlgorithm,
     PointsMatchingAlgorithm,
+    SpellmatchMatchingAlgorithmException,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "IterativePointsMatchingAlgorithm",
     "MaskMatchingAlgorithm",
     "PointsMatchingAlgorithm",
+    "SpellmatchMatchingAlgorithmException",
 ]

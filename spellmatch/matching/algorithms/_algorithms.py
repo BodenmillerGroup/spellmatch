@@ -24,6 +24,7 @@ from ...utils import (
     transform_bounding_box,
     transform_points,
 )
+from .. import SpellmatchMatchingException
 
 
 class _MaskMatchingMixin:
@@ -551,3 +552,7 @@ class IterativeGraphMatchingAlgorithm(
         return self._match_graphs_from_points(
             source_points, target_points, source_intensities, target_intensities
         )
+
+
+class SpellmatchMatchingAlgorithmException(SpellmatchMatchingException):
+    pass
