@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from scipy import sparse
+from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import PCA
@@ -38,11 +39,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensities_weight: float = 1,
         degree_diff_thres: int = 3,
         intensities_lmd: Union[int, float] = 11,
-        intensities_pca_n_components: Union[int, float, str] = 10,
-        intensities_matching_top_k: int = 100,
-        intensities_cca_n_components: int = 20,
-        intensities_cca_max_iter: int = 500,
-        intensities_cca_tol: float = 1e-6,
+        intensities_lmd_n_components: int = 10,
+        intensities_lmd_max_iter: int = 500,
+        intensities_lmd_tol: float = 1e-6,
+        intensities_shared_n_components: Union[int, float, str] = 20,
+        intensities_full_matching_top_k: int = 100,
+        intensities_full_n_components: int = 20,
+        intensities_full_max_iter: int = 500,
+        intensities_full_tol: float = 1e-6,
         use_spatial_prior: bool = True,
         opt_max_iter: int = 100,
         opt_tol: float = 1e-9,
@@ -71,11 +75,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.intensities_weight = intensities_weight
         self.degree_diff_thres = degree_diff_thres
         self.intensities_lmd = intensities_lmd
-        self.intensities_pca_n_components = intensities_pca_n_components
-        self.intensities_matching_top_k = intensities_matching_top_k
-        self.intensities_cca_n_components = intensities_cca_n_components
-        self.intensities_cca_max_iter = intensities_cca_max_iter
-        self.intensities_cca_tol = intensities_cca_tol
+        self.intensities_lmd_n_components = intensities_lmd_n_components
+        self.intensities_lmd_max_iter = intensities_lmd_max_iter
+        self.intensities_lmd_tol = intensities_lmd_tol
+        self.intensities_shared_n_components = intensities_shared_n_components
+        self.intensities_full_matching_top_k = intensities_full_matching_top_k
+        self.intensities_full_n_components = intensities_full_n_components
+        self.intensities_full_max_iter = intensities_full_max_iter
+        self.intensities_full_tol = intensities_full_tol
         self.use_spatial_prior = use_spatial_prior
         self.opt_max_iter = opt_max_iter
         self.opt_tol = opt_tol
@@ -173,13 +180,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
         else:
             h = np.ones(n1 * n2) / (n1 * n2)
-        ss = []
-        best_lmd_index = 0
+        best_s = None
+        best_lmd = None
+        best_mean_cancor = None
         if 0 <= self.intensities_lmd <= 1:
             lmds = [self.intensities_lmd]
         else:
             lmds = np.linspace(0, 1, self.intensities_lmd)
-        for lmd_index, lmd in enumerate(lmds):
+        for lmd in lmds:
             logger.info(f"Initializing (lambda={lmd})")
             intensities_cdist: np.ndarray = (
                 lmd * intensities_cdists_shared + (1 - lmd) * intensities_cdists_all
@@ -203,7 +211,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 total_weight += 2 * self.intensities_weight
             if total_weight > 0:
                 w /= total_weight
-            # TODO check normalization
             d = deg1[:, np.newaxis] * deg2[np.newaxis, :]
             d[d != 0] = d[d != 0] ** (-0.5)
             d = sparse.dia_matrix((d.ravel(), [0]), shape=(n1 * n2, n1 * n2))
@@ -218,10 +225,41 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 if loss < self.opt_tol:
                     break
             logger.info("Done")
-            ss.append(s)
-            # TODO check and update best_lmd_index
+            if len(lmds) > 1:
+                row_ind, col_ind = linear_sum_assignment(
+                    np.reshape(best_s, (n1, n2)), maximize=True
+                )
+                cca = CCA(
+                    n_components=self.intensities_lmd_n_components,
+                    max_iter=self.intensities_lmd_max_iter,
+                    tol=self.intensities_lmd_tol,
+                )
+                cca1, cca2 = cca.fit_transform(
+                    source_intensities.iloc[row_ind, :],
+                    target_intensities.iloc[col_ind, :],
+                )
+                mean_cancor = np.mean(
+                    np.diagonal(
+                        np.corrcoef(cca1, cca2, rowvar=False), offset=cca.n_components
+                    )
+                )
+                logger.info(
+                    f"Mean canonical correlation of naive matching: {mean_cancor}"
+                )
+                if best_mean_cancor is None or mean_cancor > best_mean_cancor:
+                    best_s = s
+                    best_lmd = lmd
+                    best_mean_cancor = mean_cancor
+            else:
+                best_s = s
+                best_lmd = lmd
+        if len(lmds) > 1:
+            logger.info(
+                f"Best lambda: {best_lmd} "
+                f"(mean canonical correlation of naive matching: {best_mean_cancor})"
+            )
         scores = xr.DataArray(
-            data=np.reshape(ss[best_lmd_index], (n1, n2)),
+            data=np.reshape(best_s, (n1, n2)),
             coords={
                 source_adj.name: source_adj.coords["a"].to_numpy(),
                 target_adj.name: target_adj.coords["x"].to_numpy(),
@@ -261,9 +299,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             (intensities1, intensities2), join="inner", ignore_index=True
         )
         n_components = min(
-            self.intensities_pca_n_components, len(shared_intensities.columns)
+            self.intensities_shared_n_components, len(shared_intensities.columns)
         )
-        pca = PCA(n_components=n_components).fit(shared_intensities)
+        pca = PCA(n_components=n_components)
+        pca.fit(shared_intensities)
         pca1: pd.DataFrame = pca.transform(intensities1[shared_intensities.columns])
         pca2: pd.DataFrame = pca.transform(intensities2[shared_intensities.columns])
         intensities_cdists_shared = distance.cdist(pca1, pca2, metric="correlation")
@@ -281,19 +320,20 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         source_2nn_dists = np.take_along_axis(spatial_cdists, source_2nn_ind, axis=1)
         source_margins = source_2nn_dists[:, 0] - source_2nn_dists[:, 1]
         top_source_ind = np.argpartition(
-            -source_margins, self.intensities_matching_top_k - 1
-        )[: self.intensities_matching_top_k]
+            -source_margins, self.intensities_full_matching_top_k - 1
+        )[: self.intensities_full_matching_top_k]
         top_target_ind = source_2nn_ind[top_source_ind, 0]
         n_components = min(
-            self.intensities_cca_n_components,
+            self.intensities_full_n_components,
             len(intensities1.columns),
             len(intensities2.columns),
         )
         cca = CCA(
             n_components=n_components,
-            max_iter=self.intensities_cca_max_iter,
-            tol=self.intensities_cca_tol,
-        ).fit(intensities1.iloc[top_source_ind], intensities2.iloc[top_target_ind])
+            max_iter=self.intensities_full_max_iter,
+            tol=self.intensities_full_tol,
+        )
+        cca.fit(intensities1.iloc[top_source_ind], intensities2.iloc[top_target_ind])
         cca1: pd.DataFrame = cca.transform(intensities1)
         cca2: pd.DataFrame = cca.transform(intensities2)
         intensities_cdists_all = distance.cdist(cca1, cca2, metric="correlation")
