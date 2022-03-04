@@ -1,0 +1,7 @@
+raw/
+source_img/
+source_masks/
+target_img/
+target_masks/
+source_panel.csv
+target_panel.csv
