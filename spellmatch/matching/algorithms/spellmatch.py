@@ -301,6 +301,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         n_components = min(
             self.intensities_shared_n_components, len(shared_intensities.columns)
         )
+        # TODO use TruncatedSVD on centered and scaled intensities instead
         pca = PCA(n_components=n_components)
         pca.fit(shared_intensities)
         pca1: pd.DataFrame = pca.transform(intensities1[shared_intensities.columns])

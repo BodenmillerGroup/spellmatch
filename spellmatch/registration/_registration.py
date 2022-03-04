@@ -83,9 +83,13 @@ def register_images(
     method.AddCommand(sitk.sitkIterationEvent, lambda: _log_on_iteration(method))
     if visualize:
         method.AddCommand(
-            sitk.sitkIterationEvent, lambda: _visualize_on_iteration(method)
+            sitk.sitkIterationEvent,
+            lambda: _visualize_on_iteration(
+                method, moving_img, fixed_img, sitk_transform
+            ),
         )
     method.Execute(fixed_img, moving_img)
+
     return _to_transform(sitk_transform, ProjectiveTransform)
 
 
@@ -98,8 +102,16 @@ def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     )
 
 
-def _visualize_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
-    pass  # TODO registration visualization
+def _visualize_on_iteration(
+    method: sitk.ImageRegistrationMethod,
+    moving_img: sitk.Image,
+    fixed_img: sitk.Image,
+    sitk_transform: sitk.Transform,
+) -> None:
+    resampled_img = sitk.Resample(moving_img, fixed_img, transform=sitk_transform)
+    composite_img = sitk.Compose(resampled_img, fixed_img, resampled_img)
+    sitk.GetArrayFromImage(composite_img)
+    # TODO registration visualization
 
 
 SITKTransformType = TypeVar("SITKTransformType", bound=SITKProjectiveTransform)
