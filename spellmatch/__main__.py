@@ -382,7 +382,7 @@ def register(
                 f"found {len(target_img_files)}"
             )
         if initial_transform_path is not None:
-            initial_transform_files = sorted(initial_transform_path.glob(".npy"))
+            initial_transform_files = sorted(initial_transform_path.glob("*.npy"))
             if len(initial_transform_files) != len(source_img_files):
                 raise click.UsageError(
                     f"Expected {len(source_img_files)} initial transforms, "
@@ -629,7 +629,7 @@ def match(
         else:
             target_img_files = [None] * len(target_mask_files)
         if transform_path is not None:
-            transform_files = sorted(transform_path.glob(".npy"))
+            transform_files = sorted(transform_path.glob("*.npy"))
             if len(transform_files) != len(source_mask_files):
                 raise click.UsageError(
                     f"Expected {len(source_mask_files)} transforms, "
