@@ -93,9 +93,7 @@ def _logging_command(method: sitk.ImageRegistrationMethod) -> None:
     )
 
 
-SITKTransformType = TypeVar(
-    "SITKTransformType", SITKProjectiveTransform, contravariant=True
-)
+SITKTransformType = TypeVar("SITKTransformType", bound=SITKProjectiveTransform)
 
 
 def _from_transform(
@@ -107,7 +105,7 @@ def _from_transform(
     return sitk_transform
 
 
-TransformType = TypeVar("TransformType", ProjectiveTransform, contravariant=True)
+TransformType = TypeVar("TransformType", bound=ProjectiveTransform)
 
 
 def _to_transform(
