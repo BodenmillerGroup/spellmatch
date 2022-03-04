@@ -330,6 +330,12 @@ def align(
     "initial_transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
+@click.option(
+    "--show/--no-show",
+    "visualize",
+    default=False,
+    show_default=True,
+)
 @click.argument(
     "transform_path",
     metavar="TRANSFORMS",
@@ -355,6 +361,7 @@ def register(
     optimizer_kwargs: dict[str, Any],
     sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
+    visualize: bool,
     transform_path: Path,
 ) -> None:
     metric = registration_metric_types[metric_name](**metric_kwargs)
@@ -392,8 +399,10 @@ def register(
             initial_transform_files = [None] * len(source_img_files)
         transform_path.mkdir(exist_ok=True)
         transform_files = [
-            transform_path / source_img_file.with_suffix(".npy")
-            for source_img_file in source_img_files
+            transform_path / f"{source_img_file.stem}_{target_img_file.stem}.npy"
+            for source_img_file, target_img_file in zip(
+                source_img_files, target_img_files
+            )
         ]
     else:
         raise click.UsageError(
@@ -411,7 +420,7 @@ def register(
         click.echo(f"SOURCE IMAGE: {source_img_file.name}")
         click.echo(f"TARGET IMAGE: {target_img_file.name}")
         if initial_transform_file is not None:
-            click.echo(f"INITIAL TRANFORM: {initial_transform_file.name}")
+            click.echo(f"INITIAL TRANSFORM: {initial_transform_file.name}")
         else:
             click.echo("INITIAL TRANSFORM: None")
         click.echo(f"TRANSFORM OUT: {transform_file.name}")
@@ -475,6 +484,7 @@ def register(
             denoise_target=denoise_target,
             blur_source=blur_source,
             blur_target=blur_target,
+            visualize=visualize,
         )
         io.write_transform(transform_file, transform)
 
@@ -678,7 +688,7 @@ def match(
         else:
             click.echo("TARGET IMAGE: None")
         if transform_file is not None:
-            click.echo(f"TRANFORM: {transform_file.name}")
+            click.echo(f"TRANSFORM: {transform_file.name}")
         else:
             click.echo("TRANSFORM: None")
         click.echo(f"SCORES OUT: {scores_file.name}")

@@ -33,8 +33,9 @@ def register_images(
     denoise_target: Optional[float] = None,
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
+    visualize: bool = False,
 ) -> ProjectiveTransform:
-    moving_img = sitk.GetImageFromArray(source_img.to_numpy())
+    moving_img = sitk.GetImageFromArray(source_img.astype(float))
     moving_origin = (
         -0.5 * source_img.shape[-1] + 0.5,
         -0.5 * source_img.shape[-2] + 0.5,
@@ -52,7 +53,7 @@ def register_images(
         moving_gaussian_filter.SetNormalizeAcrossScale(True)
         moving_gaussian_filter.SetSigma(blur_source)
         moving_img = moving_gaussian_filter.Execute(moving_img)
-    fixed_img = sitk.GetImageFromArray(target_img)
+    fixed_img = sitk.GetImageFromArray(target_img.astype(float))
     fixed_origin = (
         -0.5 * target_img.shape[-1] + 0.5,
         -0.5 * target_img.shape[-2] + 0.5,
@@ -74,23 +75,31 @@ def register_images(
     metric.configure(method)
     optimizer.configure(method)
     if initial_transform is not None:
-        initial_sitk_transform = _from_transform(initial_transform, sitk_transform_type)
+        sitk_transform = _from_transform(initial_transform, sitk_transform_type)
     else:
-        initial_sitk_transform = sitk_transform_type()
-    method.SetInitialTransform(initial_sitk_transform)
+        sitk_transform = sitk_transform_type()
+    method.SetInitialTransform(sitk_transform, inPlace=True)
     method.SetInterpolator(sitk.sitkLinear)
-    method.AddCommand(lambda: _logging_command(method))
-    sitk_transform: SITKProjectiveTransform = method.Execute(fixed_img, moving_img)
+    method.AddCommand(sitk.sitkIterationEvent, lambda: _log_on_iteration(method))
+    if visualize:
+        method.AddCommand(
+            sitk.sitkIterationEvent, lambda: _visualize_on_iteration(method)
+        )
+    method.Execute(fixed_img, moving_img)
     return _to_transform(sitk_transform, ProjectiveTransform)
 
 
-def _logging_command(method: sitk.ImageRegistrationMethod) -> None:
+def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     optimizer_iteration = method.GetOptimizerIteration()
     optimizer_position = method.GetOptimizerPosition()
     metric_value = method.GetMetricValue()
     logger.info(
         f"{optimizer_iteration:03} = {metric_value:9.6f} : {optimizer_position}"
     )
+
+
+def _visualize_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
+    pass  # TODO registration visualization
 
 
 SITKTransformType = TypeVar("SITKTransformType", bound=SITKProjectiveTransform)
