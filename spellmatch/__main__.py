@@ -56,6 +56,8 @@ def catch_exception(func=None, *, handle=SpellmatchException):
 
 
 class KeywordArgumentsParamType(click.ParamType):
+    name = "keyword arguments"
+
     def convert(
         self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
     ) -> Any:

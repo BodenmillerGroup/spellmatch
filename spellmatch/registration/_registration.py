@@ -102,7 +102,7 @@ def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     optimizer_position = method.GetOptimizerPosition()
     metric_value = method.GetMetricValue()
     logger.info(
-        f"{optimizer_iteration:03} = {metric_value:9.6f} : {optimizer_position}"
+        f"Iteration {optimizer_iteration:03}: {metric_value:.6f} {optimizer_position}"
     )
 
 
