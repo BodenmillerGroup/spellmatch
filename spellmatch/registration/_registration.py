@@ -2,6 +2,7 @@ import logging
 from typing import Optional, Type, TypeVar, Union
 
 import numpy as np
+import pyqtgraph as pg
 import SimpleITK as sitk
 import xarray as xr
 from skimage.transform import ProjectiveTransform
@@ -82,14 +83,17 @@ def register_images(
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(sitk.sitkIterationEvent, lambda: _log_on_iteration(method))
     if visualize:
+        composite_img_arrs = [_compose_images(moving_img, fixed_img, sitk_transform)]
         method.AddCommand(
             sitk.sitkIterationEvent,
-            lambda: _visualize_on_iteration(
-                method, moving_img, fixed_img, sitk_transform
+            lambda: composite_img_arrs.append(
+                _compose_images(moving_img, fixed_img, sitk_transform)
             ),
         )
     method.Execute(fixed_img, moving_img)
-
+    if visualize:
+        pg.image(np.array(composite_img_arrs))
+        pg.exec()
     return _to_transform(sitk_transform, ProjectiveTransform)
 
 
@@ -102,16 +106,12 @@ def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     )
 
 
-def _visualize_on_iteration(
-    method: sitk.ImageRegistrationMethod,
-    moving_img: sitk.Image,
-    fixed_img: sitk.Image,
-    sitk_transform: sitk.Transform,
-) -> None:
+def _compose_images(
+    moving_img: sitk.Image, fixed_img: sitk.Image, sitk_transform: sitk.Transform
+) -> np.ndarray:
     resampled_img = sitk.Resample(moving_img, fixed_img, transform=sitk_transform)
     composite_img = sitk.Compose(resampled_img, fixed_img, resampled_img)
-    sitk.GetArrayFromImage(composite_img)
-    # TODO registration visualization
+    return sitk.GetArrayFromImage(composite_img)
 
 
 SITKTransformType = TypeVar("SITKTransformType", bound=SITKProjectiveTransform)
