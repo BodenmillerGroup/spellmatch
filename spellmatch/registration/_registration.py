@@ -10,6 +10,8 @@ from skimage.transform import ProjectiveTransform
 from .metrics import Metric
 from .optimizers import Optimizer
 
+pg.setConfigOption("imageAxisOrder", "row-major")
+
 SITKProjectiveTransform = Union[
     sitk.Euler2DTransform, sitk.Similarity2DTransform, sitk.AffineTransform
 ]
@@ -76,7 +78,7 @@ def register_images(
     metric.configure(method)
     optimizer.configure(method)
     if initial_transform is not None:
-        sitk_transform = _from_transform(initial_transform, sitk_transform_type)
+        sitk_transform = _to_sitk_transform(initial_transform, sitk_transform_type)
     else:
         sitk_transform = sitk_transform_type()
     method.SetInitialTransform(sitk_transform, inPlace=True)
@@ -90,7 +92,7 @@ def register_images(
                 _compose_images(moving_img, fixed_img, sitk_transform)
             ),
         )
-    method.Execute(fixed_img, moving_img)
+    sitk_transform = sitk_transform_type(method.Execute(fixed_img, moving_img))
     if visualize:
         pg.image(np.array(composite_img_arrs))
         pg.exec()
@@ -117,13 +119,13 @@ def _compose_images(
 SITKTransformType = TypeVar("SITKTransformType", bound=SITKProjectiveTransform)
 
 
-def _from_transform(
+def _to_sitk_transform(
     transform: ProjectiveTransform, sitk_transform_type: Type[SITKTransformType]
 ) -> SITKTransformType:
     sitk_transform = sitk_transform_type()
-    sitk_transform.SetTranslation(transform.params[:2, 2])
-    sitk_transform.SetMatrix(transform.params[:2, :2].flatten())
-    return sitk_transform
+    sitk_transform.SetTranslation(transform.params[:2, 2][::-1])
+    sitk_transform.SetMatrix(transform.params[:2, :2].transpose().ravel())
+    return sitk_transform_type(sitk_transform.GetInverse())
 
 
 TransformType = TypeVar("TransformType", bound=ProjectiveTransform)
@@ -132,7 +134,9 @@ TransformType = TypeVar("TransformType", bound=ProjectiveTransform)
 def _to_transform(
     sitk_transform: SITKProjectiveTransform, transform_type: Type[TransformType]
 ) -> TransformType:
-    transform_matrix = np.eye(3)
-    transform_matrix[:2, 2] = sitk_transform.GetTranslation()
-    transform_matrix[:2, :2] = np.reshape(sitk_transform.GetMatrix(), (2, 2))
-    return transform_type(matrix=transform_matrix)
+    inverse_transform_matrix = np.eye(3)
+    inverse_transform_matrix[:2, 2] = np.asarray(sitk_transform.GetTranslation())[::-1]
+    inverse_transform_matrix[:2, :2] = np.reshape(
+        sitk_transform.GetMatrix(), (2, 2)
+    ).transpose()
+    return transform_type(matrix=np.linalg.inv(inverse_transform_matrix))
