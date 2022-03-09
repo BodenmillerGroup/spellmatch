@@ -5,7 +5,7 @@ import pandas as pd
 import xarray as xr
 from napari.layers import Image, Labels
 from napari.viewer import Viewer
-from qtpy.QtWidgets import QApplication
+from qtpy.QtCore import QEventLoop
 from skimage.transform import AffineTransform, ProjectiveTransform
 
 from .._spellmatch import SpellmatchException
@@ -31,7 +31,6 @@ def align_masks(
             f"Source image has shape {target_img.shape}, "
             f"but source mask has shape {target_mask.shape}"
         )
-    app = QApplication([])
 
     source_viewer, source_mask_layer, _ = _create_viewer(
         "Source", source_mask, img=source_img
@@ -70,17 +69,20 @@ def align_masks(
             mask_layer.selected_label = 0
             yield
 
+    point_matching_event_loop = QEventLoop()
     source_mask_layer.mouse_drag_callbacks.append(on_mask_layer_mouse_drag)
     target_mask_layer.mouse_drag_callbacks.append(on_mask_layer_mouse_drag)
-    point_matching_dialog.finished.connect(lambda _: app.exit())
+    point_matching_dialog.finished.connect(lambda _: point_matching_event_loop.quit())
 
     source_viewer.show()
     target_viewer.show()
     point_matching_dialog.show()
     point_matching_dialog.raise_()
     point_matching_dialog.activateWindow()
+    point_matching_event_loop.exec()
+    source_viewer.close()
+    target_viewer.close()
 
-    app.exec()
     result = point_matching_dialog.result()
     if result == QPointMatchingDialog.DialogCode.Accepted:
         return (

@@ -5,7 +5,9 @@ from typing import Any, Optional, Type
 import click
 import click_log
 import numpy as np
+import pandas as pd
 import pluggy
+import xarray as xr
 import yaml
 from skimage.transform import (
     AffineTransform,
@@ -55,6 +57,55 @@ def catch_exception(func=None, *, handle=SpellmatchException):
     return wrapper
 
 
+def glob_sorted(dir: Path, pattern: str, expect: Optional[int] = None) -> list[Path]:
+    files = sorted(dir.glob(pattern))
+    if expect is not None and len(files) != expect:
+        raise click.UsageError(
+            f"Expected {expect} files in directory {dir.name}, found {len(files)}"
+        )
+    return files
+
+
+def describe_image(img: xr.DataArray) -> str:
+    return f"{np.dtype(img.dtype).name} {img.shape[1:]}, {img.shape[0]} channels"
+
+
+def describe_mask(mask: xr.DataArray) -> str:
+    return f"{np.dtype(mask.dtype).name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
+
+
+def describe_assignment(assignment: pd.DataFrame) -> str:
+    return f"{len(assignment.index)} cell pairs"
+
+
+def describe_scores(scores: xr.DataArray) -> str:
+    top2_scores = -np.partition(-scores, 1, axis=-1)[:, :2]
+    mean_score = np.mean(top2_scores[:, 0])
+    mean_margin = np.mean(top2_scores[:, 0] - top2_scores[:, 1])
+    return f"mean score: {mean_score}, mean margin: {mean_margin}"
+
+
+def describe_transform(transform: ProjectiveTransform) -> str:
+    transform_infos = []
+    if hasattr(transform, "scale"):
+        if np.isscalar(transform.scale):
+            transform_infos.append(f"scale: {transform.scale:.3f}")
+        else:
+            transform_infos.append(
+                f"scale: sx={transform.scale[-1]:.3f} sy={transform.scale[-2]:.3f}"
+            )
+    if hasattr(transform, "rotation"):
+        transform_infos.append(f"ccw rotation: {180 * transform.rotation / np.pi:.3f}°")
+    if hasattr(transform, "shear"):
+        transform_infos.append(f"ccw shear: {180 * transform.shear / np.pi:.3f}°")
+    if hasattr(transform, "translation"):
+        transform_infos.append(
+            "translation: "
+            f"tx={transform.translation[-1]:.3f} ty={transform.translation[-2]:.3f}"
+        )
+    return ", ".join(transform_infos)
+
+
 class KeywordArgumentsParamType(click.ParamType):
     name = "keyword arguments"
 
@@ -95,24 +146,24 @@ def cli() -> None:
 
 @cli.command()
 @click.argument(
-    "source_mask_file",
+    "source_mask_path",
     metavar="SOURCE_MASK",
-    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
-    "target_mask_file",
+    "target_mask_path",
     metavar="TARGET_MASK",
-    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--source-image",
-    "source_img_file",
-    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    "source_img_path",
+    type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--target-image",
-    "target_img_file",
-    type=click.Path(exists=True, dir_okay=False, readable=True, path_type=Path),
+    "target_img_path",
+    type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--source-panel",
@@ -150,88 +201,181 @@ def cli() -> None:
     type=click.Choice(list(transform_types.keys())),
 )
 @click.argument(
-    "assignment_file",
+    "assignment_path",
     metavar="ASSIGNMENT",
-    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    type=click.Path(path_type=Path),
 )
 @click.argument(
-    "transform_file",
+    "transform_path",
     metavar="TRANSFORM",
-    type=click.Path(dir_okay=False, writable=True, path_type=Path),
+    type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
 def align(
-    source_mask_file: Path,
-    target_mask_file: Path,
-    source_img_file: Optional[Path],
-    target_img_file: Optional[Path],
+    source_mask_path: Path,
+    target_mask_path: Path,
+    source_img_path: Optional[Path],
+    target_img_path: Optional[Path],
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
     target_scale: float,
     transform_type_name: str,
-    assignment_file: Path,
-    transform_file: Path,
+    assignment_path: Path,
+    transform_path: Path,
 ) -> None:
-    source_mask = io.read_mask(source_mask_file, scale=source_scale)
-    target_mask = io.read_mask(target_mask_file, scale=target_scale)
-    source_img = None
-    if source_img_file is not None:
-        source_panel = None
-        if source_panel_file.exists():
-            source_panel = io.read_panel(source_panel_file)
-        source_img = io.read_image(
-            source_img_file, panel=source_panel, scale=source_scale
-        )
-    target_img = None
-    if target_img_file is not None:
-        target_panel = None
-        if target_panel_file.exists():
-            target_panel = io.read_panel(target_panel_file)
-        target_img = io.read_image(
-            target_img_file, panel=target_panel, scale=target_scale
-        )
-    assignment = None
-    if assignment_file.exists():
-        assignment = io.read_assignment(assignment_file)
-    result = align_masks(
-        source_mask,
-        target_mask,
-        source_img=source_img,
-        target_img=target_img,
-        transform_type=transform_types[transform_type_name],
-        assignment=assignment,
-    )
-    if result is not None:
-        assignment, transform = result
-        io.write_assignment(assignment_file, assignment)
-        logger.info(f"ASSIGNMENT: {len(assignment.index)} cell pairs")
-        if transform is not None:
-            io.write_transform(transform_file, transform)
-            logger.info("TRANSFORM:")
-            if hasattr(transform, "scale"):
-                logger.info(f"  scale={transform.scale}")
-            if hasattr(transform, "translation"):
-                logger.info(f"  translation={transform.translation}")
-            if hasattr(transform, "rotation"):
-                logger.info(f"  rotation={transform.rotation}")
-            if hasattr(transform, "shear"):
-                logger.info(f"  shear={transform.shear}")
+    source_panel = None
+    if source_panel_file.exists():
+        source_panel = io.read_panel(source_panel_file)
+    target_panel = None
+    if target_panel_file.exists():
+        target_panel = io.read_panel(target_panel_file)
+    if (
+        source_mask_path.is_file()
+        and target_mask_path.is_file()
+        and (source_img_path is None or source_img_path.is_file())
+        and (target_img_path is None or target_img_path.is_file())
+        and (not assignment_path.exists() or assignment_path.is_file())
+        and (not transform_path.exists() or transform_path.is_file())
+    ):
+        source_mask_files = [source_mask_path]
+        target_mask_files = [target_mask_path]
+        if source_img_path is not None:
+            source_img_files = [source_img_path]
         else:
-            logger.info("TRANSFORM: None")
+            source_img_files = [None]
+        if target_img_path is not None:
+            target_img_files = [target_img_path]
+        else:
+            target_img_files = [None]
+        assignment_files = [assignment_path]
+        transform_files = [transform_path]
+    elif (
+        source_mask_path.is_dir()
+        and target_mask_path.is_dir()
+        and (source_img_path is None or source_img_path.is_dir())
+        and (target_img_path is None or target_img_path.is_dir())
+        and (not assignment_path.exists() or assignment_path.is_dir())
+        and (not transform_path.exists() or transform_path.is_dir())
+    ):
+        source_mask_files = glob_sorted(source_mask_path, "*.tiff")
+        target_mask_files = glob_sorted(
+            target_mask_path, "*.tiff", expect=len(source_mask_files)
+        )
+        if source_img_path is not None:
+            source_img_files = glob_sorted(
+                source_img_path, "*.tiff", expect=len(source_mask_files)
+            )
+        else:
+            source_img_files = [None] * len(source_mask_files)
+        if target_img_path is not None:
+            target_img_files = glob_sorted(
+                target_img_path, "*.tiff", expect=len(target_mask_files)
+            )
+        else:
+            target_img_files = [None] * len(target_mask_files)
+        assignment_path.mkdir(exist_ok=True)
+        assignment_files = [
+            assignment_path / f"assignment{i + 1:03d}.csv"
+            for i in range(len(source_mask_files))
+        ]
+        transform_path.mkdir(exist_ok=True)
+        transform_files = [
+            transform_path / f"transform{i + 1:03d}.npy"
+            for i in range(len(source_mask_files))
+        ]
     else:
-        raise click.Abort()
+        raise click.UsageError(
+            "Either specify individual files, or directories, but not both"
+        )
+    for i, (
+        source_mask_file,
+        target_mask_file,
+        source_img_file,
+        target_img_file,
+        assignment_file,
+        transform_file,
+    ) in enumerate(
+        zip(
+            source_mask_files,
+            target_mask_files,
+            source_img_files,
+            target_img_files,
+            assignment_files,
+            transform_files,
+        )
+    ):
+        if len(source_mask_files) > 1:
+            logger.info(
+                f"########## MASK PAIR {i + 1}/{len(source_mask_files)} ##########"
+            )
+        source_mask = io.read_mask(source_mask_file, scale=source_scale)
+        logger.info(
+            f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
+        )
+        target_mask = io.read_mask(target_mask_file, scale=target_scale)
+        logger.info(
+            f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
+        )
+        if source_img_file is not None:
+            source_img = io.read_image(
+                source_img_file, panel=source_panel, scale=source_scale
+            )
+            logger.info(
+                f"Source image: {source_img_file.name} ({describe_image(source_img)})"
+            )
+        else:
+            source_img = None
+            logger.info("Source image: None")
+        if target_img_file is not None:
+            target_img = io.read_image(
+                target_img_file, panel=target_panel, scale=target_scale
+            )
+            logger.info(
+                f"Target image: {target_img_file.name} ({describe_image(target_img)})"
+            )
+        else:
+            target_img = None
+            logger.info("Target image: None")
+        assignment = None
+        if assignment_file.exists():
+            assignment = io.read_assignment(assignment_file)
+        result = align_masks(
+            source_mask,
+            target_mask,
+            source_img=source_img,
+            target_img=target_img,
+            transform_type=transform_types[transform_type_name],
+            assignment=assignment,
+        )
+        if result is not None:
+            assignment, transform = result
+            io.write_assignment(assignment_file, assignment)
+            logger.info(
+                f"Assignment: {assignment_file.name} "
+                f"({describe_assignment(assignment)})"
+            )
+            if transform is not None:
+                io.write_transform(transform_file, transform)
+                logger.info(
+                    f"Transform: {transform_file.name} "
+                    f"({describe_transform(transform)})"
+                )
+            else:
+                logger.info("Transform: None")
+        else:
+            raise click.Abort()
 
 
 @cli.command()
 @click.argument(
     "source_img_path",
-    metavar="SOURCE_IMAGES",
+    metavar="SOURCE_IMAGE",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
     "target_img_path",
-    metavar="TARGET_IMAGES",
+    metavar="TARGET_IMAGE",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
@@ -328,7 +472,7 @@ def align(
     type=click.Choice(list(sitk_transform_types.keys())),
 )
 @click.option(
-    "--initial-transforms",
+    "--initial-transform",
     "initial_transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -340,7 +484,7 @@ def align(
 )
 @click.argument(
     "transform_path",
-    metavar="TRANSFORMS",
+    metavar="TRANSFORM",
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
@@ -369,10 +513,17 @@ def register(
     metric = registration_metric_types[metric_name](**metric_kwargs)
     optimizer = registration_optimizer_types[optimizer_name](**optimizer_kwargs)
     sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
+    source_panel = None
+    if source_panel_file.exists():
+        source_panel = io.read_panel(source_panel_file)
+    target_panel = None
+    if target_panel_file.exists():
+        target_panel = io.read_panel(target_panel_file)
     if (
         source_img_path.is_file()
         and target_img_path.is_file()
         and (initial_transform_path is None or initial_transform_path.is_file())
+        and (not transform_path.exists() or transform_path.is_file())
     ):
         source_img_files = [source_img_path]
         target_img_files = [target_img_path]
@@ -382,21 +533,16 @@ def register(
         source_img_path.is_dir()
         and target_img_path.is_dir()
         and (initial_transform_path is None or initial_transform_path.is_dir())
+        and (not transform_path.exists() or transform_path.is_dir())
     ):
-        source_img_files = sorted(source_img_path.glob("*.tiff"))
-        target_img_files = sorted(target_img_path.glob("*.tiff"))
-        if len(target_img_files) != len(source_img_files):
-            raise click.UsageError(
-                f"Expected {len(source_img_files)} target images, "
-                f"found {len(target_img_files)}"
-            )
+        source_img_files = glob_sorted(source_img_path, "*.tiff")
+        target_img_files = glob_sorted(
+            target_img_path, "*.tiff", expect=len(source_img_files)
+        )
         if initial_transform_path is not None:
-            initial_transform_files = sorted(initial_transform_path.glob("*.npy"))
-            if len(initial_transform_files) != len(source_img_files):
-                raise click.UsageError(
-                    f"Expected {len(source_img_files)} initial transforms, "
-                    f"found {len(initial_transform_files)}"
-                )
+            initial_transform_files = glob_sorted(
+                initial_transform_path, "*.npy", expect=len(source_img_files)
+            )
         else:
             initial_transform_files = [None] * len(source_img_files)
         transform_path.mkdir(exist_ok=True)
@@ -410,24 +556,25 @@ def register(
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
         )
-    source_panel = None
-    if source_panel_file.exists():
-        source_panel = io.read_panel(source_panel_file)
-    target_panel = None
-    if target_panel_file.exists():
-        target_panel = io.read_panel(target_panel_file)
-    for source_img_file, target_img_file, initial_transform_file, transform_file in zip(
-        source_img_files, target_img_files, initial_transform_files, transform_files
+    for i, (
+        source_img_file,
+        target_img_file,
+        initial_transform_file,
+        transform_file,
+    ) in enumerate(
+        zip(
+            source_img_files, target_img_files, initial_transform_files, transform_files
+        )
     ):
-        click.echo(f"SOURCE IMAGE: {source_img_file.name}")
-        click.echo(f"TARGET IMAGE: {target_img_file.name}")
-        if initial_transform_file is not None:
-            click.echo(f"INITIAL TRANSFORM: {initial_transform_file.name}")
-        else:
-            click.echo("INITIAL TRANSFORM: None")
-        click.echo(f"TRANSFORM OUT: {transform_file.name}")
+        if len(source_img_files) > 1:
+            logger.info(
+                f"########## IMAGE PAIR {i + 1}/{len(source_img_files)} ##########"
+            )
         source_img = io.read_image(
             source_img_file, panel=source_panel, scale=source_scale
+        )
+        logger.info(
+            f"Source image: {source_img_file.name} ({describe_image(source_img)})"
         )
         if source_img.ndim == 3:
             if source_channel is not None:
@@ -452,6 +599,9 @@ def register(
         target_img = io.read_image(
             target_img_file, panel=target_panel, scale=target_scale
         )
+        logger.info(
+            f"Target image: {target_img_file.name} ({describe_image(target_img)})"
+        )
         if target_img.ndim == 3:
             if target_channel is not None:
                 if (
@@ -472,9 +622,16 @@ def register(
                     "No channel specified "
                     f"for multi-channel target image {target_img_file.name}"
                 )
-        initial_transform = None
+
         if initial_transform_file is not None:
             initial_transform = io.read_transform(initial_transform_file)
+            logger.info(
+                f"Initial transform: {initial_transform_file.name} "
+                f"({describe_transform(initial_transform)})"
+            )
+        else:
+            initial_transform = None
+            logger.info("Initial transform: None")
         transform = register_images(
             source_img,
             target_img,
@@ -489,26 +646,29 @@ def register(
             visualize=visualize,
         )
         io.write_transform(transform_file, transform)
+        logger.info(
+            f"Transform: {transform_file.name} ({describe_transform(transform)})"
+        )
 
 
 @cli.command()
 @click.argument(
     "source_mask_path",
-    metavar="SOURCE_MASKS",
+    metavar="SOURCE_MASK",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
     "target_mask_path",
-    metavar="TARGET_MASKS",
+    metavar="TARGET_MASK",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--source-images",
+    "--source-image",
     "source_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--target-images",
+    "--target-image",
     "target_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -555,7 +715,7 @@ def register(
     type=KEYWORD_ARGUMENTS,
 )
 @click.option(
-    "--transforms",
+    "--transform",
     "transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -595,12 +755,19 @@ def match(
     mask_matching_algorithm = mask_matching_algorithm_type(
         **mask_matching_algorithm_kwargs
     )
+    source_panel = None
+    if source_panel_file.exists():
+        source_panel = io.read_panel(source_panel_file)
+    target_panel = None
+    if target_panel_file.exists():
+        target_panel = io.read_panel(target_panel_file)
     if (
         source_mask_path.is_file()
         and target_mask_path.is_file()
         and (source_img_path is None or source_img_path.is_file())
         and (target_img_path is None or target_img_path.is_file())
         and (transform_path is None or transform_path.is_file())
+        and (not scores_path.exists() or scores_path.is_file())
     ):
         source_mask_files = [source_mask_path]
         target_mask_files = [target_mask_path]
@@ -614,56 +781,39 @@ def match(
         and (source_img_path is None or source_img_path.is_dir())
         and (target_img_path is None or target_img_path.is_dir())
         and (transform_path is None or transform_path.is_dir())
+        and (not scores_path.exists() or scores_path.is_dir())
     ):
-        source_mask_files = sorted(source_mask_path.glob("*.tiff"))
-        target_mask_files = sorted(target_mask_path.glob("*.tiff"))
-        if len(target_mask_files) != len(source_mask_files):
-            raise click.UsageError(
-                f"Expected {len(source_mask_files)} target masks, "
-                f"found {len(target_mask_files)}"
-            )
+        source_mask_files = glob_sorted(source_mask_path, "*.tiff")
+        target_mask_files = glob_sorted(
+            target_mask_path, "*.tiff", expect=len(source_mask_files)
+        )
         if source_img_path is not None:
-            source_img_files = sorted(source_img_path.glob("*.tiff"))
-            if len(source_img_files) != len(source_mask_files):
-                raise click.UsageError(
-                    f"Expected {len(source_mask_files)} source images, "
-                    f"found {len(source_img_files)}"
-                )
+            source_img_files = glob_sorted(
+                source_img_path, "*.tiff", expect=len(source_mask_files)
+            )
         else:
             source_img_files = [None] * len(source_mask_files)
         if target_img_path is not None:
-            target_img_files = sorted(target_img_path.glob("*.tiff"))
-            if len(target_img_files) != len(target_mask_files):
-                raise click.UsageError(
-                    f"Expected {len(target_mask_files)} target images, "
-                    f"found {len(target_img_files)}"
-                )
+            target_img_files = glob_sorted(
+                target_img_path, "*.tiff", expect=len(target_mask_files)
+            )
         else:
             target_img_files = [None] * len(target_mask_files)
         if transform_path is not None:
-            transform_files = sorted(transform_path.glob("*.npy"))
-            if len(transform_files) != len(source_mask_files):
-                raise click.UsageError(
-                    f"Expected {len(source_mask_files)} transforms, "
-                    f"found {len(transform_files)}"
-                )
+            transform_files = glob_sorted(
+                transform_path, "*.npy", expect=len(source_mask_files)
+            )
         else:
             transform_files = [None] * len(source_mask_files)
         scores_path.mkdir(exist_ok=True)
         scores_files = [
-            scores_path / source_mask_file.with_suffix(".npy")
-            for source_mask_file in source_mask_files
+            scores_path / f"scores{i + 1:03d}.npy"
+            for i in range(len(source_mask_files))
         ]
     else:
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
         )
-    source_panel = None
-    if source_panel_file.exists():
-        source_panel = io.read_panel(source_panel_file)
-    target_panel = None
-    if target_panel_file.exists():
-        target_panel = io.read_panel(target_panel_file)
     for (
         source_mask_file,
         target_mask_file,
@@ -679,36 +829,42 @@ def match(
         transform_files,
         scores_files,
     ):
-        click.echo(f"SOURCE MASK: {source_mask_file.name}")
-        click.echo(f"TARGET MASK: {target_mask_file.name}")
-        if source_img_file is not None:
-            click.echo(f"SOURCE IMAGE: {source_img_file.name}")
-        else:
-            click.echo("SOURCE IMAGE: None")
-        if target_img_file is not None:
-            click.echo(f"TARGET IMAGE: {target_img_file.name}")
-        else:
-            click.echo("TARGET IMAGE: None")
-        if transform_file is not None:
-            click.echo(f"TRANSFORM: {transform_file.name}")
-        else:
-            click.echo("TRANSFORM: None")
-        click.echo(f"SCORES OUT: {scores_file.name}")
         source_mask = io.read_mask(source_mask_file, scale=source_scale)
+        logger.info(
+            f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
+        )
         target_mask = io.read_mask(target_mask_file, scale=target_scale)
-        source_img = None
+        logger.info(
+            f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
+        )
         if source_img_file is not None:
             source_img = io.read_image(
                 source_img_file, panel=source_panel, scale=source_scale
             )
-        target_img = None
+            logger.info(
+                f"Source image: {source_img_file.name} ({describe_image(source_img)})"
+            )
+        else:
+            source_img = None
+            logger.info("Source image: None")
         if target_img_file is not None:
             target_img = io.read_image(
                 target_img_file, panel=target_panel, scale=target_scale
             )
-        transform = None
+            logger.info(
+                f"Target image: {target_img_file.name} ({describe_image(target_img)})"
+            )
+        else:
+            target_img = None
+            logger.info("Target image: None")
         if transform_file is not None:
             transform = io.read_transform(transform_file)
+            logger.info(
+                f"Transform: {transform_file.name} ({describe_transform(transform)})"
+            )
+        else:
+            transform = None
+            logger.info("Transform: None")
         if reverse:
             source_mask, target_mask = target_mask, source_mask
             source_img, target_img = target_img, source_img
@@ -722,6 +878,7 @@ def match(
             transform=transform,
         )
         io.write_scores(scores_file, scores)
+        logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
 
 
 if __name__ == "__main__":
