@@ -6,7 +6,7 @@ import SimpleITK as sitk
 from pydantic import BaseModel
 
 
-class Metric(BaseModel, ABC):
+class SITKMetric(BaseModel, ABC):
     sampling_percentage: float = 1
     sampling_strategy: str = "NONE"
     sampling_seed: int = sitk.sitkWallClock
@@ -19,63 +19,63 @@ class Metric(BaseModel, ABC):
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         r.SetMetricSamplingPercentage(self.sampling_percentage, seed=self.sampling_seed)
         r.SetMetricSamplingStrategy(
-            Metric.SamplingStrategy[self.sampling_strategy].value
+            SITKMetric.SamplingStrategy[self.sampling_strategy].value
         )
 
 
-class ANTSNeighborhoodCorrelationMetric(Metric):
+class ANTSNeighborhoodCorrelationSITKMetric(SITKMetric):
     radius: int
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(ANTSNeighborhoodCorrelationMetric, self).configure(r)
+        super(ANTSNeighborhoodCorrelationSITKMetric, self).configure(r)
         r.SetMetricAsANTSNeighborhoodCorrelation(self.radius)
 
 
-class CorrelationMetric(Metric):
+class CorrelationSITKMetric(SITKMetric):
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(CorrelationMetric, self).configure(r)
+        super(CorrelationSITKMetric, self).configure(r)
         r.SetMetricAsCorrelation()
 
 
-class DemonsMetric(Metric):
+class DemonsSITKMetric(SITKMetric):
     intensity_diff_thres: float = 0.001
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(DemonsMetric, self).configure(r)
+        super(DemonsSITKMetric, self).configure(r)
         r.SetMetricAsDemons(intensityDifferenceThreshold=self.intensity_diff_thres)
 
 
-class JointHistogramMutualInformationMetric(Metric):
+class JointHistogramMutualInformationSITKMetric(SITKMetric):
     bins: int = 20
     smoothing_var: float = 1.5
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(JointHistogramMutualInformationMetric, self).configure(r)
+        super(JointHistogramMutualInformationSITKMetric, self).configure(r)
         r.SetMetricAsJointHistogramMutualInformation(
             numberOfHistogramBins=self.bins,
             varianceForJointPDFSmoothing=self.smoothing_var,
         )
 
 
-class MattesMutualInformationMetric(Metric):
+class MattesMutualInformationSITKMetric(SITKMetric):
     bins: int = 50
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(MattesMutualInformationMetric, self).configure(r)
+        super(MattesMutualInformationSITKMetric, self).configure(r)
         r.SetMetricAsMattesMutualInformation(numberOfHistogramBins=self.bins)
 
 
-class MeanSquaresMetric(Metric):
+class MeanSquaresSITKMetric(SITKMetric):
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(MeanSquaresMetric, self).configure(r)
+        super(MeanSquaresSITKMetric, self).configure(r)
         r.SetMetricAsMeanSquares()
 
 
-metric_types: dict[str, Type[Metric]] = {
-    "ants_neighborhood_correlation": ANTSNeighborhoodCorrelationMetric,
-    "correlation": CorrelationMetric,
-    "demons": DemonsMetric,
-    "joint_histogram_mutual_information": JointHistogramMutualInformationMetric,
-    "mattes_mutual_information": MattesMutualInformationMetric,
-    "mean_squares": MeanSquaresMetric,
+sitk_metric_types: dict[str, Type[SITKMetric]] = {
+    "ants_neighborhood_correlation": ANTSNeighborhoodCorrelationSITKMetric,
+    "correlation": CorrelationSITKMetric,
+    "demons": DemonsSITKMetric,
+    "joint_histogram_mutual_information": JointHistogramMutualInformationSITKMetric,
+    "mattes_mutual_information": MattesMutualInformationSITKMetric,
+    "mean_squares": MeanSquaresSITKMetric,
 }

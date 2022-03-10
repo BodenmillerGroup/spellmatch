@@ -8,12 +8,12 @@ from napari.viewer import Viewer
 from qtpy.QtCore import QEventLoop
 from skimage.transform import AffineTransform, ProjectiveTransform
 
-from .._spellmatch import SpellmatchException
-from ..utils import compute_points
+from ...utils import compute_points
+from .._registration import SpellmatchRegistrationException
 from ._qt import QPointMatchingDialog
 
 
-def align_masks(
+def register_mask_regions(
     source_mask: xr.DataArray,
     target_mask: xr.DataArray,
     source_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
@@ -22,12 +22,12 @@ def align_masks(
     assignment: Optional[pd.DataFrame] = None,
 ) -> Optional[Tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
     if source_img is not None and source_img.shape[-2:] != source_mask.shape:
-        raise SpellmatchAlignmentException(
+        raise SpellmatchRegionBasedRegistrationException(
             f"Source image has shape {source_img.shape}, "
             f"but source mask has shape {source_mask.shape}"
         )
     if target_img is not None and target_img.shape[-2:] != target_mask.shape:
-        raise SpellmatchAlignmentException(
+        raise SpellmatchRegionBasedRegistrationException(
             f"Source image has shape {target_img.shape}, "
             f"but source mask has shape {target_mask.shape}"
         )
@@ -136,5 +136,5 @@ def _create_viewer(
     return viewer, mask_layer, img_layers
 
 
-class SpellmatchAlignmentException(SpellmatchException):
+class SpellmatchRegionBasedRegistrationException(SpellmatchRegistrationException):
     pass

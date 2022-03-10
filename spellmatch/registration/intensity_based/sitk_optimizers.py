@@ -6,7 +6,7 @@ import SimpleITK as sitk
 from pydantic import BaseModel
 
 
-class Optimizer(BaseModel, ABC):
+class SITKOptimizer(BaseModel, ABC):
     scales: Union[str, Sequence[float], None] = None
     central_region_radius: int = 5
     small_parameter_variation: float = 0.01
@@ -39,7 +39,7 @@ class Optimizer(BaseModel, ABC):
             r.SetOptimizerWeights(list(self.weights))
 
 
-class AmoebaOptimizer(Optimizer):
+class AmoebaSITKOptimizer(SITKOptimizer):
     simplex_delta: float
     num_iter: int
     params_convergence_tol: float = 1e-8
@@ -47,7 +47,7 @@ class AmoebaOptimizer(Optimizer):
     with_restarts: bool = False
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(AmoebaOptimizer, self).configure(r)
+        super(AmoebaSITKOptimizer, self).configure(r)
         r.SetOptimizerAsAmoeba(
             self.simplex_delta,
             self.num_iter,
@@ -57,7 +57,7 @@ class AmoebaOptimizer(Optimizer):
         )
 
 
-class ConjugateGradientLineSearchOptimizer(Optimizer):
+class ConjugateGradientLineSearchSITKOptimizer(SITKOptimizer):
     lr: float
     num_iter: int
     conv_min_val: float = 1e-6
@@ -70,7 +70,7 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(ConjugateGradientLineSearchOptimizer, self).configure(r)
+        super(ConjugateGradientLineSearchSITKOptimizer, self).configure(r)
         r.SetOptimizerAsConjugateGradientLineSearch(
             self.lr,
             self.num_iter,
@@ -80,23 +80,23 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
             lineSearchMaximumIterations=self.line_search_max_iter,
-            estimateLearningRate=Optimizer.LearningRateEstimationType[
+            estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
 
-class ExhaustiveOptimizer(Optimizer):
+class ExhaustiveSITKOptimizer(SITKOptimizer):
     num_steps: Sequence[int]
     step_length: float = 1
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(ExhaustiveOptimizer, self).configure(r)
+        super(ExhaustiveSITKOptimizer, self).configure(r)
         r.SetOptimizerAsExhaustive(list(self.num_steps), stepLength=self.step_length)
 
 
-class GradientDescentOptimizer(Optimizer):
+class GradientDescentSITKOptimizer(SITKOptimizer):
     lr: float
     num_iter: int
     conv_min_val: float = 1e-6
@@ -105,20 +105,20 @@ class GradientDescentOptimizer(Optimizer):
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(GradientDescentOptimizer, self).configure(r)
+        super(GradientDescentSITKOptimizer, self).configure(r)
         r.SetOptimizerAsGradientDescent(
             self.lr,
             self.num_iter,
             convergenceMinimumValue=self.conv_min_val,
             convergenceWindowSize=self.conv_window_size,
-            estimateLearningRate=Optimizer.LearningRateEstimationType[
+            estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
 
-class GradientDescentLineSearchOptimizer(Optimizer):
+class GradientDescentLineSearchSITKOptimizer(SITKOptimizer):
     lr: float
     num_iter: int
     conv_min_val: float = 1e-6
@@ -131,7 +131,7 @@ class GradientDescentLineSearchOptimizer(Optimizer):
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(GradientDescentLineSearchOptimizer, self).configure(r)
+        super(GradientDescentLineSearchSITKOptimizer, self).configure(r)
         r.SetOptimizerAsGradientDescentLineSearch(
             self.lr,
             self.num_iter,
@@ -141,14 +141,14 @@ class GradientDescentLineSearchOptimizer(Optimizer):
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
             lineSearchMaximumIterations=self.line_search_max_iter,
-            estimateLearningRate=Optimizer.LearningRateEstimationType[
+            estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
 
-class LBFGS2Optimizer(Optimizer):
+class LBFGS2SITKOptimizer(SITKOptimizer):
     solution_accuracy: float = 1e-5
     num_iter: int = 0
     hessian_approx_accuracy: int = 6
@@ -160,7 +160,7 @@ class LBFGS2Optimizer(Optimizer):
     line_search_accuracy: float = 1e-4
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(LBFGS2Optimizer, self).configure(r)
+        super(LBFGS2SITKOptimizer, self).configure(r)
         r.SetOptimizerAsLBFGS2(
             solutionAccuracy=self.solution_accuracy,
             numberOfIterations=self.num_iter,
@@ -174,7 +174,7 @@ class LBFGS2Optimizer(Optimizer):
         )
 
 
-class LBFGSBOptimizer(Optimizer):
+class LBFGSBSITKOptimizer(SITKOptimizer):
     grad_conv_tol: float = 1e-5
     num_iter: int = 500
     max_num_corrs: int = 5
@@ -185,7 +185,7 @@ class LBFGSBOptimizer(Optimizer):
     trace: bool = False
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(LBFGSBOptimizer, self).configure(r)
+        super(LBFGSBSITKOptimizer, self).configure(r)
         kwargs = {
             "gradientConvergenceTolerance": self.grad_conv_tol,
             "numberOfIterations": self.num_iter,
@@ -201,7 +201,7 @@ class LBFGSBOptimizer(Optimizer):
         r.SetOptimizerAsLBFGSB(**kwargs)
 
 
-class OnePlusOneEvolutionaryOptimizer(Optimizer):
+class OnePlusOneEvolutionarySITKOptimizer(SITKOptimizer):
     num_iter: int = 100
     eps: float = 1.5e-4
     initial_radius: float = 1.01
@@ -210,7 +210,7 @@ class OnePlusOneEvolutionaryOptimizer(Optimizer):
     seed: int = sitk.sitkWallClock
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(OnePlusOneEvolutionaryOptimizer, self).configure(r)
+        super(OnePlusOneEvolutionarySITKOptimizer, self).configure(r)
         r.SetOptimizerAsOnePlusOneEvolutionary(
             numberOfIterations=self.num_iter,
             epsilon=self.eps,
@@ -221,7 +221,7 @@ class OnePlusOneEvolutionaryOptimizer(Optimizer):
         )
 
 
-class PowellOptimizer(Optimizer):
+class PowellSITKOptimizer(SITKOptimizer):
     num_iter: int = 100
     max_line_iter: int = 100
     step_length: float = 1
@@ -229,7 +229,7 @@ class PowellOptimizer(Optimizer):
     val_tol: float = 1e-6
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(PowellOptimizer, self).configure(r)
+        super(PowellSITKOptimizer, self).configure(r)
         r.SetOptimizerAsPowell(
             numberOfIterations=self.num_iter,
             maximumLineIterations=self.max_line_iter,
@@ -239,7 +239,7 @@ class PowellOptimizer(Optimizer):
         )
 
 
-class RegularStepGradientDescentOptimizer(Optimizer):
+class RegularStepGradientDescentSITKOptimizer(SITKOptimizer):
     lr: float
     min_step: float
     num_iter: int
@@ -249,29 +249,29 @@ class RegularStepGradientDescentOptimizer(Optimizer):
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(RegularStepGradientDescentOptimizer, self).configure(r)
+        super(RegularStepGradientDescentSITKOptimizer, self).configure(r)
         r.SetOptimizerAsRegularStepGradientDescent(
             self.lr,
             self.min_step,
             self.num_iter,
             relaxationFactor=self.relax_factor,
             gradientMagnitudeTolerance=self.grad_magnitude_tol,
-            estimateLearningRate=Optimizer.LearningRateEstimationType[
+            estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,
             maximumStepSizeInPhysicalUnits=self.max_step_size,
         )
 
 
-optimizer_types: dict[str, Type[Optimizer]] = {
-    "amoeba": AmoebaOptimizer,
-    "conjugate_gradient_line_search": ConjugateGradientLineSearchOptimizer,
-    "exhaustive": ExhaustiveOptimizer,
-    "gradient_descent": GradientDescentOptimizer,
-    "gradient_descent_line_search": GradientDescentLineSearchOptimizer,
-    "lbfgs2": LBFGS2Optimizer,
-    "lbfgsb": LBFGSBOptimizer,
-    "one_plus_one_evolutionary": OnePlusOneEvolutionaryOptimizer,
-    "powell": PowellOptimizer,
-    "regular_step_gradient_descent": RegularStepGradientDescentOptimizer,
+sitk_optimizer_types: dict[str, Type[SITKOptimizer]] = {
+    "amoeba": AmoebaSITKOptimizer,
+    "conjugate_gradient_line_search": ConjugateGradientLineSearchSITKOptimizer,
+    "exhaustive": ExhaustiveSITKOptimizer,
+    "gradient_descent": GradientDescentSITKOptimizer,
+    "gradient_descent_line_search": GradientDescentLineSearchSITKOptimizer,
+    "lbfgs2": LBFGS2SITKOptimizer,
+    "lbfgsb": LBFGSBSITKOptimizer,
+    "one_plus_one_evolutionary": OnePlusOneEvolutionarySITKOptimizer,
+    "powell": PowellSITKOptimizer,
+    "regular_step_gradient_descent": RegularStepGradientDescentSITKOptimizer,
 }

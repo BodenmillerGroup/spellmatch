@@ -18,11 +18,18 @@ from skimage.transform import (
 
 from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
-from .alignment import align_masks
 from .matching.algorithms import MaskMatchingAlgorithm, icp, probreg, spellmatch
-from .registration import register_images, sitk_transform_types
-from .registration.metrics import metric_types as registration_metric_types
-from .registration.optimizers import optimizer_types as registration_optimizer_types
+from .registration.feature_based import (
+    matcher_types,
+    register_image_features,
+)
+from .registration.intensity_based import (
+    register_image_intensities,
+    sitk_transform_types,
+)
+from .registration.intensity_based.sitk_metrics import sitk_metric_types
+from .registration.intensity_based.sitk_optimizers import sitk_optimizer_types
+from .registration.region_based import register_mask_regions
 
 click_log.basic_config(logger=logger)
 
@@ -146,7 +153,12 @@ def cli() -> None:
     pass
 
 
-@cli.command()
+@cli.group(name="register")
+def cli_register() -> None:
+    pass
+
+
+@cli_register.command(name="regions")
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
@@ -215,7 +227,7 @@ def cli() -> None:
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
-def align(
+def cli_register_regions(
     source_mask_path: Path,
     target_mask_path: Path,
     source_img_path: Optional[Path],
@@ -344,7 +356,7 @@ def align(
         assignment = None
         if assignment_file.exists():
             assignment = io.read_assignment(assignment_file)
-        result = align_masks(
+        result = register_mask_regions(
             source_mask,
             target_mask,
             source_img=source_img,
@@ -371,7 +383,248 @@ def align(
             raise click.Abort()
 
 
-@cli.command()
+@cli_register.command("features")
+@click.argument(
+    "source_img_path",
+    metavar="SOURCE_IMAGE(S)",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.argument(
+    "target_img_path",
+    metavar="TARGET_IMAGE(S)",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--source-panel",
+    "source_panel_file",
+    default="source_panel.csv",
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--target-panel",
+    "target_panel_file",
+    default="target_panel.csv",
+    show_default=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--source-scale",
+    "source_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-scale",
+    "target_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--source-channel",
+    "source_channel",
+    type=click.STRING,
+)
+@click.option(
+    "--target-channel",
+    "target_channel",
+    type=click.STRING,
+)
+@click.option(
+    "--denoise-source",
+    "denoise_source",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--denoise-target",
+    "denoise_target",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--blur-source",
+    "blur_source",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--blur-target",
+    "blur_target",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--orb-args",
+    "orb_kwargs",
+    default="",
+    show_default=True,
+    type=KEYWORD_ARGUMENTS,
+)
+@click.option(
+    "--matcher",
+    "matcher_type_name",
+    default="bruteforce",
+    show_default=True,
+    type=click.Choice(list(matcher_types.keys())),
+)
+@click.option(
+    "--keep",
+    "keep_matches_frac",
+    default=0.2,
+    show_default=True,
+    type=click.FloatRange(min=0, max=1, min_open=True),
+)
+@click.option(
+    "--ransac-args",
+    "ransac_kwargs",
+    default="",
+    show_default=True,
+    type=KEYWORD_ARGUMENTS,
+)
+@click.option(
+    "--show/--no-show",
+    "show",
+    default=False,
+    show_default=True,
+)
+@click.argument(
+    "transform_path",
+    metavar="TRANSFORM(S)",
+    type=click.Path(path_type=Path),
+)
+@catch_exception(handle=SpellmatchException)
+def cli_register_features(
+    source_img_path: Path,
+    target_img_path: Path,
+    source_panel_file: Path,
+    target_panel_file: Path,
+    source_scale: float,
+    target_scale: float,
+    source_channel: Optional[str],
+    target_channel: Optional[str],
+    denoise_source: Optional[float],
+    denoise_target: Optional[float],
+    blur_source: Optional[float],
+    blur_target: Optional[float],
+    orb_kwargs: dict[str, Any],
+    matcher_type_name: str,
+    keep_matches_frac: float,
+    ransac_kwargs: dict[str, Any],
+    show: bool,
+    transform_path: Path,
+) -> None:
+    source_panel = None
+    if source_panel_file.exists():
+        source_panel = io.read_panel(source_panel_file)
+    target_panel = None
+    if target_panel_file.exists():
+        target_panel = io.read_panel(target_panel_file)
+    if (
+        source_img_path.is_file()
+        and target_img_path.is_file()
+        and (not transform_path.exists() or transform_path.is_file())
+    ):
+        source_img_files = [source_img_path]
+        target_img_files = [target_img_path]
+        transform_files = [transform_path]
+    elif (
+        source_img_path.is_dir()
+        and target_img_path.is_dir()
+        and (not transform_path.exists() or transform_path.is_dir())
+    ):
+        source_img_files = glob_sorted(source_img_path, "*.tiff")
+        target_img_files = glob_sorted(
+            target_img_path, "*.tiff", expect=len(source_img_files)
+        )
+        transform_path.mkdir(exist_ok=True)
+        transform_files = [
+            transform_path / f"transform{i + 1:03d}.npy"
+            for i in range(len(source_img_files))
+        ]
+    else:
+        raise click.UsageError(
+            "Either specify individual files, or directories, but not both"
+        )
+    for i, (
+        source_img_file,
+        target_img_file,
+        transform_file,
+    ) in enumerate(zip(source_img_files, target_img_files, transform_files)):
+        if len(source_img_files) > 1:
+            logger.info(
+                f"########## IMAGE PAIR {i + 1}/{len(source_img_files)} ##########"
+            )
+        source_img = io.read_image(
+            source_img_file, panel=source_panel, scale=source_scale
+        )
+        logger.info(
+            f"Source image: {source_img_file.name} ({describe_image(source_img)})"
+        )
+        if source_img.ndim == 3:
+            if source_channel is not None:
+                if (
+                    "c" in source_img.coords
+                    and source_channel in source_img.coords["c"]
+                ):
+                    source_img = source_img.loc[source_channel]
+                else:
+                    try:
+                        source_img = source_img[int(source_channel)]
+                    except (ValueError, IndexError):
+                        raise click.UsageError(
+                            f"Source channel {source_channel} is not a channel name "
+                            f"or valid index in source image {source_img_file.name}"
+                        )
+            else:
+                raise click.UsageError(
+                    "No channel specified "
+                    f"for multi-channel source image {source_img_file.name}"
+                )
+        target_img = io.read_image(
+            target_img_file, panel=target_panel, scale=target_scale
+        )
+        logger.info(
+            f"Target image: {target_img_file.name} ({describe_image(target_img)})"
+        )
+        if target_img.ndim == 3:
+            if target_channel is not None:
+                if (
+                    "c" in target_img.coords
+                    and target_channel in target_img.coords["c"]
+                ):
+                    target_img = target_img.loc[target_channel]
+                else:
+                    try:
+                        target_img = target_img[int(target_channel)]
+                    except (ValueError, IndexError):
+                        raise click.UsageError(
+                            f"Target channel {target_channel} is not a channel name "
+                            f"or valid index in target image {target_img_file.name}"
+                        )
+            else:
+                raise click.UsageError(
+                    "No channel specified "
+                    f"for multi-channel target image {target_img_file.name}"
+                )
+        transform = register_image_features(
+            source_img,
+            target_img,
+            orb_kwargs=orb_kwargs,
+            matcher_type=matcher_types[matcher_type_name],
+            keep_matches_frac=keep_matches_frac,
+            ransac_kwargs=ransac_kwargs,
+            denoise_source=denoise_source,
+            denoise_target=denoise_target,
+            blur_source=blur_source,
+            blur_target=blur_target,
+            show=show,
+        )
+        io.write_transform(transform_file, transform)
+        logger.info(
+            f"Transform: {transform_file.name} ({describe_transform(transform)})"
+        )
+
+
+@cli_register.command("intensities")
 @click.argument(
     "source_img_path",
     metavar="SOURCE_IMAGE(S)",
@@ -442,28 +695,28 @@ def align(
 )
 @click.option(
     "--metric",
-    "metric_name",
+    "sitk_metric_type_name",
     default="correlation",
     show_default=True,
-    type=click.Choice(list(registration_metric_types.keys())),
+    type=click.Choice(list(sitk_metric_types.keys())),
 )
 @click.option(
     "--metric-args",
-    "metric_kwargs",
+    "sitk_metric_kwargs",
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--optimizer",
-    "optimizer_name",
+    "sitk_optimizer_type_name",
     default="regular_step_gradient_descent",
     show_default=True,
-    type=click.Choice(list(registration_optimizer_types.keys())),
+    type=click.Choice(list(sitk_optimizer_types.keys())),
 )
 @click.option(
     "--optimizer-args",
-    "optimizer_kwargs",
+    "sitk_optimizer_kwargs",
     default=",".join(
         [
             "lr=2.0",
@@ -507,7 +760,7 @@ def align(
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
-def register(
+def cli_register_intensities(
     source_img_path: Path,
     target_img_path: Path,
     source_panel_file: Path,
@@ -520,19 +773,20 @@ def register(
     denoise_target: Optional[float],
     blur_source: Optional[float],
     blur_target: Optional[float],
-    metric_name: str,
-    metric_kwargs: dict[str, Any],
-    optimizer_name: str,
-    optimizer_kwargs: dict[str, Any],
+    sitk_metric_type_name: str,
+    sitk_metric_kwargs: dict[str, Any],
+    sitk_optimizer_type_name: str,
+    sitk_optimizer_kwargs: dict[str, Any],
     sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
     show: bool,
     hold: bool,
     transform_path: Path,
 ) -> None:
-    metric = registration_metric_types[metric_name](**metric_kwargs)
-    optimizer = registration_optimizer_types[optimizer_name](**optimizer_kwargs)
-    sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
+    sitk_metric = sitk_metric_types[sitk_metric_type_name](**sitk_metric_kwargs)
+    sitk_optimizer = sitk_optimizer_types[sitk_optimizer_type_name](
+        **sitk_optimizer_kwargs
+    )
     source_panel = None
     if source_panel_file.exists():
         source_panel = io.read_panel(source_panel_file)
@@ -640,7 +894,6 @@ def register(
                     "No channel specified "
                     f"for multi-channel target image {target_img_file.name}"
                 )
-
         if initial_transform_file is not None:
             initial_transform = io.read_transform(initial_transform_file)
             logger.info(
@@ -650,12 +903,12 @@ def register(
         else:
             initial_transform = None
             logger.info("Initial transform: None")
-        transform = register_images(
+        transform = register_image_intensities(
             source_img,
             target_img,
-            metric,
-            optimizer,
-            sitk_transform_type=sitk_transform_type,
+            sitk_metric,
+            sitk_optimizer,
+            sitk_transform_type=sitk_transform_types[sitk_transform_type_name],
             initial_transform=initial_transform,
             denoise_source=denoise_source,
             denoise_target=denoise_target,
@@ -670,7 +923,7 @@ def register(
         )
 
 
-@cli.command()
+@cli.command(name="match")
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
@@ -753,7 +1006,7 @@ def register(
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
-def match(
+def cli_match(
     source_mask_path: Path,
     target_mask_path: Path,
     source_img_path: Optional[Path],
