@@ -1,13 +1,15 @@
 from abc import ABC
 from enum import Enum
-from typing import Optional, Sequence, Type
+from typing import Optional, Sequence, Type, Union
 
 import SimpleITK as sitk
 from pydantic import BaseModel
 
 
 class Optimizer(BaseModel, ABC):
-    scales: Optional[Sequence[float]] = None
+    scales: Union[str, Sequence[float], None] = None
+    central_region_radius: int = 5
+    small_parameter_variation: float = 0.01
     weights: Optional[Sequence[float]] = None
 
     class LearningRateEstimationType(Enum):
@@ -17,7 +19,22 @@ class Optimizer(BaseModel, ABC):
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         if self.scales is not None:
-            r.SetOptimizerScales(list(self.scales))
+            if self.scales == "index_shift":
+                r.SetOptimizerScalesFromIndexShift(
+                    centralRegionRadius=self.central_region_radius,
+                    smallParameterVariation=self.small_parameter_variation,
+                )
+            elif self.scales == "physical_shift":
+                r.SetOptimizerScalesFromPhysicalShift(
+                    centralRegionRadius=self.central_region_radius,
+                    smallParameterVariation=self.small_parameter_variation,
+                )
+            elif self.scales == "jacobian":
+                r.SetOptimizerScalesFromJacobian(
+                    centralRegionRadius=self.central_region_radius
+                )
+            else:
+                r.SetOptimizerScales(list(self.scales))
         if self.weights is not None:
             r.SetOptimizerWeights(list(self.weights))
 
@@ -49,7 +66,7 @@ class ConjugateGradientLineSearchOptimizer(Optimizer):
     line_search_upper: float = 5
     line_search_eps: float = 0.01
     line_search_max_iter: int = 20
-    lr_estim_type: str = "ONCE"
+    lr_estim_type: str = "Once"
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
@@ -84,7 +101,7 @@ class GradientDescentOptimizer(Optimizer):
     num_iter: int
     conv_min_val: float = 1e-6
     conv_window_size: int = 10
-    lr_estim_type: str = "ONCE"
+    lr_estim_type: str = "Once"
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
@@ -110,7 +127,7 @@ class GradientDescentLineSearchOptimizer(Optimizer):
     line_search_upper: float = 5
     line_search_eps: float = 0.01
     line_search_max_iter: int = 20
-    lr_estim_type: str = "ONCE"
+    lr_estim_type: str = "Once"
     max_step_size: float = 0
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
