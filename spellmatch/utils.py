@@ -29,10 +29,10 @@ def compute_points(
     if regions is None:
         regions = regionprops(mask.to_numpy())
     points = (
-        np.array([region[points_feature][::-1] for region in regions])
+        np.array([region[points_feature] for region in regions])
         - 0.5 * np.asarray(mask.shape)
         + 0.5
-    )
+    )[:, ::-1]
     if "scale" in mask.attrs:
         points *= mask.attrs["scale"]
     return pd.DataFrame(

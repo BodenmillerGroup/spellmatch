@@ -86,6 +86,8 @@ def describe_scores(scores: xr.DataArray) -> str:
 
 
 def describe_transform(transform: ProjectiveTransform) -> str:
+    if type(transform) is ProjectiveTransform:
+        transform = AffineTransform(matrix=transform.params)
     transform_infos = []
     if hasattr(transform, "scale"):
         if np.isscalar(transform.scale):
