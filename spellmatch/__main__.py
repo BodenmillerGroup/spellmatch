@@ -752,7 +752,7 @@ def register(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
-@catch_exception
+@catch_exception(handle=SpellmatchException)
 def match(
     source_mask_path: Path,
     target_mask_path: Path,
