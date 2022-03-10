@@ -491,7 +491,13 @@ def align(
 )
 @click.option(
     "--show/--no-show",
-    "visualize",
+    "show",
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "--hold/--no-hold",
+    "hold",
     default=False,
     show_default=True,
 )
@@ -520,7 +526,8 @@ def register(
     optimizer_kwargs: dict[str, Any],
     sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
-    visualize: bool,
+    show: bool,
+    hold: bool,
     transform_path: Path,
 ) -> None:
     metric = registration_metric_types[metric_name](**metric_kwargs)
@@ -656,7 +663,8 @@ def register(
             denoise_target=denoise_target,
             blur_source=blur_source,
             blur_target=blur_target,
-            visualize=visualize,
+            show=show,
+            hold=hold,
         )
         io.write_transform(transform_file, transform)
         logger.info(

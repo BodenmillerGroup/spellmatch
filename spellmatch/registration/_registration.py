@@ -5,6 +5,7 @@ import numpy as np
 import pyqtgraph as pg
 import SimpleITK as sitk
 import xarray as xr
+from qtpy.QtCore import QEventLoop, QObject, Qt, QThread, Signal
 from skimage.transform import ProjectiveTransform
 
 from .metrics import Metric
@@ -25,6 +26,33 @@ sitk_transform_types: dict[str, SITKProjectiveTransform] = {
 }
 
 
+class RegistrationWorker(QObject):
+    iteration = Signal()
+    finished = Signal()
+
+    def __init__(
+        self,
+        moving_img: sitk.Image,
+        fixed_img: sitk.Image,
+        method: sitk.ImageRegistrationMethod,
+    ) -> None:
+        super(RegistrationWorker, self).__init__()
+        self.moving_img = moving_img
+        self.fixed_img = fixed_img
+        self.method = method
+        self.sitk_transform: Optional[sitk.Transform] = None
+
+    def register_commands(self) -> None:
+        self.method.AddCommand(sitk.sitkIterationEvent, self.iteration_command)
+
+    def run(self) -> None:
+        self.sitk_transform = self.method.Execute(self.fixed_img, self.moving_img)
+        self.finished.emit()
+
+    def iteration_command(self) -> None:
+        self.iteration.emit()
+
+
 def register_images(
     source_img: xr.DataArray,
     target_img: xr.DataArray,
@@ -36,7 +64,8 @@ def register_images(
     denoise_target: Optional[float] = None,
     blur_source: Optional[float] = None,
     blur_target: Optional[float] = None,
-    visualize: bool = False,
+    show: bool = False,
+    hold: bool = False,
 ) -> ProjectiveTransform:
     moving_img = sitk.GetImageFromArray(source_img.astype(float))
     moving_origin = (
@@ -56,6 +85,7 @@ def register_images(
         moving_gaussian_filter.SetNormalizeAcrossScale(True)
         moving_gaussian_filter.SetSigma(blur_source)
         moving_img = moving_gaussian_filter.Execute(moving_img)
+
     fixed_img = sitk.GetImageFromArray(target_img.astype(float))
     fixed_origin = (
         -0.5 * target_img.shape[-1] + 0.5,
@@ -74,28 +104,56 @@ def register_images(
         fixed_gaussian_filter.SetNormalizeAcrossScale(True)
         fixed_gaussian_filter.SetSigma(blur_target)
         fixed_img = fixed_gaussian_filter.Execute(fixed_img)
-    method = sitk.ImageRegistrationMethod()
-    metric.configure(method)
-    optimizer.configure(method)
     if initial_transform is not None:
         sitk_transform = _to_sitk_transform(initial_transform, sitk_transform_type)
     else:
         sitk_transform = sitk_transform_type()
+
+    method = sitk.ImageRegistrationMethod()
+    metric.configure(method)
+    optimizer.configure(method)
     method.SetInitialTransform(sitk_transform, inPlace=True)
     method.SetInterpolator(sitk.sitkLinear)
     method.AddCommand(sitk.sitkIterationEvent, lambda: _log_on_iteration(method))
-    if visualize:
-        composite_img_arrs = [_compose_images(moving_img, fixed_img, sitk_transform)]
-        method.AddCommand(
-            sitk.sitkIterationEvent,
-            lambda: composite_img_arrs.append(
-                _compose_images(moving_img, fixed_img, sitk_transform)
-            ),
-        )
-    sitk_transform = sitk_transform_type(method.Execute(fixed_img, moving_img))
-    if visualize:
-        pg.image(np.array(composite_img_arrs))
-        pg.exec()
+
+    if show:
+        pg.mkQApp()
+        composite_img_arrs = []
+
+        def append_composite_img() -> None:
+            update_current_index = imv.currentIndex == len(composite_img_arrs) - 1
+            composite_img_arr = _compose_images(moving_img, fixed_img, sitk_transform)
+            composite_img_arrs.append(composite_img_arr)
+            imv.setImage(np.stack(composite_img_arrs))
+            if update_current_index:
+                imv.setCurrentIndex(len(composite_img_arrs) - 1)
+
+        imv = pg.ImageView()
+        imv_loop = QEventLoop()
+        imv.destroyed.connect(imv_loop.quit)
+        imv.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        imv.setWindowTitle("spellmatch registration")
+        append_composite_img()
+        imv.show()
+
+        worker = RegistrationWorker(moving_img, fixed_img, method)
+        worker.iteration.connect(append_composite_img)
+        worker.register_commands()
+
+        thread = QThread()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(thread.quit)
+        if not hold:
+            thread.finished.connect(imv.close)
+
+        thread.start()
+        imv_loop.exec()
+        thread.wait()
+        sitk_transform = sitk_transform_type(worker.sitk_transform)
+    else:
+        sitk_transform = sitk_transform_type(method.Execute(fixed_img, moving_img))
+
     return _to_transform(sitk_transform, ProjectiveTransform)
 
 
