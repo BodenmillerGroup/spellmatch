@@ -10,7 +10,7 @@ from skimage.transform import ProjectiveTransform
 
 
 def create_bounding_box(mask: xr.DataArray) -> Polygon:
-    shell = np.array(
+    bbox_shell = np.array(
         [
             [0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
             [0.5 * mask.shape[-1], 0.5 * mask.shape[-2]],
@@ -19,8 +19,8 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
         ]
     )
     if "scale" in mask.attrs:
-        shell *= mask.attrs["scale"]
-    return Polygon(shell=shell)
+        bbox_shell *= mask.attrs["scale"]
+    return Polygon(shell=bbox_shell)
 
 
 def compute_points(
@@ -29,7 +29,7 @@ def compute_points(
     if regions is None:
         regions = regionprops(mask.to_numpy())
     points = (
-        np.array([region[points_feature] for region in regions])
+        np.array([region[points_feature][::-1] for region in regions])
         - 0.5 * np.asarray(mask.shape)
         + 0.5
     )
@@ -38,7 +38,7 @@ def compute_points(
     return pd.DataFrame(
         data=points,
         index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
-        columns=["y", "x"],
+        columns=["x", "y"],
     )
 
 
@@ -71,7 +71,7 @@ def create_graph(
 
 
 def transform_bounding_box(bbox: Polygon, transform: ProjectiveTransform) -> Polygon:
-    return Polygon(transform(np.asarray(bbox.exterior.coords)))
+    return Polygon(shell=transform(np.asarray(bbox.exterior.coords)))
 
 
 def transform_points(

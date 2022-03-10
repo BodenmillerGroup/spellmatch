@@ -123,8 +123,8 @@ def _to_sitk_transform(
     transform: ProjectiveTransform, sitk_transform_type: Type[SITKTransformType]
 ) -> SITKTransformType:
     sitk_transform = sitk_transform_type()
-    sitk_transform.SetTranslation(transform.params[:2, 2][::-1])
-    sitk_transform.SetMatrix(transform.params[:2, :2].transpose().ravel())
+    sitk_transform.SetTranslation(transform.params[:2, 2])
+    sitk_transform.SetMatrix(transform.params[:2, :2].ravel())
     return sitk_transform_type(sitk_transform.GetInverse())
 
 
@@ -135,8 +135,6 @@ def _to_transform(
     sitk_transform: SITKProjectiveTransform, transform_type: Type[TransformType]
 ) -> TransformType:
     inverse_transform_matrix = np.eye(3)
-    inverse_transform_matrix[:2, 2] = np.asarray(sitk_transform.GetTranslation())[::-1]
-    inverse_transform_matrix[:2, :2] = np.reshape(
-        sitk_transform.GetMatrix(), (2, 2)
-    ).transpose()
+    inverse_transform_matrix[:2, 2] = np.asarray(sitk_transform.GetTranslation())
+    inverse_transform_matrix[:2, :2] = np.reshape(sitk_transform.GetMatrix(), (2, 2))
     return transform_type(matrix=np.linalg.inv(inverse_transform_matrix))
