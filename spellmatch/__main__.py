@@ -92,7 +92,7 @@ def describe_transform(transform: ProjectiveTransform) -> str:
             transform_infos.append(f"scale: {transform.scale:.3f}")
         else:
             transform_infos.append(
-                f"scale: sx={transform.scale[-1]:.3f} sy={transform.scale[-2]:.3f}"
+                f"scale: sx={transform.scale[0]:.3f} sy={transform.scale[1]:.3f}"
             )
     if hasattr(transform, "rotation"):
         transform_infos.append(f"ccw rotation: {180 * transform.rotation / np.pi:.3f}°")
@@ -101,7 +101,7 @@ def describe_transform(transform: ProjectiveTransform) -> str:
     if hasattr(transform, "translation"):
         transform_infos.append(
             "translation: "
-            f"tx={transform.translation[-1]:.3f} ty={transform.translation[-2]:.3f}"
+            f"tx={transform.translation[0]:.3f} ty={transform.translation[1]:.3f}"
         )
     return ", ".join(transform_infos)
 
@@ -147,21 +147,23 @@ def cli() -> None:
 @cli.command()
 @click.argument(
     "source_mask_path",
-    metavar="SOURCE_MASK",
+    metavar="SOURCE_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
     "target_mask_path",
-    metavar="TARGET_MASK",
+    metavar="TARGET_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--source-image",
+    "--source-images",
     "source_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--target-image",
+    "--target-images",
     "target_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -202,12 +204,12 @@ def cli() -> None:
 )
 @click.argument(
     "assignment_path",
-    metavar="ASSIGNMENT",
+    metavar="ASSIGNMENT(S)",
     type=click.Path(path_type=Path),
 )
 @click.argument(
     "transform_path",
-    metavar="TRANSFORM",
+    metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
@@ -370,12 +372,12 @@ def align(
 @cli.command()
 @click.argument(
     "source_img_path",
-    metavar="SOURCE_IMAGE",
+    metavar="SOURCE_IMAGE(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
     "target_img_path",
-    metavar="TARGET_IMAGE",
+    metavar="TARGET_IMAGE(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
@@ -473,6 +475,7 @@ def align(
 )
 @click.option(
     "--initial-transform",
+    "--initial-transforms",
     "initial_transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -484,7 +487,7 @@ def align(
 )
 @click.argument(
     "transform_path",
-    metavar="TRANSFORM",
+    metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
@@ -654,21 +657,23 @@ def register(
 @cli.command()
 @click.argument(
     "source_mask_path",
-    metavar="SOURCE_MASK",
+    metavar="SOURCE_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
     "target_mask_path",
-    metavar="TARGET_MASK",
+    metavar="TARGET_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--source-image",
+    "--source-images",
     "source_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
     "--target-image",
+    "--target-images",
     "target_img_path",
     type=click.Path(exists=True, path_type=Path),
 )
@@ -716,6 +721,7 @@ def register(
 )
 @click.option(
     "--transform",
+    "--transforms",
     "transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
