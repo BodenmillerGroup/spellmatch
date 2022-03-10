@@ -567,10 +567,8 @@ def register(
             initial_transform_files = [None] * len(source_img_files)
         transform_path.mkdir(exist_ok=True)
         transform_files = [
-            transform_path / f"{source_img_file.stem}_{target_img_file.stem}.npy"
-            for source_img_file, target_img_file in zip(
-                source_img_files, target_img_files
-            )
+            transform_path / f"transform{i + 1:03d}.npy"
+            for i in range(len(source_img_files))
         ]
     else:
         raise click.UsageError(
