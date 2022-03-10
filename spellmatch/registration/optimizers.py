@@ -19,17 +19,17 @@ class Optimizer(BaseModel, ABC):
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
         if self.scales is not None:
-            if self.scales == "index_shift":
+            if self.scales == "from_index_shift":
                 r.SetOptimizerScalesFromIndexShift(
                     centralRegionRadius=self.central_region_radius,
                     smallParameterVariation=self.small_parameter_variation,
                 )
-            elif self.scales == "physical_shift":
+            elif self.scales == "from_physical_shift":
                 r.SetOptimizerScalesFromPhysicalShift(
                     centralRegionRadius=self.central_region_radius,
                     smallParameterVariation=self.small_parameter_variation,
                 )
-            elif self.scales == "jacobian":
+            elif self.scales == "from_jacobian":
                 r.SetOptimizerScalesFromJacobian(
                     centralRegionRadius=self.central_region_radius
                 )
