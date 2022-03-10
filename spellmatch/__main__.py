@@ -464,7 +464,15 @@ def align(
 @click.option(
     "--optimizer-args",
     "optimizer_kwargs",
-    default="lr=2.0,min_step=1e-4,num_iter=500,grad_magnitude_tol=1e-8",
+    default=",".join(
+        [
+            "lr=2.0",
+            "min_step=1e-4",
+            "num_iter=500",
+            "grad_magnitude_tol=1e-8",
+            "scales=from_index_shift",
+        ]
+    ),
     show_default=True,
     type=KEYWORD_ARGUMENTS,
 )
