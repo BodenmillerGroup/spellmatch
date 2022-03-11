@@ -13,7 +13,7 @@ from ._algorithms import IterativePointsMatchingAlgorithm, MaskMatchingAlgorithm
 
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
-    name: Optional[str] = None,
+    name: Optional[str],
 ) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
     algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
         "icp": IterativeClosestPoints,

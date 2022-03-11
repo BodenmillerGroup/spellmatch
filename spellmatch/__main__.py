@@ -44,7 +44,7 @@ pm.register(spellmatch, name="spellmatch-spellmatch")
 
 mask_matching_algorithm_names = [
     mask_matching_algorithm_name
-    for sublist in pm.hook.spellmatch_get_mask_matching_algorithm()
+    for sublist in pm.hook.spellmatch_get_mask_matching_algorithm(name=None)
     for mask_matching_algorithm_name in sublist
 ]
 
