@@ -19,7 +19,7 @@ from skimage.transform import AffineTransform, ProjectiveTransform
 from ._pandas_table_model import QPandasTableModel
 
 
-class QPointMatchingDialog(QDialog):
+class QInteractiveRegistrationDialog(QDialog):
     def __init__(
         self,
         source_points: pd.DataFrame,
@@ -28,14 +28,14 @@ class QPointMatchingDialog(QDialog):
         label_pairs_columns: Tuple[str, str] = ("Source", "Target"),
         parent: Optional[QWidget] = None,
     ) -> None:
-        super(QPointMatchingDialog, self).__init__(parent=parent)
+        super(QInteractiveRegistrationDialog, self).__init__(parent=parent)
         self._source_points = source_points
         self._target_points = target_points
         self._transform_type = transform_type
         self._transform = None
         layout = QVBoxLayout()
         self.setLayout(layout)
-        self.setWindowTitle("Point registration")
+        self.setWindowTitle("Interactive registration")
         self._label_pairs_table_model = QPandasTableModel(columns=label_pairs_columns)
         self._label_pairs_table_model.dataChanged.connect(
             lambda top_left, bottom_right, roles: self.update_transform()
@@ -107,7 +107,7 @@ class QPointMatchingDialog(QDialog):
 
     def keyPressEvent(self, event) -> None:
         if event.key() not in (Qt.Key.Key_Enter, Qt.Key.Key_Return):
-            super(QPointMatchingDialog, self).keyPressEvent(event)
+            super(QInteractiveRegistrationDialog, self).keyPressEvent(event)
 
     def _on_label_pairs_table_view_custom_context_menu_requested(
         self, pos: QPoint

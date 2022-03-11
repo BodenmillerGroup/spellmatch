@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 import pluggy
 
@@ -8,8 +8,8 @@ if TYPE_CHECKING:
 hookspec = pluggy.HookspecMarker("spellmatch")
 
 
-@hookspec(firstresult=True)
+@hookspec
 def spellmatch_get_mask_matching_algorithm(
-    name: str,
-) -> Optional[Type["MaskMatchingAlgorithm"]]:
+    name: Optional[str] = None,
+) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
     pass

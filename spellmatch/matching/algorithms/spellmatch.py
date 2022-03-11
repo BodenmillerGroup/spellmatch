@@ -22,14 +22,17 @@ logger = logging.getLogger(__name__)
 
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
-    name: str,
-) -> Optional[Type[MaskMatchingAlgorithm]]:
-    if name == "spellmatch":
-        return Spellmatch
-    return None
+    name: Optional[str] = None,
+) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
+    algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
+        "spellmatch": SpellmatchAlgorithm,
+    }
+    if name is not None:
+        return algorithms.get(name)
+    return list(algorithms.keys())
 
 
-class Spellmatch(IterativeGraphMatchingAlgorithm):
+class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
     def __init__(
         self,
         *,
@@ -59,7 +62,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
     ) -> None:
-        super(Spellmatch, self).__init__(
+        super(SpellmatchAlgorithm, self).__init__(
             adj_radius,
             max_iter,
             transform_type,
@@ -98,7 +101,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
     ) -> xr.DataArray:
         self._current_source_points = source_points
         self._current_target_points = target_points
-        scores = super(Spellmatch, self)._match_graphs_from_points(
+        scores = super(SpellmatchAlgorithm, self)._match_graphs_from_points(
             source_points, target_points, source_intensities, target_intensities
         )
         self._current_source_points = None

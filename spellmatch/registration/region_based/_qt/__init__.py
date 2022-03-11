@@ -1,4 +1,4 @@
 from ._pandas_table_model import QPandasTableModel
-from ._point_matching_dialog import QPointMatchingDialog
+from ._interactive_registration_dialog import QInteractiveRegistrationDialog
 
-__all__ = ["QPandasTableModel", "QPointMatchingDialog"]
+__all__ = ["QPandasTableModel", "QInteractiveRegistrationDialog"]

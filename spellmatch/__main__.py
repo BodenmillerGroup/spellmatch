@@ -35,21 +35,24 @@ from .utils import preprocess_image
 
 click_log.basic_config(logger=logger)
 
+pm = pluggy.PluginManager("spellmatch")
+pm.add_hookspecs(hookspecs)
+pm.load_setuptools_entrypoints("spellmatch")
+pm.register(icp, name="spellmatch-icp")
+pm.register(probreg, name="spellmatch-probreg")
+pm.register(spellmatch, name="spellmatch-spellmatch")
+
+mask_matching_algorithm_names = [
+    mask_matching_algorithm_name
+    for sublist in pm.hook.spellmatch_get_mask_matching_algorithm()
+    for mask_matching_algorithm_name in sublist
+]
+
 transform_types: dict[str, Type[ProjectiveTransform]] = {
     "rigid": EuclideanTransform,
     "similarity": SimilarityTransform,
     "affine": AffineTransform,
 }
-
-
-def get_plugin_manager() -> pluggy.PluginManager:
-    pm = pluggy.PluginManager("spellmatch")
-    pm.add_hookspecs(hookspecs)
-    pm.load_setuptools_entrypoints("spellmatch")
-    pm.register(icp, name="spellmatch-icp")
-    pm.register(probreg, name="spellmatch-probreg")
-    pm.register(spellmatch, name="spellmatch-spellmatch")
-    return pm
 
 
 def catch_exception(func=None, *, handle=SpellmatchException):
@@ -127,17 +130,17 @@ class KeywordArgumentsParamType(click.ParamType):
             return self.fail(f"{value} is not a string", param=param, ctx=ctx)
         if not value:
             return {}
-        key_value_pairs = []
-        for key_value_pair_str in value.split(","):
-            key_value_pair = key_value_pair_str.split(sep="=", maxsplit=1)
-            if len(key_value_pair) != 2:
+        key_val_pairs = []
+        for key_val_pair_str in value.split(","):
+            key_val_pair = key_val_pair_str.strip().split(sep="=", maxsplit=1)
+            if len(key_val_pair) != 2:
                 return self.fail(
-                    f"{key_value_pair_str} is not a valid key-value pair",
+                    f"{key_val_pair_str} is not a valid key-value pair",
                     param=param,
                     ctx=ctx,
                 )
-            key_value_pairs.append(key_value_pair)
-        yaml_doc = "\n".join(f"{key}: {value}" for key, value in key_value_pairs)
+            key_val_pairs.append((key_val_pair[0].strip(), key_val_pair[1].strip()))
+        yaml_doc = "\n".join(f"{key}: {value}" for key, value in key_val_pairs)
         try:
             kwargs = yaml.load(yaml_doc, yaml.Loader)
         except yaml.YAMLError as e:
@@ -160,7 +163,7 @@ def cli_register() -> None:
     pass
 
 
-@cli_register.command(name="regions")
+@cli_register.command(name="interactive")
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
@@ -229,7 +232,7 @@ def cli_register() -> None:
     type=click.Path(path_type=Path),
 )
 @catch_exception(handle=SpellmatchException)
-def cli_register_regions(
+def cli_register_interactive(
     source_mask_path: Path,
     target_mask_path: Path,
     source_img_path: Optional[Path],
@@ -985,6 +988,11 @@ def cli_register_intensities(
 
 @cli.command(name="match")
 @click.argument(
+    "mask_matching_algorithm_name",
+    metavar="ALGORITHM",
+    type=click.Choice(mask_matching_algorithm_names),
+)
+@click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
@@ -993,6 +1001,13 @@ def cli_register_intensities(
     "target_mask_path",
     metavar="TARGET_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--args",
+    "mask_matching_algorithm_kwargs",
+    default="",
+    show_default=True,
+    type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--source-image",
@@ -1035,20 +1050,6 @@ def cli_register_intensities(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
-    "--algorithm",
-    "mask_matching_algorithm_name",
-    default="icp",
-    show_default=True,
-    type=click.STRING,
-)
-@click.option(
-    "--algorithm-args",
-    "mask_matching_algorithm_kwargs",
-    default="max_iter=10,top_k_estim=50,max_dist=5.0",
-    show_default=True,
-    type=KEYWORD_ARGUMENTS,
-)
-@click.option(
     "--transform",
     "--transforms",
     "transform_path",
@@ -1067,26 +1068,32 @@ def cli_register_intensities(
 )
 @catch_exception(handle=SpellmatchException)
 def cli_match(
+    mask_matching_algorithm_name: str,
     source_mask_path: Path,
     target_mask_path: Path,
+    mask_matching_algorithm_kwargs: dict[str, Any],
     source_img_path: Optional[Path],
     target_img_path: Optional[Path],
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
     target_scale: float,
-    mask_matching_algorithm_name: str,
-    mask_matching_algorithm_kwargs: dict[str, Any],
     transform_path: Optional[Path],
     reverse: bool,
     scores_path: Path,
 ) -> None:
-    pm = get_plugin_manager()
-    mask_matching_algorithm_type: Type[
-        MaskMatchingAlgorithm
+    mask_matching_algorithm_types: list[
+        Type[MaskMatchingAlgorithm]
     ] = pm.hook.spellmatch_get_mask_matching_algorithm(
         name=mask_matching_algorithm_name
     )
+    if len(mask_matching_algorithm_types) > 1:
+        raise SpellmatchException(
+            "Discovered multiple mask matching algorithms for name "
+            f"'{mask_matching_algorithm_name}': {mask_matching_algorithm_types}"
+        )
+    assert len(mask_matching_algorithm_types) == 1
+    mask_matching_algorithm_type = mask_matching_algorithm_types[0]
     mask_matching_algorithm = mask_matching_algorithm_type(
         **mask_matching_algorithm_kwargs
     )

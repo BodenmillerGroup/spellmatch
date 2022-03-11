@@ -1,6 +1,6 @@
 import logging
 from abc import abstractmethod
-from typing import Optional, Type
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -22,31 +22,24 @@ logger = logging.getLogger(__name__)
 
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
-    name: str,
-) -> Optional[Type[MaskMatchingAlgorithm]]:
-    if name == "rigid_cpd":
-        return RigidCoherentPointDrift
-    if name == "affine_cpd":
-        return AffineCoherentPointDrift
-    if name == "nonrigid_cpd":
-        return NonRigidCoherentPointDrift
-    if name == "combined_bayesian_cpd":
-        return CombinedBayesianCoherentPointDrift
-    if name == "rigid_filterreg":
-        return RigidFilterReg
-    if name == "deformable_kinematic_filterreg":
-        return DeformableKinematicFilterReg
-    if name == "rigid_gmmreg":
-        return RigidGMMReg
-    if name == "tps_gmmreg":
-        return TPSGMMReg
-    if name == "rigid_svr":
-        return RigidSVR
-    if name == "tps_svr":
-        return TPSSVR
-    if name == "gmmtree":
-        return GMMTree
-    return None
+    name: Optional[str] = None,
+) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
+    algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
+        "rigid_cpd": RigidCoherentPointDrift,
+        "affine_cpd": AffineCoherentPointDrift,
+        "nonrigid_cpd": NonRigidCoherentPointDrift,
+        "combined_bayesian_cpd": CombinedBayesianCoherentPointDrift,
+        "rigid_filterreg": RigidFilterReg,
+        "deformable_kinematic_filterreg": DeformableKinematicFilterReg,
+        "rigid_gmmreg": RigidGMMReg,
+        "tps_gmmreg": TPSGMMReg,
+        "rigid_svr": RigidSVR,
+        "tps_svr": TPSSVR,
+        "gmmtree": GMMTree,
+    }
+    if name is not None:
+        return algorithms.get(name)
+    return list(algorithms.keys())
 
 
 class _Probreg(PointsMatchingAlgorithm):

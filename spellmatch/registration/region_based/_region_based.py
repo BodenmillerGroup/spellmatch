@@ -10,7 +10,7 @@ from skimage.transform import AffineTransform, ProjectiveTransform
 
 from ...utils import compute_points
 from .._registration import SpellmatchRegistrationException
-from ._qt import QPointMatchingDialog
+from ._qt import QInteractiveRegistrationDialog
 
 
 def register_mask_regions(
@@ -39,7 +39,7 @@ def register_mask_regions(
         "Target", target_mask, img=target_img
     )
 
-    point_matching_dialog = QPointMatchingDialog(
+    point_matching_dialog = QInteractiveRegistrationDialog(
         compute_points(source_mask),
         compute_points(target_mask),
         transform_type=transform_type,
@@ -84,7 +84,7 @@ def register_mask_regions(
     target_viewer.close()
 
     result = point_matching_dialog.result()
-    if result == QPointMatchingDialog.DialogCode.Accepted:
+    if result == QInteractiveRegistrationDialog.DialogCode.Accepted:
         return (
             point_matching_dialog.label_pairs,
             point_matching_dialog.transform,

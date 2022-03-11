@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -13,11 +13,14 @@ from ._algorithms import IterativePointsMatchingAlgorithm, MaskMatchingAlgorithm
 
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
-    name: str,
-) -> Optional[Type[MaskMatchingAlgorithm]]:
-    if name == "icp":
-        return IterativeClosestPoints
-    return None
+    name: Optional[str] = None,
+) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
+    algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
+        "icp": IterativeClosestPoints,
+    }
+    if name is not None:
+        return algorithms.get(name)
+    return list(algorithms.keys())
 
 
 class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
