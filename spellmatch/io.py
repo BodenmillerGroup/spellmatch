@@ -85,21 +85,6 @@ def read_mask(mask_file: Union[str, PathLike], scale: float = 1) -> xr.DataArray
     )
 
 
-def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
-    assignment_file = Path(assignment_file)
-    return pd.read_csv(assignment_file, usecols=["Source", "Target"])
-
-
-def write_assignment(
-    assignment_file: Union[str, PathLike], assignment: pd.DataFrame
-) -> None:
-    assignment_file = Path(assignment_file)
-    assert len(assignment.columns) == 2
-    assert assignment.columns[0] == "Source"
-    assert assignment.columns[1] == "Target"
-    assignment.to_csv(assignment_file, index=False)
-
-
 def read_transform(transform_file: Union[str, PathLike]) -> ProjectiveTransform:
     transform_file = Path(transform_file)
     transform_matrix: np.ndarray = np.load(transform_file, allow_pickle=False)
@@ -124,6 +109,21 @@ def read_scores(scores_file: Union[str, PathLike]) -> xr.DataArray:
 
 def write_scores(scores_file: Union[str, PathLike], scores: xr.DataArray) -> None:
     scores.to_netcdf(scores_file, format="NETCDF3_CLASSIC", engine="scipy")
+
+
+def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
+    assignment_file = Path(assignment_file)
+    return pd.read_csv(assignment_file, usecols=["Source", "Target"])
+
+
+def write_assignment(
+    assignment_file: Union[str, PathLike], assignment: pd.DataFrame
+) -> None:
+    assignment_file = Path(assignment_file)
+    assert len(assignment.columns) == 2
+    assert assignment.columns[0] == "Source"
+    assert assignment.columns[1] == "Target"
+    assignment.to_csv(assignment_file, index=False)
 
 
 class SpellmatchIOException(SpellmatchException):

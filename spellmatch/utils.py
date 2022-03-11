@@ -22,22 +22,6 @@ def describe_mask(mask: xr.DataArray) -> str:
     return f"{np.dtype(mask.dtype).name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
 
 
-def describe_assignment(
-    assignment: pd.DataFrame, recovered: Optional[float] = None
-) -> str:
-    text = f"{len(assignment.index)} cell pairs"
-    if recovered is not None:
-        text += f", recovered {recovered:.0%}"
-    return text
-
-
-def describe_scores(scores: xr.DataArray) -> str:
-    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
-    mean_score = np.mean(max2_scores[:, 0])
-    mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
-    return f"mean score: {mean_score}, mean margin: {mean_margin}"
-
-
 def describe_transform(transform: ProjectiveTransform) -> str:
     if type(transform) is ProjectiveTransform:
         transform = AffineTransform(matrix=transform.params)
@@ -61,6 +45,22 @@ def describe_transform(transform: ProjectiveTransform) -> str:
     return ", ".join(transform_infos)
 
 
+def describe_scores(scores: xr.DataArray) -> str:
+    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
+    mean_score = np.mean(max2_scores[:, 0])
+    mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
+    return f"mean score: {mean_score}, mean margin: {mean_margin}"
+
+
+def describe_assignment(
+    assignment: pd.DataFrame, recovered: Optional[float] = None
+) -> str:
+    text = f"{len(assignment.index)} cell pairs"
+    if recovered is not None:
+        text += f", recovered {recovered:.0%}"
+    return text
+
+
 def preprocess_image(
     img: xr.DataArray,
     median_filter_size: Optional[int] = None,
@@ -80,20 +80,6 @@ def preprocess_image(
     if not inplace:
         return img
     return None
-
-
-def create_bounding_box(mask: xr.DataArray) -> Polygon:
-    bbox_shell = np.array(
-        [
-            [0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
-            [0.5 * mask.shape[-1], 0.5 * mask.shape[-2]],
-            [-0.5 * mask.shape[-1], 0.5 * mask.shape[-2]],
-            [-0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
-        ]
-    )
-    if "scale" in mask.attrs:
-        bbox_shell *= mask.attrs["scale"]
-    return Polygon(shell=bbox_shell)
 
 
 def compute_points(
@@ -131,21 +117,18 @@ def compute_intensities(
     )
 
 
-def create_graph(
-    points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
-) -> Tuple[xr.DataArray, xr.DataArray]:
-    dists = xr.DataArray(
-        data=distance.squareform(distance.pdist(points)),
-        coords={xdim: points.index, ydim: points.index},
-        name=points.index.name,
+def create_bounding_box(mask: xr.DataArray) -> Polygon:
+    bbox_shell = np.array(
+        [
+            [0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
+            [0.5 * mask.shape[-1], 0.5 * mask.shape[-2]],
+            [-0.5 * mask.shape[-1], 0.5 * mask.shape[-2]],
+            [-0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
+        ]
     )
-    adj = dists <= adj_radius
-    np.fill_diagonal(adj, False)
-    return adj, dists
-
-
-def transform_bounding_box(bbox: Polygon, transform: ProjectiveTransform) -> Polygon:
-    return Polygon(shell=transform(np.asarray(bbox.exterior.coords)))
+    if "scale" in mask.attrs:
+        bbox_shell *= mask.attrs["scale"]
+    return Polygon(shell=bbox_shell)
 
 
 def transform_points(
@@ -156,6 +139,10 @@ def transform_points(
         index=points.index.copy(),
         columns=points.columns.copy(),
     )
+
+
+def transform_bounding_box(bbox: Polygon, transform: ProjectiveTransform) -> Polygon:
+    return Polygon(shell=transform(np.asarray(bbox.exterior.coords)))
 
 
 def filter_outlier_points(
@@ -179,6 +166,19 @@ def restore_outlier_scores(
     )
     scores.loc[filtered_scores.coords] = filtered_scores
     return scores
+
+
+def create_graph(
+    points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
+) -> Tuple[xr.DataArray, xr.DataArray]:
+    dists = xr.DataArray(
+        data=distance.squareform(distance.pdist(points)),
+        coords={xdim: points.index, ydim: points.index},
+        name=points.index.name,
+    )
+    adj = dists <= adj_radius
+    np.fill_diagonal(adj, False)
+    return adj, dists
 
 
 def show_image(
