@@ -36,41 +36,41 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
     def __init__(
         self,
         *,
+        points_feature: str = "centroid",
+        intensities_feature: str = "intensity_mean",
+        num_iter: int = 3,
+        transform_type: str = "rigid",
+        transform_estim_type: str = "max_margin",
+        transform_estim_topn: int = 50,
+        exclude_outliers: bool = True,
+        adj_radius: float = 15,
         alpha: float = 0.8,
         degree_weight: float = 0,
         distance_weight: float = 0,
         intensities_weight: float = 1,
         degree_diff_thres: int = 3,
         intensities_lmd: Union[int, float] = 11,
-        intensities_lmd_n_components: int = 10,
-        intensities_lmd_max_iter: int = 500,
+        intensities_lmd_num_comp: int = 10,
+        intensities_lmd_num_iter: int = 500,
         intensities_lmd_tol: float = 1e-6,
-        intensities_shared_n_components: Union[int, float, str] = 20,
-        intensities_full_matching_top_k: int = 100,
-        intensities_full_n_components: int = 20,
-        intensities_full_max_iter: int = 500,
+        intensities_shared_num_comp: Union[int, float, str] = 20,
+        intensities_full_matching_topn: int = 100,
+        intensities_full_num_comp: int = 20,
+        intensities_full_num_ier: int = 500,
         intensities_full_tol: float = 1e-6,
         use_spatial_prior: bool = True,
-        opt_max_iter: int = 100,
+        opt_num_iter: int = 100,
         opt_tol: float = 1e-9,
-        adj_radius: float = 15,
-        max_iter: int = 3,
-        transform_type: str = "rigid",
-        transform_estim_type: str = "max_margin",
-        transform_estim_top_k: int = 50,
-        exclude_outliers: bool = True,
-        points_feature: str = "centroid",
-        intensities_feature: str = "intensity_mean",
     ) -> None:
         super(SpellmatchAlgorithm, self).__init__(
-            adj_radius,
-            max_iter,
-            transform_type,
-            transform_estim_type,
-            transform_estim_top_k,
-            exclude_outliers,
-            points_feature,
-            intensities_feature,
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
+            num_iter=num_iter,
+            transform_type=transform_type,
+            transform_estim_type=transform_estim_type,
+            transform_estim_topn=transform_estim_topn,
+            exclude_outliers=exclude_outliers,
+            adj_radius=adj_radius,
         )
         self.alpha = alpha
         self.degree_weight = degree_weight
@@ -78,16 +78,16 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
         self.intensities_weight = intensities_weight
         self.degree_diff_thres = degree_diff_thres
         self.intensities_lmd = intensities_lmd
-        self.intensities_lmd_n_components = intensities_lmd_n_components
-        self.intensities_lmd_max_iter = intensities_lmd_max_iter
+        self.intensities_lmd_num_comp = intensities_lmd_num_comp
+        self.intensities_lmd_num_iter = intensities_lmd_num_iter
         self.intensities_lmd_tol = intensities_lmd_tol
-        self.intensities_shared_n_components = intensities_shared_n_components
-        self.intensities_full_matching_top_k = intensities_full_matching_top_k
-        self.intensities_full_n_components = intensities_full_n_components
-        self.intensities_full_max_iter = intensities_full_max_iter
+        self.intensities_shared_num_comp = intensities_shared_num_comp
+        self.intensities_full_matching_topn = intensities_full_matching_topn
+        self.intensities_full_num_comp = intensities_full_num_comp
+        self.intensities_full_num_iter = intensities_full_num_ier
         self.intensities_full_tol = intensities_full_tol
         self.use_spatial_prior = use_spatial_prior
-        self.opt_max_iter = opt_max_iter
+        self.opt_num_iter = opt_num_iter
         self.opt_tol = opt_tol
         self._current_source_points: Optional[pd.DataFrame] = None
         self._current_target_points: Optional[pd.DataFrame] = None
@@ -220,7 +220,7 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
             w: sparse.spmatrix = d @ (adj - w) @ d
             logger.info("Optimizing")
             s = np.ones(n1 * n2) / (n1 * n2)
-            for opt_iter in range(self.opt_max_iter):
+            for opt_iter in range(self.opt_num_iter):
                 s_new = self.alpha * w.dot(s) + (1 - self.alpha) * h
                 loss = np.linalg.norm(s - s_new)
                 logger.info(f"Iteration {opt_iter}: {loss:.6f}")
@@ -233,8 +233,8 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
                     np.reshape(best_s, (n1, n2)), maximize=True
                 )
                 cca = CCA(
-                    n_components=self.intensities_lmd_n_components,
-                    max_iter=self.intensities_lmd_max_iter,
+                    n_components=self.intensities_lmd_num_comp,  # TODO min
+                    max_iter=self.intensities_lmd_num_iter,
                     tol=self.intensities_lmd_tol,
                 )
                 cca1, cca2 = cca.fit_transform(
@@ -302,7 +302,7 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
             (intensities1, intensities2), join="inner", ignore_index=True
         )
         n_components = min(
-            self.intensities_shared_n_components, len(shared_intensities.columns)
+            self.intensities_shared_num_comp, len(shared_intensities.columns)
         )
         # TODO use TruncatedSVD on centered and scaled intensities instead
         pca = PCA(n_components=n_components)
@@ -320,21 +320,22 @@ class SpellmatchAlgorithm(IterativeGraphMatchingAlgorithm):
         intensities2: pd.DataFrame,
     ) -> np.ndarray:
         spatial_cdists = distance.cdist(points1, points2)
-        source_2nn_ind = np.argpartition(-spatial_cdists, 1, axis=1)[:, :2]
-        source_2nn_dists = np.take_along_axis(spatial_cdists, source_2nn_ind, axis=1)
-        source_margins = source_2nn_dists[:, 0] - source_2nn_dists[:, 1]
+        nn2_ind = np.argpartition(-spatial_cdists, 1, axis=1)[:, :2]
+        nn2_dists = np.take_along_axis(spatial_cdists, nn2_ind, axis=1)
+        margins = nn2_dists[:, 0] - nn2_dists[:, 1]
+        # TODO check margins for zeros?
         top_source_ind = np.argpartition(
-            -source_margins, self.intensities_full_matching_top_k - 1
-        )[: self.intensities_full_matching_top_k]
-        top_target_ind = source_2nn_ind[top_source_ind, 0]
+            -margins, self.intensities_full_matching_topn - 1
+        )[: self.intensities_full_matching_topn]
+        top_target_ind = nn2_ind[top_source_ind, 0]
         n_components = min(
-            self.intensities_full_n_components,
+            self.intensities_full_num_comp,
             len(intensities1.columns),
             len(intensities2.columns),
         )
         cca = CCA(
             n_components=n_components,
-            max_iter=self.intensities_full_max_iter,
+            max_iter=self.intensities_full_num_iter,
             tol=self.intensities_full_tol,
         )
         cca.fit(intensities1.iloc[top_source_ind], intensities2.iloc[top_target_ind])

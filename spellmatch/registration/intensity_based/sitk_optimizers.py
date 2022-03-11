@@ -65,7 +65,7 @@ class ConjugateGradientLineSearchSITKOptimizer(SITKOptimizer):
     line_search_lower: float = 0
     line_search_upper: float = 5
     line_search_eps: float = 0.01
-    line_search_max_iter: int = 20
+    line_search_num_iter: int = 20
     lr_estim_type: str = "Once"
     max_step_size: float = 0
 
@@ -79,7 +79,7 @@ class ConjugateGradientLineSearchSITKOptimizer(SITKOptimizer):
             lineSearchLowerLimit=self.line_search_lower,
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
-            lineSearchMaximumIterations=self.line_search_max_iter,
+            lineSearchMaximumIterations=self.line_search_num_iter,
             estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,
@@ -126,7 +126,7 @@ class GradientDescentLineSearchSITKOptimizer(SITKOptimizer):
     line_search_lower: float = 0
     line_search_upper: float = 5
     line_search_eps: float = 0.01
-    line_search_max_iter: int = 20
+    line_search_num_iter: int = 20
     lr_estim_type: str = "Once"
     max_step_size: float = 0
 
@@ -140,7 +140,7 @@ class GradientDescentLineSearchSITKOptimizer(SITKOptimizer):
             lineSearchLowerLimit=self.line_search_lower,
             lineSearchUpperLimit=self.line_search_upper,
             lineSearchEpsilon=self.line_search_eps,
-            lineSearchMaximumIterations=self.line_search_max_iter,
+            lineSearchMaximumIterations=self.line_search_num_iter,
             estimateLearningRate=SITKOptimizer.LearningRateEstimationType[
                 self.lr_estim_type
             ].value,

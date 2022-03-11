@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from shapely.geometry import Polygon
-from skimage.transform import ProjectiveTransform
+from skimage.transform import ProjectiveTransform, EuclideanTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
@@ -27,26 +27,27 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     def __init__(
         self,
         *,
-        max_nn_dist: Optional[float] = None,
-        min_change: Optional[float] = None,
-        max_iter: int = 200,
-        transform_type: str = "rigid",
-        transform_estim_type: str = "max_score",
-        transform_estim_top_k: int = 50,
-        outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        num_iter: int = 200,
+        transform_type: Union[str, Type[ProjectiveTransform]] = EuclideanTransform,
+        transform_estim_type: Union[
+            str, IterativePointsMatchingAlgorithm.TransformEstimationType
+        ] = IterativePointsMatchingAlgorithm.TransformEstimationType.MAX_SCORE,
+        transform_estim_topn: Optional[int] = None,
+        max_dist: Optional[float] = None,
+        min_change: Optional[float] = None,
     ) -> None:
         super(IterativeClosestPoints, self).__init__(
-            max_iter,
-            transform_type,
-            transform_estim_type,
-            transform_estim_top_k,
-            outlier_dist,
-            points_feature,
-            intensities_feature,
+            outlier_dist=max_dist,  # exclude points that anyway couldn't be assigned
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
+            num_iter=num_iter,
+            transform_type=transform_type,
+            transform_estim_type=transform_estim_type,
+            transform_estim_topn=transform_estim_topn,
         )
-        self.max_nn_dist = max_nn_dist
+        self.max_dist = max_dist
         self.min_change = min_change
         self._target_nn: Optional[NearestNeighbors] = None
         self._current_dists_mean: Optional[float] = None
@@ -92,10 +93,10 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         source_ind = np.arange(len(source_points.index))
         nn_dists, target_ind = self._target_nn.kneighbors(source_points.to_numpy())
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
-        if self.max_nn_dist:
-            source_ind = source_ind[nn_dists <= self.max_nn_dist]
-            target_ind = target_ind[nn_dists <= self.max_nn_dist]
-            nn_dists = nn_dists[nn_dists <= self.max_nn_dist]
+        if self.max_dist is not None:
+            source_ind = source_ind[nn_dists <= self.max_dist]
+            target_ind = target_ind[nn_dists <= self.max_dist]
+            nn_dists = nn_dists[nn_dists <= self.max_dist]
         self._current_dists_mean = np.mean(nn_dists)
         self._current_dists_std = np.std(nn_dists)
         scores_data = np.zeros((len(source_points.index), len(target_points.index)))
@@ -123,20 +124,20 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             not stop
             and iteration > 0
             and self.min_change is not None
-            and self._compute_dists_mean_change() < self.min_change
-            and self._compute_dists_std_change() < self.min_change
+            and self._compute_distance_mean_change() < self.min_change
+            and self._compute_distance_std_change() < self.min_change
         ):
             stop = True
         self._last_dists_mean = self._current_dists_mean
         self._last_dists_std = self._current_dists_std
         return stop
 
-    def _compute_dists_mean_change(self) -> float:
+    def _compute_distance_mean_change(self) -> float:
         return np.abs(
             (self._current_dists_mean - self._last_dists_mean) / self._last_dists_mean
         )
 
-    def _compute_dists_std_change(self) -> float:
+    def _compute_distance_std_change(self) -> float:
         return np.abs(
             (self._current_dists_std - self._last_dists_std) / self._last_dists_std
         )

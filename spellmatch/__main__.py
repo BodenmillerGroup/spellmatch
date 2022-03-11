@@ -91,9 +91,9 @@ def describe_assignment(assignment: pd.DataFrame) -> str:
 
 
 def describe_scores(scores: xr.DataArray) -> str:
-    top2_scores = -np.partition(-scores, 1, axis=-1)[:, :2]
-    mean_score = np.mean(top2_scores[:, 0])
-    mean_margin = np.mean(top2_scores[:, 0] - top2_scores[:, 1])
+    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
+    mean_score = np.mean(max2_scores[:, 0])
+    mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
     return f"mean score: {mean_score}, mean margin: {mean_margin}"
 
 

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Type
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -86,6 +86,7 @@ class _MaskMatchingMixin:
 class _PointsMatchingMixin:
     def _init_points_matching(
         self,
+        *,
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
@@ -169,23 +170,23 @@ class _PointsMatchingMixin:
         filtered_target_points = target_points
         filtered_source_intensities = source_intensities
         filtered_target_intensities = target_intensities
-        if self.outlier_dist is not None:  # TODO check outlier exclusion
+        if self.outlier_dist is not None:
             if target_bbox is not None:
                 filtered_transformed_source_points = filter_outlier_points(
                     transformed_source_points, target_bbox, self.outlier_dist
-                )
+                )  # TODO check outlier exclusion
                 if source_intensities is not None:
                     filtered_source_intensities = source_intensities.loc[
-                        filtered_transformed_source_points.index
+                        filtered_transformed_source_points.index, :
                     ]
 
             if transformed_source_bbox is not None:
                 filtered_target_points = filter_outlier_points(
                     target_points, transformed_source_bbox, self.outlier_dist
-                )
+                )  # TODO check outlier exclusion
                 if target_intensities is not None:
                     filtered_target_intensities = target_intensities.loc[
-                        filtered_target_points.index
+                        filtered_target_points.index, :
                     ]
         self._pre_match_points(
             filtered_transformed_source_points,
@@ -244,7 +245,7 @@ class _PointsMatchingMixin:
 
 
 class _GraphMatchingMixin:
-    def _init_graph_matching(self, adj_radius: float) -> None:
+    def _init_graph_matching(self, *, adj_radius: float) -> None:
         self.adj_radius = adj_radius
 
     def _match_graphs_from_points(
@@ -355,12 +356,17 @@ class MaskMatchingAlgorithm(MatchingAlgorithm, _MaskMatchingMixin):
 class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
     def __init__(
         self,
+        *,
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
     ) -> None:
         super(PointsMatchingAlgorithm, self).__init__()
-        self._init_points_matching(outlier_dist, points_feature, intensities_feature)
+        self._init_points_matching(
+            outlier_dist=outlier_dist,
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
+        )
 
     def _match_masks(
         self,
@@ -388,21 +394,28 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
 
     def __init__(
         self,
-        max_iter: int,
-        transform_type: str,
-        transform_estim_type: str,
-        transform_estim_top_k: int,
+        *,
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        num_iter: int,
+        transform_type: Union[str, Type[ProjectiveTransform]],
+        transform_estim_type: Union[str, TransformEstimationType],
+        transform_estim_topn: Optional[int],
     ) -> None:
+        if isinstance(transform_type, str):
+            transform_type = self.TRANSFORM_TYPES[transform_type]
+        if isinstance(transform_estim_type, str):
+            transform_estim_type = self.TransformEstimationType(transform_estim_type)
         super(IterativePointsMatchingAlgorithm, self).__init__(
-            outlier_dist, points_feature, intensities_feature
+            outlier_dist=outlier_dist,
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
         )
-        self.max_iter = max_iter
-        self.transform_type = self.TRANSFORM_TYPES[transform_type]
-        self.transform_estim_type = self.TransformEstimationType(transform_estim_type)
-        self.transform_estim_top_k = transform_estim_top_k
+        self.num_iter = num_iter
+        self.transform_type = transform_type
+        self.transform_estim_type = transform_estim_type
+        self.transform_estim_topn = transform_estim_topn
 
     def match_points(
         self,
@@ -415,7 +428,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         current_transform = transform
-        for iteration in range(self.max_iter):
+        for iteration in range(self.num_iter):
             self._pre_iter(iteration, current_transform)
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
                 source_points,
@@ -449,26 +462,30 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         scores: xr.DataArray,
     ) -> Optional[ProjectiveTransform]:
         if self.transform_estim_type == self.TransformEstimationType.MAX_SCORE:
-            max_source_scores_ind = np.argmax(scores.to_numpy(), axis=1)
-            max_source_scores = np.take_along_axis(
-                scores.to_numpy(), np.expand_dims(max_source_scores_ind, axis=1), axis=1
+            max_score_ind = np.argmax(scores.to_numpy(), axis=1)
+            max_scores = np.take_along_axis(
+                scores.to_numpy(), np.expand_dims(max_score_ind, axis=1), axis=1
             ).squeeze(axis=1)
-            top_source_ind = np.argpartition(
-                -max_source_scores, self.transform_estim_top_k - 1
-            )[: self.transform_estim_top_k]
-            top_source_ind = top_source_ind[max_source_scores[top_source_ind] > 0]
-            top_target_ind = max_source_scores_ind[top_source_ind]
+            if self.transform_estim_topn is not None:
+                top_source_ind = np.argpartition(
+                    -max_scores, self.transform_estim_topn - 1
+                )[: self.transform_estim_topn]
+            else:
+                top_source_ind = np.arange(len(source_points.index))
+            top_source_ind = top_source_ind[max_scores[top_source_ind] > 0]
+            top_target_ind = max_score_ind[top_source_ind]
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
-            max2_source_scores_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)
-            max2_source_scores = np.take_along_axis(
-                scores.to_numpy(), max2_source_scores_ind, axis=1
-            )
-            source_margins = max2_source_scores[:, 0] - max2_source_scores[:, 1]
-            top_source_ind = np.argpartition(
-                -source_margins, self.transform_estim_top_k - 1
-            )[: self.transform_estim_top_k]
-            top_source_ind = top_source_ind[source_margins[top_source_ind] > 0]
-            top_target_ind = max2_source_scores_ind[top_source_ind, 0]
+            max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)
+            max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
+            margins = max2_scores[:, 0] - max2_scores[:, 1]
+            if self.transform_estim_topn is not None:
+                top_source_ind = np.argpartition(
+                    -margins, self.transform_estim_topn - 1
+                )[: self.transform_estim_topn]
+            else:
+                top_source_ind = np.arange(len(source_points.index))
+            top_source_ind = top_source_ind[max2_scores[top_source_ind, 0] > 0]
+            top_target_ind = max2_score_ind[top_source_ind, 0]
         else:
             raise NotImplementedError()
         updated_transform = self.transform_type()
@@ -496,17 +513,18 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
 class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
     def __init__(
         self,
-        adj_radius: float,
-        exclude_outliers: bool,
+        *,
         points_feature: str,
         intensities_feature: str,
+        exclude_outliers: bool,
+        adj_radius: float,
     ) -> None:
         super(GraphMatchingAlgorithm, self).__init__(
-            adj_radius if exclude_outliers else None,
-            points_feature,
-            intensities_feature,
+            outlier_dist=adj_radius if exclude_outliers else None,
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
         )
-        self._init_graph_matching(adj_radius)
+        self._init_graph_matching(adj_radius=adj_radius)
 
     def _match_points(
         self,
@@ -525,25 +543,28 @@ class IterativeGraphMatchingAlgorithm(
 ):
     def __init__(
         self,
-        adj_radius: float,
-        max_iter: int,
-        transform_type: str,
-        transform_estim_type: str,
-        transform_estim_top_k: int,
-        exclude_outliers: bool,
+        *,
         points_feature: str,
         intensities_feature: str,
+        num_iter: int,
+        transform_type: Union[str, Type[ProjectiveTransform]],
+        transform_estim_type: Union[
+            str, IterativePointsMatchingAlgorithm.TransformEstimationType
+        ],
+        transform_estim_topn: Optional[int],
+        exclude_outliers: bool,
+        adj_radius: float,
     ) -> None:
         super(IterativeGraphMatchingAlgorithm, self).__init__(
-            max_iter,
-            transform_type,
-            transform_estim_type,
-            transform_estim_top_k,
-            adj_radius if exclude_outliers else None,
-            points_feature,
-            intensities_feature,
+            outlier_dist=adj_radius if exclude_outliers else None,
+            points_feature=points_feature,
+            intensities_feature=intensities_feature,
+            num_iter=num_iter,
+            transform_type=transform_type,
+            transform_estim_type=transform_estim_type,
+            transform_estim_topn=transform_estim_topn,
         )
-        self._init_graph_matching(adj_radius)
+        self._init_graph_matching(adj_radius=adj_radius)
 
     def _match_points(
         self,
