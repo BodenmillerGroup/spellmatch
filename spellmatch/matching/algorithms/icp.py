@@ -1,5 +1,6 @@
 from typing import Optional, Type, Union
 
+import logging
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -9,6 +10,9 @@ from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
 from ._algorithms import IterativePointsMatchingAlgorithm, MaskMatchingAlgorithm
+
+
+logger = logging.getLogger(__name__)
 
 
 @hookimpl
@@ -49,7 +53,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         )
         self.max_dist = max_dist
         self.min_change = min_change
-        self._target_nn: Optional[NearestNeighbors] = None
         self._current_dists_mean: Optional[float] = None
         self._current_dists_std: Optional[float] = None
         self._last_dists_mean: Optional[float] = None
@@ -65,8 +68,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
-        self._target_nn = NearestNeighbors(n_neighbors=1)
-        self._target_nn.fit(target_points.to_numpy())
         self._last_dists_mean = None
         self._last_dists_std = None
         scores = super(IterativeClosestPoints, self).match_points(
@@ -78,7 +79,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             target_intensities,
             transform,
         )
-        self._target_nn = None
         self._current_dists_mean = None
         self._current_dists_std = None
         return scores
@@ -90,9 +90,11 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
-        source_ind = np.arange(len(source_points.index))
-        nn_dists, target_ind = self._target_nn.kneighbors(source_points.to_numpy())
+        nn = NearestNeighbors(n_neighbors=1)
+        nn.fit(target_points.to_numpy())
+        nn_dists, target_ind = nn.kneighbors(source_points.to_numpy())
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
+        source_ind = np.arange(len(source_points.index))
         if self.max_dist is not None:
             source_ind = source_ind[nn_dists <= self.max_dist]
             target_ind = target_ind[nn_dists <= self.max_dist]
@@ -120,24 +122,38 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         stop = super(IterativeClosestPoints, self)._post_iter(
             iteration, current_transform, current_scores, updated_transform
         )
+        transform_change = np.linalg.norm(
+            current_transform.params - updated_transform.params
+        )
+        dists_mean_change = self._compute_distance_mean_change()
+        dists_std_change = self._compute_distance_std_change()
         if (
-            not stop
-            and iteration > 0
-            and self.min_change is not None
-            and self._compute_distance_mean_change() < self.min_change
-            and self._compute_distance_std_change() < self.min_change
+            self.min_change is not None
+            and dists_mean_change < self.min_change
+            and dists_std_change < self.min_change
         ):
             stop = True
+        logger.info(
+            f"Iteration {iteration + 1}: "
+            f"transform_change={transform_change:.6f}, "
+            f"dists_mean_change={dists_mean_change:.6f}, "
+            f"dists_std_change={dists_std_change:.6f}, "
+            f"stop={stop}"
+        )
         self._last_dists_mean = self._current_dists_mean
         self._last_dists_std = self._current_dists_std
         return stop
 
     def _compute_distance_mean_change(self) -> float:
+        if not self._last_dists_mean:
+            return float("inf")
         return np.abs(
             (self._current_dists_mean - self._last_dists_mean) / self._last_dists_mean
         )
 
     def _compute_distance_std_change(self) -> float:
+        if not self._last_dists_std:
+            return float("inf")
         return np.abs(
             (self._current_dists_std - self._last_dists_std) / self._last_dists_std
         )
