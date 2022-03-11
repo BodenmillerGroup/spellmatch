@@ -3,10 +3,32 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 import xarray as xr
+from scipy.ndimage import gaussian_filter, median_filter
 from scipy.spatial import distance
 from shapely.geometry import Point, Polygon
 from skimage.measure import regionprops
 from skimage.transform import ProjectiveTransform
+
+
+def preprocess_image(
+    img: xr.DataArray,
+    median_filter_size: Optional[int] = None,
+    clipping_quantile: Optional[float] = None,
+    gaussian_filter_sigma: Optional[float] = None,
+    inplace=False,
+) -> Optional[xr.DataArray]:
+    if not inplace:
+        img = img.copy()
+    if median_filter_size is not None:
+        img[:] = median_filter(img.to_numpy(), size=median_filter_size)
+    if clipping_quantile is not None:
+        clipping_max = np.quantile(img.to_numpy(), clipping_quantile)
+        img[:] = np.clip(img.to_numpy(), None, clipping_max)
+    if gaussian_filter_sigma is not None:
+        img[:] = gaussian_filter(img.to_numpy(), gaussian_filter_sigma)
+    if not inplace:
+        return img
+    return None
 
 
 def create_bounding_box(mask: xr.DataArray) -> Polygon:

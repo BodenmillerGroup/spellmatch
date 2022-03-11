@@ -6,9 +6,12 @@ import numpy as np
 import pyqtgraph as pg
 import xarray as xr
 from qtpy.QtCore import QEventLoop, Qt
-from scipy.ndimage import gaussian_filter, median_filter
 from skimage.transform import ProjectiveTransform
-from skimage.util import img_as_ubyte
+
+try:
+    from cv2 import xfeatures2d as cv2_xfeatures2d
+except ImportError:
+    cv2_xfeatures2d = None
 
 
 class MatcherType(IntEnum):
@@ -29,33 +32,42 @@ matcher_types: dict[str, MatcherType] = {
     "bruteforce_sl2": MatcherType.BRUTEFORCE_SL2,
 }
 
+# TODO add further features
+feature_types: dict[str, callable] = {
+    "ORB": cv2.ORB_create,
+    "SIFT": cv2.SIFT_create,
+}
+if cv2_xfeatures2d is not None:
+    feature_types.update(
+        {
+            "SURF": cv2_xfeatures2d.SURF_create,
+        }
+    )
+
 
 def register_image_features(
     source_img: xr.DataArray,
     target_img: xr.DataArray,
-    orb_kwargs: Optional[dict[str, Any]] = None,
+    feature_type: callable = cv2.SIFT_create,
+    feature_kwargs: Optional[dict[str, Any]] = None,
     matcher_type: MatcherType = MatcherType.BRUTEFORCE,
     keep_matches_frac: Optional[float] = None,
     ransac_kwargs: Optional[dict[str, Any]] = None,
-    denoise_source: Optional[int] = None,
-    denoise_target: Optional[int] = None,
-    blur_source: Optional[float] = None,
-    blur_target: Optional[float] = None,
     show: bool = False,
 ) -> ProjectiveTransform:
-    if denoise_source is not None:
-        source_img = median_filter(source_img, size=2 * denoise_source + 1)
-    if blur_source is not None:
-        source_img = gaussian_filter(source_img, sigma=blur_source)
-    source_img = img_as_ubyte(source_img.to_numpy().astype(np.uint8))  # TODO
-    if denoise_target is not None:
-        target_img = median_filter(target_img, size=2 * denoise_target + 1)
-    if blur_target is not None:
-        target_img = gaussian_filter(target_img, sigma=blur_target)
-    target_img = img_as_ubyte(target_img.to_numpy().astype(np.uint8))  # TODO
-    orb: cv2.ORB = cv2.ORB_create(**orb_kwargs)
-    source_kps, source_descs = orb.detectAndCompute(source_img, None)
-    target_kps, target_descs = orb.detectAndCompute(target_img, None)
+    if feature_kwargs is None:
+        feature_kwargs = {}
+    source_img = source_img.to_numpy()
+    target_img = target_img.to_numpy()
+    img_min = min(np.amin(source_img), np.amin(target_img))
+    img_max = max(np.amax(source_img), np.amax(target_img))
+    source_img = (source_img - img_min) / (img_max - img_min)
+    target_img = (target_img - img_min) / (img_max - img_min)
+    source_img = (source_img * 255).astype(np.uint8)
+    target_img = (target_img * 255).astype(np.uint8)
+    feature: cv2.Feature2D = feature_type(**feature_kwargs)
+    source_kps, source_descs = feature.detectAndCompute(source_img, None)
+    target_kps, target_descs = feature.detectAndCompute(target_img, None)
     matcher: cv2.DescriptorMatcher = cv2.DescriptorMatcher_create(int(matcher_type))
     matches = matcher.match(source_descs, target_descs)
     if keep_matches_frac is not None:

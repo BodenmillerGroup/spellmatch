@@ -1,3 +1,8 @@
-from ._feature_based import MatcherType, matcher_types, register_image_features
+from ._feature_based import (
+    MatcherType,
+    feature_types,
+    matcher_types,
+    register_image_features,
+)
 
-__all__ = ["MatcherType", "matcher_types", "register_image_features"]
+__all__ = ["MatcherType", "feature_types", "matcher_types", "register_image_features"]

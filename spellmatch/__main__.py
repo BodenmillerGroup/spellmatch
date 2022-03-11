@@ -20,6 +20,7 @@ from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
 from .matching.algorithms import MaskMatchingAlgorithm, icp, probreg, spellmatch
 from .registration.feature_based import (
+    feature_types,
     matcher_types,
     register_image_features,
 )
@@ -30,6 +31,7 @@ from .registration.intensity_based import (
 from .registration.intensity_based.sitk_metrics import sitk_metric_types
 from .registration.intensity_based.sitk_optimizers import sitk_optimizer_types
 from .registration.region_based import register_mask_regions
+from .utils import preprocess_image
 
 click_log.basic_config(logger=logger)
 
@@ -434,27 +436,44 @@ def cli_register_regions(
 )
 @click.option(
     "--denoise-source",
-    "denoise_source",
-    type=click.FloatRange(min=0, min_open=True),
+    "source_median_filter_size",
+    type=click.IntRange(min=3),
 )
 @click.option(
     "--denoise-target",
-    "denoise_target",
-    type=click.FloatRange(min=0, min_open=True),
+    "target_median_filter_size",
+    type=click.IntRange(min=3),
+)
+@click.option(
+    "--clip-source",
+    "source_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--clip-target",
+    "target_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
     "--blur-source",
-    "blur_source",
+    "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--blur-target",
-    "blur_target",
+    "target_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
-    "--orb-args",
-    "orb_kwargs",
+    "--feature",
+    "feature_type_name",
+    default="ORB",
+    show_default=True,
+    type=click.Choice(list(feature_types.keys())),
+)
+@click.option(
+    "--feature-args",
+    "feature_kwargs",
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
@@ -501,11 +520,14 @@ def cli_register_features(
     target_scale: float,
     source_channel: Optional[str],
     target_channel: Optional[str],
-    denoise_source: Optional[float],
-    denoise_target: Optional[float],
-    blur_source: Optional[float],
-    blur_target: Optional[float],
-    orb_kwargs: dict[str, Any],
+    source_median_filter_size: Optional[int],
+    target_median_filter_size: Optional[int],
+    source_clipping_quantile: Optional[float],
+    target_clipping_quantile: Optional[float],
+    source_gaussian_filter_sigma: Optional[float],
+    target_gaussian_filter_sigma: Optional[float],
+    feature_type_name: str,
+    feature_kwargs: dict[str, Any],
     matcher_type_name: str,
     keep_matches_frac: float,
     ransac_kwargs: dict[str, Any],
@@ -579,6 +601,13 @@ def cli_register_features(
                     "No channel specified "
                     f"for multi-channel source image {source_img_file.name}"
                 )
+        preprocess_image(
+            source_img,
+            median_filter_size=source_median_filter_size,
+            clipping_quantile=source_clipping_quantile,
+            gaussian_filter_sigma=source_gaussian_filter_sigma,
+            inplace=True,
+        )
         target_img = io.read_image(
             target_img_file, panel=target_panel, scale=target_scale
         )
@@ -605,23 +634,32 @@ def cli_register_features(
                     "No channel specified "
                     f"for multi-channel target image {target_img_file.name}"
                 )
+        preprocess_image(
+            target_img,
+            median_filter_size=target_median_filter_size,
+            clipping_quantile=target_clipping_quantile,
+            gaussian_filter_sigma=target_gaussian_filter_sigma,
+            inplace=True,
+        )
         transform = register_image_features(
             source_img,
             target_img,
-            orb_kwargs=orb_kwargs,
+            feature_type=feature_types[feature_type_name],
+            feature_kwargs=feature_kwargs,
             matcher_type=matcher_types[matcher_type_name],
             keep_matches_frac=keep_matches_frac,
             ransac_kwargs=ransac_kwargs,
-            denoise_source=denoise_source,
-            denoise_target=denoise_target,
-            blur_source=blur_source,
-            blur_target=blur_target,
             show=show,
         )
-        io.write_transform(transform_file, transform)
-        logger.info(
-            f"Transform: {transform_file.name} ({describe_transform(transform)})"
-        )
+        if transform is not None:
+            io.write_transform(transform_file, transform)
+            logger.info(
+                f"Transform: {transform_file.name} ({describe_transform(transform)})"
+            )
+        else:
+            logger.error(
+                f"Failed to register {source_img_file.name} and {target_img_file.name}"
+            )
 
 
 @cli_register.command("intensities")
@@ -675,22 +713,32 @@ def cli_register_features(
 )
 @click.option(
     "--denoise-source",
-    "denoise_source",
-    type=click.FloatRange(min=0, min_open=True),
+    "source_median_filter_size",
+    type=click.IntRange(min=3),
 )
 @click.option(
     "--denoise-target",
-    "denoise_target",
-    type=click.FloatRange(min=0, min_open=True),
+    "target_median_filter_size",
+    type=click.IntRange(min=3),
+)
+@click.option(
+    "--clip-source",
+    "source_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--clip-target",
+    "target_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
     "--blur-source",
-    "blur_source",
+    "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
     "--blur-target",
-    "blur_target",
+    "target_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -769,10 +817,12 @@ def cli_register_intensities(
     target_scale: float,
     source_channel: Optional[str],
     target_channel: Optional[str],
-    denoise_source: Optional[float],
-    denoise_target: Optional[float],
-    blur_source: Optional[float],
-    blur_target: Optional[float],
+    source_median_filter_size: Optional[int],
+    target_median_filter_size: Optional[int],
+    source_clipping_quantile: Optional[float],
+    target_clipping_quantile: Optional[float],
+    source_gaussian_filter_sigma: Optional[float],
+    target_gaussian_filter_sigma: Optional[float],
     sitk_metric_type_name: str,
     sitk_metric_kwargs: dict[str, Any],
     sitk_optimizer_type_name: str,
@@ -868,6 +918,13 @@ def cli_register_intensities(
                     "No channel specified "
                     f"for multi-channel source image {source_img_file.name}"
                 )
+        preprocess_image(
+            source_img,
+            median_filter_size=source_median_filter_size,
+            clipping_quantile=source_clipping_quantile,
+            gaussian_filter_sigma=source_gaussian_filter_sigma,
+            inplace=True,
+        )
         target_img = io.read_image(
             target_img_file, panel=target_panel, scale=target_scale
         )
@@ -894,6 +951,13 @@ def cli_register_intensities(
                     "No channel specified "
                     f"for multi-channel target image {target_img_file.name}"
                 )
+        preprocess_image(
+            target_img,
+            median_filter_size=target_median_filter_size,
+            clipping_quantile=target_clipping_quantile,
+            gaussian_filter_sigma=target_gaussian_filter_sigma,
+            inplace=True,
+        )
         if initial_transform_file is not None:
             initial_transform = io.read_transform(initial_transform_file)
             logger.info(
@@ -910,10 +974,6 @@ def cli_register_intensities(
             sitk_optimizer,
             sitk_transform_type=sitk_transform_types[sitk_transform_type_name],
             initial_transform=initial_transform,
-            denoise_source=denoise_source,
-            denoise_target=denoise_target,
-            blur_source=blur_source,
-            blur_target=blur_target,
             show=show,
             hold=hold,
         )

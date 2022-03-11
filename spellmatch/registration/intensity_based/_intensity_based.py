@@ -31,10 +31,6 @@ def register_image_intensities(
     sitk_optimizer: SITKOptimizer,
     sitk_transform_type: Type[SITKProjectiveTransform] = sitk.AffineTransform,
     initial_transform: Optional[ProjectiveTransform] = None,
-    denoise_source: Optional[int] = None,
-    denoise_target: Optional[int] = None,
-    blur_source: Optional[float] = None,
-    blur_target: Optional[float] = None,
     show: bool = False,
     hold: bool = False,
 ) -> ProjectiveTransform:
@@ -47,15 +43,6 @@ def register_image_intensities(
         moving_origin = tuple(x * source_img.attrs["scale"] for x in moving_origin)
         moving_img.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
     moving_img.SetOrigin(moving_origin)
-    if denoise_source is not None:
-        moving_median_filter = sitk.MedianImageFilter()
-        moving_median_filter.SetRadius(denoise_source)
-        moving_img = moving_median_filter.Execute(moving_img)
-    if blur_source is not None:
-        moving_gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
-        moving_gaussian_filter.SetNormalizeAcrossScale(True)
-        moving_gaussian_filter.SetSigma(blur_source)
-        moving_img = moving_gaussian_filter.Execute(moving_img)
 
     fixed_img = sitk.GetImageFromArray(target_img.astype(float))
     fixed_origin = (
@@ -66,15 +53,6 @@ def register_image_intensities(
         fixed_origin = tuple(x * target_img.attrs["scale"] for x in fixed_origin)
         fixed_img.SetSpacing((target_img.attrs["scale"], target_img.attrs["scale"]))
     fixed_img.SetOrigin(fixed_origin)
-    if denoise_target is not None:
-        fixed_median_filter = sitk.MedianImageFilter()
-        fixed_median_filter.SetRadius(denoise_target)
-        fixed_img = fixed_median_filter.Execute(fixed_img)
-    if blur_target is not None:
-        fixed_gaussian_filter = sitk.SmoothingRecursiveGaussianImageFilter()
-        fixed_gaussian_filter.SetNormalizeAcrossScale(True)
-        fixed_gaussian_filter.SetSigma(blur_target)
-        fixed_img = fixed_gaussian_filter.Execute(fixed_img)
 
     sitk_transform = sitk_transform_type()
     if initial_transform is not None:
