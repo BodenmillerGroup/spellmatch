@@ -70,10 +70,10 @@ class _Probreg(PointsMatchingAlgorithm):
         self._current_iteration = None
         source_ind = np.arange(len(source_points.index))
         target_nn = NearestNeighbors(n_neighbors=1)
-        target_nn.fit(target_points)
+        target_nn.fit(target_points.to_numpy())
         nn_dists, target_ind = target_nn.kneighbors(
             transform.transform(source_points.to_numpy())
-        )
+        )  # TODO check indices
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
         if self.max_nn_dist:
             source_ind = source_ind[nn_dists <= self.max_nn_dist]

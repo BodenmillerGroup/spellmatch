@@ -64,7 +64,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
-        self._target_nn = NearestNeighbors(n_neighbors=1).fit(target_points)
+        self._target_nn = NearestNeighbors(n_neighbors=1)
+        self._target_nn.fit(target_points.to_numpy())
         self._last_dists_mean = None
         self._last_dists_std = None
         scores = super(IterativeClosestPoints, self).match_points(
@@ -89,7 +90,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         source_ind = np.arange(len(source_points.index))
-        nn_dists, target_ind = self._target_nn.kneighbors(source_points.index)
+        nn_dists, target_ind = self._target_nn.kneighbors(source_points.to_numpy())
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
         if self.max_nn_dist:
             source_ind = source_ind[nn_dists <= self.max_nn_dist]

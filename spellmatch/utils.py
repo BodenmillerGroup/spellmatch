@@ -71,7 +71,8 @@ def compute_intensities(
     intensities_feature: str = "intensity_mean",
 ) -> pd.DataFrame:
     if regions is None:
-        regions = regionprops(mask.to_numpy(), intensity_image=img.to_numpy())
+        intensity_image = np.moveaxis(img.to_numpy(), 0, -1)
+        regions = regionprops(mask.to_numpy(), intensity_image=intensity_image)
     return pd.DataFrame(
         data=np.array([r[intensities_feature] for r in regions]),
         index=pd.Index(data=[r["label"] for r in regions], name=mask.name),

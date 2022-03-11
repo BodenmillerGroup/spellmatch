@@ -771,9 +771,9 @@ def cli_register_features(
     default=",".join(
         [
             "lr=2.0",
-            "min_step=1e-4",
+            "min_step=1.0e-4",
             "num_iter=500",
-            "grad_magnitude_tol=1e-8",
+            "grad_magnitude_tol=1.0e-8",
             "scales=from_index_shift",
         ]
     ),
@@ -1156,21 +1156,27 @@ def cli_match(
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
         )
-    for (
+    for i, (
         source_mask_file,
         target_mask_file,
         source_img_file,
         target_img_file,
         transform_file,
         scores_file,
-    ) in zip(
-        source_mask_files,
-        target_mask_files,
-        source_img_files,
-        target_img_files,
-        transform_files,
-        scores_files,
+    ) in enumerate(
+        zip(
+            source_mask_files,
+            target_mask_files,
+            source_img_files,
+            target_img_files,
+            transform_files,
+            scores_files,
+        )
     ):
+        if len(source_mask_files) > 1:
+            logger.info(
+                f"########## MASK PAIR {i + 1}/{len(source_mask_files)} ##########"
+            )
         source_mask = io.read_mask(source_mask_file, scale=source_scale)
         logger.info(
             f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"

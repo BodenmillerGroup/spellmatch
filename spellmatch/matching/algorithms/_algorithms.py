@@ -102,13 +102,17 @@ class _PointsMatchingMixin:
         target_img: Optional[xr.DataArray],
         transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
+        source_intensity_image = None
+        if source_img is not None:
+            source_intensity_image = np.moveaxis(source_img.to_numpy(), 0, -1)
         source_regions = regionprops(
-            source_mask.to_numpy(),
-            intensity_image=source_img.to_numpy() if source_img is not None else None,
+            source_mask.to_numpy(), intensity_image=source_intensity_image
         )
+        target_intensity_image = None
+        if target_img is not None:
+            target_intensity_image = np.moveaxis(target_img.to_numpy(), 0, -1)
         target_regions = regionprops(
-            target_mask.to_numpy(),
-            intensity_image=target_img.to_numpy() if target_img is not None else None,
+            target_mask.to_numpy(), intensity_image=target_intensity_image
         )
         source_points = compute_points(
             source_mask, regions=source_regions, points_feature=self.points_feature
@@ -161,18 +165,18 @@ class _PointsMatchingMixin:
             transformed_source_points = transform_points(source_points, transform)
             if source_bbox is not None:
                 transformed_source_bbox = transform_bounding_box(source_bbox, transform)
-        filtered_source_points = transformed_source_points
+        filtered_transformed_source_points = transformed_source_points
         filtered_target_points = target_points
         filtered_source_intensities = source_intensities
         filtered_target_intensities = target_intensities
-        if self.outlier_dist is not None:
+        if self.outlier_dist is not None:  # TODO check outlier exclusion
             if target_bbox is not None:
-                filtered_source_points = filter_outlier_points(
+                filtered_transformed_source_points = filter_outlier_points(
                     transformed_source_points, target_bbox, self.outlier_dist
                 )
                 if source_intensities is not None:
                     filtered_source_intensities = source_intensities.loc[
-                        filtered_source_points.index
+                        filtered_transformed_source_points.index
                     ]
 
             if transformed_source_bbox is not None:
@@ -184,27 +188,29 @@ class _PointsMatchingMixin:
                         filtered_target_points.index
                     ]
         self._pre_match_points(
-            filtered_source_points,
+            filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
         )
         filtered_scores = self._match_points(
-            filtered_source_points,
+            filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
         )
         filtered_scores = self._post_match_points(
-            filtered_source_points,
+            filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
             filtered_scores,
         )
-        scores = restore_outlier_scores(
-            source_points.index, target_points.index, filtered_scores
-        )
+        scores = filtered_scores
+        if self.outlier_dist is not None:
+            scores = restore_outlier_scores(
+                source_points.index, target_points.index, filtered_scores
+            )  # TODO check outlier restoration
         return scores
 
     def _pre_match_points(
@@ -452,7 +458,6 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             )[: self.transform_estim_top_k]
             top_source_ind = top_source_ind[max_source_scores[top_source_ind] > 0]
             top_target_ind = max_source_scores_ind[top_source_ind]
-            weights = max_source_scores[top_source_ind]
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
             max2_source_scores_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)
             max2_source_scores = np.take_along_axis(
@@ -464,7 +469,6 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             )[: self.transform_estim_top_k]
             top_source_ind = top_source_ind[source_margins[top_source_ind] > 0]
             top_target_ind = max2_source_scores_ind[top_source_ind, 0]
-            weights = max2_source_scores[top_source_ind, 0]
         else:
             raise NotImplementedError()
         updated_transform = self.transform_type()
@@ -472,9 +476,8 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             len(top_source_ind) > 0
             and len(top_target_ind) > 0
             and updated_transform.estimate(
-                source_points.iloc[top_source_ind, :],
-                target_points.iloc[top_target_ind, :],
-                weights=weights,
+                source_points.iloc[top_source_ind, :].to_numpy(),
+                target_points.iloc[top_target_ind, :].to_numpy(),
             )
         ):
             return updated_transform
