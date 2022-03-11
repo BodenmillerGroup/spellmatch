@@ -2,12 +2,12 @@ import logging
 from typing import Optional, Type, Union
 
 import numpy as np
-import pyqtgraph as pg
 import SimpleITK as sitk
 import xarray as xr
-from qtpy.QtCore import QEventLoop, QObject, Qt, QThread, Signal
+from qtpy.QtCore import QObject, QThread, Signal
 from skimage.transform import ProjectiveTransform
 
+from ...utils import show_image
 from .sitk_metrics import SITKMetric
 from .sitk_optimizers import SITKOptimizer
 
@@ -68,8 +68,6 @@ def register_image_intensities(
     method.AddCommand(sitk.sitkIterationEvent, lambda: _log_on_iteration(method))
 
     if show:
-        pg.setConfigOption("imageAxisOrder", "row-major")
-        pg.mkQApp()
         composite_imgs = []
 
         def append_composite_image() -> None:
@@ -85,13 +83,8 @@ def register_image_intensities(
             if update_current_index:
                 imv.setCurrentIndex(len(composite_imgs) - 1)
 
-        imv = pg.ImageView()
-        imv_loop = QEventLoop()
-        imv.destroyed.connect(imv_loop.quit)
-        imv.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        imv.setWindowTitle("spellmatch registration")
+        imv, imv_loop = show_image(None, window_title="spellmatch registration")
         append_composite_image()
-        imv.show()
 
         worker = _QSITKRegistrationWorker(moving_img, fixed_img, method)
         worker.iteration.connect(append_composite_image)

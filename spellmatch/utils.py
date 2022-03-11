@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,58 @@ from scipy.ndimage import gaussian_filter, median_filter
 from scipy.spatial import distance
 from shapely.geometry import Point, Polygon
 from skimage.measure import regionprops
-from skimage.transform import ProjectiveTransform
+from skimage.transform import AffineTransform, ProjectiveTransform
+
+if TYPE_CHECKING:
+    import pyqtgraph as pg
+    from qtpy.QtCore import QEventLoop
+
+
+def describe_image(img: xr.DataArray) -> str:
+    return f"{np.dtype(img.dtype).name} {img.shape[1:]}, {img.shape[0]} channels"
+
+
+def describe_mask(mask: xr.DataArray) -> str:
+    return f"{np.dtype(mask.dtype).name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
+
+
+def describe_assignment(
+    assignment: pd.DataFrame, recovered: Optional[float] = None
+) -> str:
+    text = f"{len(assignment.index)} cell pairs"
+    if recovered is not None:
+        text += f", recovered {recovered:.0%}"
+    return text
+
+
+def describe_scores(scores: xr.DataArray) -> str:
+    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
+    mean_score = np.mean(max2_scores[:, 0])
+    mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
+    return f"mean score: {mean_score}, mean margin: {mean_margin}"
+
+
+def describe_transform(transform: ProjectiveTransform) -> str:
+    if type(transform) is ProjectiveTransform:
+        transform = AffineTransform(matrix=transform.params)
+    transform_infos = []
+    if hasattr(transform, "scale"):
+        if np.isscalar(transform.scale):
+            transform_infos.append(f"scale: {transform.scale:.3f}")
+        else:
+            transform_infos.append(
+                f"scale: sx={transform.scale[0]:.3f} sy={transform.scale[1]:.3f}"
+            )
+    if hasattr(transform, "rotation"):
+        transform_infos.append(f"ccw rotation: {180 * transform.rotation / np.pi:.3f}°")
+    if hasattr(transform, "shear"):
+        transform_infos.append(f"ccw shear: {180 * transform.shear / np.pi:.3f}°")
+    if hasattr(transform, "translation"):
+        transform_infos.append(
+            "translation: "
+            f"tx={transform.translation[0]:.3f} ty={transform.translation[1]:.3f}"
+        )
+    return ", ".join(transform_infos)
 
 
 def preprocess_image(
@@ -128,3 +179,23 @@ def restore_outlier_scores(
     )
     scores.loc[filtered_scores.coords] = filtered_scores
     return scores
+
+
+def show_image(
+    img: Optional[np.ndarray], window_title: Optional[str] = None
+) -> Tuple["pg.ImageView", "QEventLoop"]:
+    import pyqtgraph as pg
+    from qtpy.QtCore import QEventLoop, Qt
+
+    pg.setConfigOption("imageAxisOrder", "row-major")
+    pg.mkQApp()
+    imv = pg.ImageView()
+    imv_loop = QEventLoop()
+    imv.destroyed.connect(imv_loop.quit)
+    imv.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+    if img is not None:
+        imv.setImage(img)
+    if window_title is not None:
+        imv.setWindowTitle(window_title)
+    imv.show()
+    return imv, imv_loop

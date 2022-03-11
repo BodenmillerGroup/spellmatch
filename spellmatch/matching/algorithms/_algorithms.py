@@ -174,7 +174,7 @@ class _PointsMatchingMixin:
             if target_bbox is not None:
                 filtered_transformed_source_points = filter_outlier_points(
                     transformed_source_points, target_bbox, self.outlier_dist
-                )  # TODO check outlier exclusion
+                )
                 if source_intensities is not None:
                     filtered_source_intensities = source_intensities.loc[
                         filtered_transformed_source_points.index, :
@@ -183,7 +183,7 @@ class _PointsMatchingMixin:
             if transformed_source_bbox is not None:
                 filtered_target_points = filter_outlier_points(
                     target_points, transformed_source_bbox, self.outlier_dist
-                )  # TODO check outlier exclusion
+                )
                 if target_intensities is not None:
                     filtered_target_intensities = target_intensities.loc[
                         filtered_target_points.index, :
@@ -211,7 +211,7 @@ class _PointsMatchingMixin:
         if self.outlier_dist is not None:
             scores = restore_outlier_scores(
                 source_points.index, target_points.index, filtered_scores
-            )  # TODO check outlier restoration
+            )
         return scores
 
     def _pre_match_points(
@@ -475,7 +475,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             top_source_ind = top_source_ind[max_scores[top_source_ind] > 0]
             top_target_ind = max_score_ind[top_source_ind]
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
-            max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)
+            max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)[:, :2]
             max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
             margins = max2_scores[:, 0] - max2_scores[:, 1]
             if self.transform_estim_topn is not None:

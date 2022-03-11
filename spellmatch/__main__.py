@@ -5,9 +5,7 @@ from typing import Any, Optional, Type
 import click
 import click_log
 import numpy as np
-import pandas as pd
 import pluggy
-import xarray as xr
 import yaml
 from skimage.transform import (
     AffineTransform,
@@ -18,10 +16,17 @@ from skimage.transform import (
 
 from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
+from .assignment import (
+    assign_scores,
+    assignment_combination_strategies,
+    combine_assignments,
+    show_assignment,
+    validate_assignment,
+)
 from .matching.algorithms import MaskMatchingAlgorithm, icp, probreg, spellmatch
 from .registration.feature_based import (
-    feature_types,
-    matcher_types,
+    cv2_feature_types,
+    cv2_matcher_types,
     register_image_features,
 )
 from .registration.intensity_based import (
@@ -31,7 +36,14 @@ from .registration.intensity_based import (
 from .registration.intensity_based.sitk_metrics import sitk_metric_types
 from .registration.intensity_based.sitk_optimizers import sitk_optimizer_types
 from .registration.region_based import register_mask_regions
-from .utils import preprocess_image
+from .utils import (
+    describe_assignment,
+    describe_image,
+    describe_mask,
+    describe_scores,
+    describe_transform,
+    preprocess_image,
+)
 
 click_log.basic_config(logger=logger)
 
@@ -76,48 +88,6 @@ def glob_sorted(dir: Path, pattern: str, expect: Optional[int] = None) -> list[P
             f"Expected {expect} files in directory {dir.name}, found {len(files)}"
         )
     return files
-
-
-def describe_image(img: xr.DataArray) -> str:
-    return f"{np.dtype(img.dtype).name} {img.shape[1:]}, {img.shape[0]} channels"
-
-
-def describe_mask(mask: xr.DataArray) -> str:
-    return f"{np.dtype(mask.dtype).name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
-
-
-def describe_assignment(assignment: pd.DataFrame) -> str:
-    return f"{len(assignment.index)} cell pairs"
-
-
-def describe_scores(scores: xr.DataArray) -> str:
-    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
-    mean_score = np.mean(max2_scores[:, 0])
-    mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
-    return f"mean score: {mean_score}, mean margin: {mean_margin}"
-
-
-def describe_transform(transform: ProjectiveTransform) -> str:
-    if type(transform) is ProjectiveTransform:
-        transform = AffineTransform(matrix=transform.params)
-    transform_infos = []
-    if hasattr(transform, "scale"):
-        if np.isscalar(transform.scale):
-            transform_infos.append(f"scale: {transform.scale:.3f}")
-        else:
-            transform_infos.append(
-                f"scale: sx={transform.scale[0]:.3f} sy={transform.scale[1]:.3f}"
-            )
-    if hasattr(transform, "rotation"):
-        transform_infos.append(f"ccw rotation: {180 * transform.rotation / np.pi:.3f}°")
-    if hasattr(transform, "shear"):
-        transform_infos.append(f"ccw shear: {180 * transform.shear / np.pi:.3f}°")
-    if hasattr(transform, "translation"):
-        transform_infos.append(
-            "translation: "
-            f"tx={transform.translation[0]:.3f} ty={transform.translation[1]:.3f}"
-        )
-    return ", ".join(transform_infos)
 
 
 class KeywordArgumentsParamType(click.ParamType):
@@ -297,13 +267,19 @@ def cli_register_interactive(
             target_img_files = [None] * len(target_mask_files)
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [
-            assignment_path / f"assignment{i + 1:03d}.csv"
-            for i in range(len(source_mask_files))
+            assignment_path
+            / f"assignment_{source_mask_file.stem}_to_{target_mask_file.stem}.csv"
+            for source_mask_file, target_mask_file in zip(
+                source_mask_files, target_mask_files
+            )
         ]
         transform_path.mkdir(exist_ok=True)
         transform_files = [
-            transform_path / f"transform{i + 1:03d}.npy"
-            for i in range(len(source_mask_files))
+            transform_path
+            / f"transform_{source_mask_file.stem}_to_{target_mask_file.stem}.npy"
+            for source_mask_file, target_mask_file in zip(
+                source_mask_files, target_mask_files
+            )
         ]
     else:
         raise click.UsageError(
@@ -469,24 +445,24 @@ def cli_register_interactive(
 )
 @click.option(
     "--feature",
-    "feature_type_name",
+    "cv2_feature_type_name",
     default="ORB",
     show_default=True,
-    type=click.Choice(list(feature_types.keys())),
+    type=click.Choice(list(cv2_feature_types.keys())),
 )
 @click.option(
     "--feature-args",
-    "feature_kwargs",
+    "cv2_feature_kwargs",
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
 )
 @click.option(
     "--matcher",
-    "matcher_type_name",
+    "cv2_matcher_type_name",
     default="bruteforce",
     show_default=True,
-    type=click.Choice(list(matcher_types.keys())),
+    type=click.Choice(list(cv2_matcher_types.keys())),
 )
 @click.option(
     "--keep",
@@ -529,14 +505,15 @@ def cli_register_features(
     target_clipping_quantile: Optional[float],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
-    feature_type_name: str,
-    feature_kwargs: dict[str, Any],
-    matcher_type_name: str,
+    cv2_feature_type_name: str,
+    cv2_feature_kwargs: dict[str, Any],
+    cv2_matcher_type_name: str,
     keep_matches_frac: float,
     ransac_kwargs: dict[str, Any],
     show: bool,
     transform_path: Path,
 ) -> None:
+    cv2_feature = cv2_feature_types[cv2_feature_type_name](**cv2_feature_kwargs)
     source_panel = None
     if source_panel_file.exists():
         source_panel = io.read_panel(source_panel_file)
@@ -562,8 +539,11 @@ def cli_register_features(
         )
         transform_path.mkdir(exist_ok=True)
         transform_files = [
-            transform_path / f"transform{i + 1:03d}.npy"
-            for i in range(len(source_img_files))
+            transform_path
+            / f"transform_{source_img_file.stem}_to_{target_img_file.stem}.npy"
+            for source_img_file, target_img_file in zip(
+                source_img_files, target_img_files
+            )
         ]
     else:
         raise click.UsageError(
@@ -647,9 +627,8 @@ def cli_register_features(
         transform = register_image_features(
             source_img,
             target_img,
-            feature_type=feature_types[feature_type_name],
-            feature_kwargs=feature_kwargs,
-            matcher_type=matcher_types[matcher_type_name],
+            cv2_feature,
+            cv2_matcher_type=cv2_matcher_types[cv2_matcher_type_name],
             keep_matches_frac=keep_matches_frac,
             ransac_kwargs=ransac_kwargs,
             show=show,
@@ -874,8 +853,11 @@ def cli_register_intensities(
             initial_transform_files = [None] * len(source_img_files)
         transform_path.mkdir(exist_ok=True)
         transform_files = [
-            transform_path / f"transform{i + 1:03d}.npy"
-            for i in range(len(source_img_files))
+            transform_path
+            / f"transform_{source_img_file.stem}_to_{target_img_file.stem}.npy"
+            for source_img_file, target_img_file in zip(
+                source_img_files, target_img_files
+            )
         ]
     else:
         raise click.UsageError(
@@ -1149,8 +1131,11 @@ def cli_match(
             transform_files = [None] * len(source_mask_files)
         scores_path.mkdir(exist_ok=True)
         scores_files = [
-            scores_path / f"scores{i + 1:03d}.npy"
-            for i in range(len(source_mask_files))
+            scores_path
+            / f"scores_{source_mask_file.stem}_to_{target_mask_file.stem}.nc"
+            for source_mask_file, target_mask_file in zip(
+                source_mask_files, target_mask_files
+            )
         ]
     else:
         raise click.UsageError(
@@ -1217,7 +1202,7 @@ def cli_match(
             source_mask, target_mask = target_mask, source_mask
             source_img, target_img = target_img, source_img
             if transform is not None:
-                transform = np.linalg.inv(transform)
+                transform = ProjectiveTransform(matrix=np.linalg.inv(transform.params))
         scores = mask_matching_algorithm.match_masks(
             source_mask,
             target_mask,
@@ -1227,6 +1212,389 @@ def cli_match(
         )
         io.write_scores(scores_file, scores)
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
+
+
+@cli.command(name="assign")
+@click.argument(
+    "scores_path",
+    metavar="SCORES",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--normalize/--no-normalize",
+    "normalize",
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "--score-thres",
+    "score_thres",
+    type=click.FLOAT,
+)
+@click.option(
+    "--margin-thres",
+    "margin_thres",
+    type=click.FloatRange(min=0),
+)
+@click.option(
+    "--reverse/--no-reverse",
+    "reverse",
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "--source-mask",
+    "--source-masks",
+    "source_mask_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--target-mask",
+    "--target-masks",
+    "target_mask_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--source-scale",
+    "source_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-scale",
+    "target_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--show",
+    "show",
+    type=click.IntRange(min=0, min_open=True),
+)
+@click.option(
+    "--validate",
+    "validation_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.argument(
+    "assignment_path",
+    metavar="ASSIGNMENT(S)",
+    type=click.Path(path_type=Path),
+)
+@catch_exception(handle=SpellmatchException)
+def cli_assign(
+    scores_path: Path,
+    normalize: bool,
+    score_thres: Optional[float],
+    margin_thres: Optional[float],
+    reverse: bool,
+    source_mask_path: Optional[Path],
+    target_mask_path: Optional[Path],
+    source_scale: float,
+    target_scale: float,
+    show: Optional[int],
+    validation_path: Optional[Path],
+    assignment_path: Path,
+) -> None:
+    if (
+        scores_path.is_file()
+        and (source_mask_path is None or source_mask_path.is_file())
+        and (target_mask_path is None or target_mask_path.is_file())
+        and (not assignment_path.exists() or assignment_path.is_file())
+        and (validation_path is None or validation_path.is_file())
+    ):
+        scores_files = [scores_path]
+        source_mask_files = [source_mask_path]
+        target_mask_files = [target_mask_path]
+        assignment_files = [assignment_path]
+        validation_files = [validation_path]
+    elif (
+        scores_path.is_dir()
+        and (source_mask_path is None or source_mask_path.is_dir())
+        and (target_mask_path is None or target_mask_path.is_dir())
+        and (not assignment_path.exists() or assignment_path.is_dir())
+        and (validation_path is None or validation_path.is_dir())
+    ):
+        scores_files = glob_sorted(scores_path, "*.nc")
+        if source_mask_path is not None:
+            source_mask_files = glob_sorted(
+                source_mask_path, "*.tiff", expect=len(scores_files)
+            )
+        else:
+            source_mask_files = [None] * len(scores_files)
+        if target_mask_path is not None:
+            target_mask_files = glob_sorted(
+                target_mask_path, "*.tiff", expect=len(scores_files)
+            )
+        else:
+            target_mask_files = [None] * len(scores_files)
+        assignment_path.mkdir(exist_ok=True)
+        assignment_files = [
+            assignment_path
+            / scores_file.with_suffix(".csv").name.replace("scores_", "assignment_")
+            for scores_file in scores_files
+        ]
+        validation_files = glob_sorted(
+            validation_path, "*.csv", expect=len(assignment_files)
+        )
+    else:
+        raise click.UsageError(
+            "Either specify individual files, or directories, but not both"
+        )
+    for i, (
+        scores_file,
+        source_mask_file,
+        target_mask_file,
+        assignment_file,
+        validation_file,
+    ) in enumerate(
+        zip(
+            scores_files,
+            source_mask_files,
+            target_mask_files,
+            assignment_files,
+            validation_files,
+        )
+    ):
+        if len(scores_files) > 1:
+            logger.info(f"########## SCORES {i + 1}/{len(scores_files)} ##########")
+        scores = io.read_scores(scores_file)
+        logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
+        if source_mask_file is not None:
+            source_mask = io.read_mask(source_mask_file, scale=source_scale)
+            logger.info(
+                f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
+            )
+        else:
+            source_mask = None
+            logger.info("Source mask: None")
+        if target_mask_file is not None:
+            target_mask = io.read_mask(target_mask_file, scale=target_scale)
+            logger.info(
+                f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
+            )
+        else:
+            target_mask = None
+            logger.info("Target mask: None")
+        if reverse:
+            source_mask, target_mask = target_mask, source_mask
+        assignment = assign_scores(
+            scores,
+            normalize=normalize,
+            score_thres=score_thres,
+            margin_thres=margin_thres,
+        )
+        if show is not None and source_mask is not None and target_mask is not None:
+            show_assignment(source_mask, target_mask, assignment, n=show)
+        io.write_assignment(assignment_file, assignment)
+        logger.info(
+            f"Assignment: {assignment_file.name} ({describe_assignment(assignment)})"
+        )
+        if validation_file is not None:
+            validation_assignment = io.read_assignment(validation_file)
+            if reverse:
+                validation_assignment["Source"], validation_assignment["Target"] = (
+                    validation_assignment["Target"],
+                    validation_assignment["Source"],
+                )
+            recovered = validate_assignment(assignment, validation_assignment)
+            logger.info(
+                f"Validation: {validation_file.name} "
+                f"({describe_assignment(validation_assignment, recovered=recovered)})"
+            )
+
+
+@cli.command(name="combine")
+@click.argument(
+    "forward_assignment_path",
+    metavar="FORWARD_ASSIGNMENT(S)",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.argument(
+    "reverse_assignment_path",
+    metavar="REVERSE_ASSIGNMENT(S)",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--strategy",
+    "assignment_combination_strategy_name",
+    default="intersection",
+    show_default=True,
+    type=click.Choice(list(assignment_combination_strategies.keys())),
+)
+@click.option(
+    "--source-mask",
+    "--source-masks",
+    "source_mask_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--target-mask",
+    "--target-masks",
+    "target_mask_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option(
+    "--source-scale",
+    "source_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-scale",
+    "target_scale",
+    default=1,
+    show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--show",
+    "show",
+    type=click.IntRange(min=0, min_open=True),
+)
+@click.option(
+    "--validate",
+    "validation_path",
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.argument(
+    "assignment_path",
+    metavar="ASSIGNMENT(S)",
+    type=click.Path(path_type=Path),
+)
+@catch_exception(handle=SpellmatchException)
+def cli_combine(
+    forward_assignment_path: Path,
+    reverse_assignment_path: Path,
+    assignment_combination_strategy_name: str,
+    source_mask_path: Optional[Path],
+    target_mask_path: Optional[Path],
+    source_scale: float,
+    target_scale: float,
+    show: Optional[int],
+    validation_path: Optional[Path],
+    assignment_path: Path,
+) -> None:
+    if (
+        forward_assignment_path.is_file()
+        and reverse_assignment_path.is_file()
+        and (source_mask_path is None or source_mask_path.is_file())
+        and (target_mask_path is None or target_mask_path.is_file())
+        and (not assignment_path.exists() or assignment_path.is_file())
+        and (validation_path is None or validation_path.is_file())
+    ):
+        forward_assignment_files = [forward_assignment_path]
+        reverse_assignment_files = [reverse_assignment_path]
+        source_mask_files = [source_mask_path]
+        target_mask_files = [target_mask_path]
+        assignment_files = [assignment_path]
+        validation_files = [validation_path]
+    elif (
+        forward_assignment_path.is_dir()
+        and reverse_assignment_path.is_dir()
+        and (source_mask_path is None or source_mask_path.is_dir())
+        and (target_mask_path is None or target_mask_path.is_dir())
+        and (not assignment_path.exists() or assignment_path.is_dir())
+        and (validation_path is None or validation_path.is_dir())
+    ):
+        forward_assignment_files = glob_sorted(forward_assignment_path, "*.csv")
+        reverse_assignment_files = glob_sorted(
+            reverse_assignment_path, "*.csv", expect=len(forward_assignment_files)
+        )
+        if source_mask_path is not None:
+            source_mask_files = glob_sorted(
+                source_mask_path, "*.tiff", expect=len(forward_assignment_files)
+            )
+        else:
+            source_mask_files = [None] * len(forward_assignment_files)
+        if target_mask_path is not None:
+            target_mask_files = glob_sorted(
+                target_mask_path, "*.tiff", expect=len(forward_assignment_files)
+            )
+        else:
+            target_mask_files = [None] * len(forward_assignment_files)
+        assignment_path.mkdir(exist_ok=True)
+        assignment_files = [
+            assignment_path / forward_assignment_file.name
+            for forward_assignment_file in forward_assignment_files
+        ]
+        validation_files = glob_sorted(
+            validation_path, "*.csv", expect=len(assignment_files)
+        )
+    else:
+        raise click.UsageError(
+            "Either specify individual files, or directories, but not both"
+        )
+    for i, (
+        forward_assignment_file,
+        reverse_assignment_file,
+        source_mask_file,
+        target_mask_file,
+        assignment_file,
+        validation_file,
+    ) in enumerate(
+        zip(
+            forward_assignment_files,
+            reverse_assignment_files,
+            source_mask_files,
+            target_mask_files,
+            assignment_files,
+            validation_files,
+        )
+    ):
+        if len(forward_assignment_files) > 1:
+            n = len(forward_assignment_files)
+            logger.info(f"########## ASSIGNMENT PAIR {i + 1}/{n} ##########")
+        forward_assignment = io.read_assignment(forward_assignment_file)
+        logger.info(
+            f"Forward assignment: {forward_assignment_file.name} "
+            f"({describe_assignment(forward_assignment)})"
+        )
+        reverse_assignment = io.read_assignment(reverse_assignment_file)
+        logger.info(
+            f"Reverse assignment: {reverse_assignment_file.name} "
+            f"({describe_assignment(reverse_assignment)})"
+        )
+        if source_mask_file is not None:
+            source_mask = io.read_mask(source_mask_file, scale=source_scale)
+            logger.info(
+                f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
+            )
+        else:
+            source_mask = None
+            logger.info("Source mask: None")
+        if target_mask_file is not None:
+            target_mask = io.read_mask(target_mask_file, scale=target_scale)
+            logger.info(
+                f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
+            )
+        else:
+            target_mask = None
+            logger.info("Target mask: None")
+        assignment = combine_assignments(
+            forward_assignment,
+            reverse_assignment,
+            strategy=assignment_combination_strategies[
+                assignment_combination_strategy_name
+            ],
+        )
+        if show is not None and source_mask is not None and target_mask is not None:
+            show_assignment(source_mask, target_mask, assignment, n=show)
+        io.write_assignment(assignment_file, assignment)
+        logger.info(
+            f"Assignment: {assignment_file.name} ({describe_assignment(assignment)})"
+        )
+        if validation_file is not None:
+            validation_assignment = io.read_assignment(validation_file)
+            recovered = validate_assignment(assignment, validation_assignment)
+            logger.info(
+                f"Validation: {validation_file.name} "
+                f"({describe_assignment(validation_assignment, recovered=recovered)})"
+            )
+    pass
 
 
 if __name__ == "__main__":

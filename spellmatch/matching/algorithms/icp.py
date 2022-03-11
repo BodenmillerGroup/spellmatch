@@ -1,16 +1,16 @@
+import logging
 from typing import Optional, Type, Union
 
-import logging
 import numpy as np
 import pandas as pd
 import xarray as xr
 from shapely.geometry import Polygon
-from skimage.transform import ProjectiveTransform, EuclideanTransform
+from skimage.transform import EuclideanTransform, ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
+from ...utils import describe_transform
 from ._algorithms import IterativePointsMatchingAlgorithm, MaskMatchingAlgorithm
-
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             stop = True
         logger.info(
             f"Iteration {iteration + 1}: "
-            f"transform_change={transform_change:.6f}, "
+            f"transform_change={transform_change:.6f} "
+            f"({describe_transform(updated_transform)}), "
             f"dists_mean_change={dists_mean_change:.6f}, "
             f"dists_std_change={dists_std_change:.6f}, "
             f"stop={stop}"
