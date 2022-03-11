@@ -1,7 +1,15 @@
 raw/
 source_img/
-source_masks/
 target_img/
+source_masks/
 target_masks/
 source_panel.csv
 target_panel.csv
+initial_assignments/
+initial_transforms/
+refined_transforms/
+forward_scores/
+reverse_scores/
+forward_assignments/
+reverse_assignments/
+assignments/
