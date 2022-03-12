@@ -99,7 +99,7 @@ class _Probreg(PointsMatchingAlgorithm):
     ) -> Transformation:
         raise NotImplementedError()
 
-    def _callback(self, transform: Transformation) -> None:
+    def _callback(self, transformation: Transformation) -> None:
         logger.info(f"Iteration {self._current_iteration}")
         self._current_iteration += 1
 
@@ -140,8 +140,8 @@ class _CoherentPointDrift(_Probreg):
     def _get_instance(self, source: np.ndarray) -> cpd.CoherentPointDrift:
         raise NotImplementedError()
 
-    def _instance_callback(self, transform: Transformation) -> None:
-        self._callback(transform)
+    def _instance_callback(self, transformation: Transformation) -> None:
+        self._callback(transformation)
 
 
 class RigidCoherentPointDrift(_CoherentPointDrift):
@@ -271,8 +271,8 @@ class _BayesianCoherentPointDrift(_Probreg):
     def _get_instance(self, source: np.ndarray) -> bcpd.BayesianCoherentPointDrift:
         raise NotImplementedError()
 
-    def _instance_callback(self, transform: Transformation) -> None:
-        self._callback(transform)
+    def _instance_callback(self, transformation: Transformation) -> None:
+        self._callback(transformation)
 
 
 class CombinedBayesianCoherentPointDrift(_BayesianCoherentPointDrift):
@@ -351,8 +351,8 @@ class _FilterReg(_Probreg):
     def _get_instance(self, source: np.ndarray) -> filterreg.FilterReg:
         raise NotImplementedError()
 
-    def _instance_callback(self, transform: Transformation) -> None:
-        self._callback(transform)
+    def _instance_callback(self, transformation: Transformation) -> None:
+        self._callback(transformation)
 
 
 class RigidFilterReg(_FilterReg):
@@ -461,8 +461,8 @@ class _L2DistReg(_Probreg):
     def _get_instance(self, source: np.ndarray) -> l2dist_regs.L2DistRegistration:
         raise NotImplementedError()
 
-    def _instance_callback(self, transform: Transformation) -> None:
-        self._callback(transform)
+    def _instance_callback(self, transformation: Transformation) -> None:
+        self._callback(transformation)
 
 
 class RigidGMMReg(_L2DistReg):
@@ -690,5 +690,5 @@ class GMMTree(_Probreg):
         result = instance.registration(target, maxiter=self.num_iter, tol=self.tol)
         return result.transformation
 
-    def _instance_callback(self, transform: Transformation) -> None:
-        self._callback(transform)
+    def _instance_callback(self, transformation: Transformation) -> None:
+        self._callback(transformation)

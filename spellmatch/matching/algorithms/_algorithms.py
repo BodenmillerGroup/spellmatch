@@ -37,16 +37,16 @@ class _MaskMatchingMixin:
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
-        transform: Optional[ProjectiveTransform] = None,
+        prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         self._pre_match_masks(
-            source_mask, target_mask, source_img, target_img, transform
+            source_mask, target_mask, source_img, target_img, prior_transform
         )
         scores = self._match_masks(
-            source_mask, target_mask, source_img, target_img, transform
+            source_mask, target_mask, source_img, target_img, prior_transform
         )
         scores = self._post_match_masks(
-            source_mask, target_mask, source_img, target_img, transform, scores
+            source_mask, target_mask, source_img, target_img, prior_transform, scores
         )
         return scores
 
@@ -56,7 +56,7 @@ class _MaskMatchingMixin:
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
-        transform: Optional[ProjectiveTransform],
+        prior_transform: Optional[ProjectiveTransform],
     ) -> None:
         pass
 
@@ -67,7 +67,7 @@ class _MaskMatchingMixin:
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
-        transform: Optional[ProjectiveTransform],
+        prior_transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -77,7 +77,7 @@ class _MaskMatchingMixin:
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
-        transform: Optional[ProjectiveTransform],
+        prior_transform: Optional[ProjectiveTransform],
         scores: xr.DataArray,
     ) -> xr.DataArray:
         return scores
@@ -101,7 +101,7 @@ class _PointsMatchingMixin:
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
-        transform: Optional[ProjectiveTransform],
+        prior_transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
         source_intensity_image = None
         if source_img is not None:
@@ -146,7 +146,7 @@ class _PointsMatchingMixin:
             target_bbox=target_bbox,
             source_intensities=source_intensities,
             target_intensities=target_intensities,
-            transform=transform,
+            prior_transform=prior_transform,
         )
         return scores
 
@@ -158,14 +158,16 @@ class _PointsMatchingMixin:
         target_bbox: Optional[Polygon] = None,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
-        transform: Optional[ProjectiveTransform] = None,
+        prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         transformed_source_points = source_points
         transformed_source_bbox = source_bbox
-        if transform is not None:
-            transformed_source_points = transform_points(source_points, transform)
+        if prior_transform is not None:
+            transformed_source_points = transform_points(source_points, prior_transform)
             if source_bbox is not None:
-                transformed_source_bbox = transform_bounding_box(source_bbox, transform)
+                transformed_source_bbox = transform_bounding_box(
+                    source_bbox, prior_transform
+                )
         filtered_transformed_source_points = transformed_source_points
         filtered_target_points = target_points
         filtered_source_intensities = source_intensities
@@ -374,10 +376,10 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         target_mask: xr.DataArray,
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
-        transform: Optional[ProjectiveTransform],
+        prior_transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
         return self._match_points_from_masks(
-            source_mask, target_mask, source_img, target_img, transform
+            source_mask, target_mask, source_img, target_img, prior_transform
         )
 
 
@@ -425,9 +427,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_bbox: Optional[Polygon] = None,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
-        transform: Optional[ProjectiveTransform] = None,
+        prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
-        current_transform = transform
+        current_transform = prior_transform
         for iteration in range(self.num_iter):
             self._pre_iter(iteration, current_transform)
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
@@ -437,7 +439,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 target_bbox=target_bbox,
                 source_intensities=source_intensities,
                 target_intensities=target_intensities,
-                transform=current_transform,
+                prior_transform=current_transform,
             )
             updated_transform = self._update_transform(
                 source_points, target_points, current_scores

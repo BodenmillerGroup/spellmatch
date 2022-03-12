@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -65,6 +65,7 @@ def preprocess_image(
     img: xr.DataArray,
     median_filter_size: Optional[int] = None,
     clipping_quantile: Optional[float] = None,
+    transform_func: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     gaussian_filter_sigma: Optional[float] = None,
     inplace=False,
 ) -> Optional[xr.DataArray]:
@@ -75,6 +76,8 @@ def preprocess_image(
     if clipping_quantile is not None:
         clipping_max = np.quantile(img.to_numpy(), clipping_quantile)
         img[:] = np.clip(img.to_numpy(), None, clipping_max)
+    if transform_func is not None:
+        img[:] = transform_func(img.to_numpy())
     if gaussian_filter_sigma is not None:
         img[:] = gaussian_filter(img.to_numpy(), gaussian_filter_sigma)
     if not inplace:

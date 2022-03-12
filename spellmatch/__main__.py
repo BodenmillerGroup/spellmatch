@@ -1,6 +1,6 @@
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Callable, Optional, Type
 
 import click
 import click_log
@@ -17,8 +17,9 @@ from skimage.transform import (
 from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
 from .assignment import (
-    assign_scores,
+    assign,
     assignment_combination_strategies,
+    assignment_strategies,
     combine_assignments,
     show_assignment,
     validate_assignment,
@@ -97,15 +98,15 @@ class KeywordArgumentsParamType(click.ParamType):
         self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
     ) -> Any:
         if not isinstance(value, str):
-            return self.fail(f"{value} is not a string", param=param, ctx=ctx)
+            self.fail(f"{value} is not a string", param=param, ctx=ctx)
         if not value:
             return {}
         key_val_pairs = []
         for key_val_pair_str in value.split(","):
             key_val_pair = key_val_pair_str.strip().split(sep="=", maxsplit=1)
             if len(key_val_pair) != 2:
-                return self.fail(
-                    f"{key_val_pair_str} is not a valid key-value pair",
+                self.fail(
+                    f"'{key_val_pair_str}' is not a valid key-value pair",
                     param=param,
                     ctx=ctx,
                 )
@@ -114,11 +115,27 @@ class KeywordArgumentsParamType(click.ParamType):
         try:
             kwargs = yaml.load(yaml_doc, yaml.Loader)
         except yaml.YAMLError as e:
-            return self.fail(f"cannot be parsed as YAML: {e}", param=param, ctx=ctx)
+            self.fail(f"'{value}' cannot be parsed as YAML: {e}", param=param, ctx=ctx)
         return kwargs
 
 
+class NumpyFunctionParamType(click.ParamType):
+    name = "numpy function"
+
+    def convert(
+        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
+    ) -> Any:
+        if not isinstance(value, str):
+            self.fail(f"'{value}' is not a string", param=param, ctx=ctx)
+        if not value:
+            return lambda x: x
+        if not hasattr(np, value):
+            self.fail(f"'{value}' is not a numpy function", param=param, ctx=ctx)
+        return getattr(np, value)
+
+
 KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
+NUMPY_FUNCTION = NumpyFunctionParamType()
 
 
 @click.group(name="spellmatch")
@@ -215,6 +232,7 @@ def cli_register_interactive(
     assignment_path: Path,
     transform_path: Path,
 ) -> None:
+    transform_type = transform_types[transform_type_name]
     source_panel = None
     if source_panel_file.exists():
         source_panel = io.read_panel(source_panel_file)
@@ -342,7 +360,7 @@ def cli_register_interactive(
             target_mask,
             source_img=source_img,
             target_img=target_img,
-            transform_type=transform_types[transform_type_name],
+            transform_type=transform_type,
             assignment=assignment,
         )
         if result is not None:
@@ -434,6 +452,16 @@ def cli_register_interactive(
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
+    "--transform-source",
+    "source_transform_func",
+    type=NUMPY_FUNCTION,
+)
+@click.option(
+    "--transform-target",
+    "target_transform_func",
+    type=NUMPY_FUNCTION,
+)
+@click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
@@ -503,6 +531,8 @@ def cli_register_features(
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
     target_clipping_quantile: Optional[float],
+    source_transform_func: Callable[[np.ndarray], np.ndarray],
+    target_transform_func: Callable[[np.ndarray], np.ndarray],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     cv2_feature_type_name: str,
@@ -513,7 +543,8 @@ def cli_register_features(
     show: bool,
     transform_path: Path,
 ) -> None:
-    cv2_feature = cv2_feature_types[cv2_feature_type_name](**cv2_feature_kwargs)
+    cv2_feature_type = cv2_feature_types[cv2_feature_type_name]
+    cv2_matcher_type = cv2_matcher_types[cv2_matcher_type_name]
     source_panel = None
     if source_panel_file.exists():
         source_panel = io.read_panel(source_panel_file)
@@ -588,6 +619,7 @@ def cli_register_features(
             source_img,
             median_filter_size=source_median_filter_size,
             clipping_quantile=source_clipping_quantile,
+            transform_func=source_transform_func,
             gaussian_filter_sigma=source_gaussian_filter_sigma,
             inplace=True,
         )
@@ -621,14 +653,15 @@ def cli_register_features(
             target_img,
             median_filter_size=target_median_filter_size,
             clipping_quantile=target_clipping_quantile,
+            transform_func=target_transform_func,
             gaussian_filter_sigma=target_gaussian_filter_sigma,
             inplace=True,
         )
         transform = register_image_features(
             source_img,
             target_img,
-            cv2_feature,
-            cv2_matcher_type=cv2_matcher_types[cv2_matcher_type_name],
+            cv2_feature_type(**cv2_feature_kwargs),
+            cv2_matcher_type=cv2_matcher_type,
             keep_matches_frac=keep_matches_frac,
             ransac_kwargs=ransac_kwargs,
             show=show,
@@ -712,6 +745,16 @@ def cli_register_features(
     "--clip-target",
     "target_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--transform-source",
+    "source_transform_func",
+    type=NUMPY_FUNCTION,
+)
+@click.option(
+    "--transform-target",
+    "target_transform_func",
+    type=NUMPY_FUNCTION,
 )
 @click.option(
     "--blur-source",
@@ -803,6 +846,8 @@ def cli_register_intensities(
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
     target_clipping_quantile: Optional[float],
+    source_transform_func: Callable[[np.ndarray], np.ndarray],
+    target_transform_func: Callable[[np.ndarray], np.ndarray],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     sitk_metric_type_name: str,
@@ -815,10 +860,9 @@ def cli_register_intensities(
     hold: bool,
     transform_path: Path,
 ) -> None:
-    sitk_metric = sitk_metric_types[sitk_metric_type_name](**sitk_metric_kwargs)
-    sitk_optimizer = sitk_optimizer_types[sitk_optimizer_type_name](
-        **sitk_optimizer_kwargs
-    )
+    sitk_metric_type = sitk_metric_types[sitk_metric_type_name]
+    sitk_optimizer_type = sitk_optimizer_types[sitk_optimizer_type_name]
+    sitk_transform_type = sitk_transform_types[sitk_transform_type_name]
     source_panel = None
     if source_panel_file.exists():
         source_panel = io.read_panel(source_panel_file)
@@ -907,6 +951,7 @@ def cli_register_intensities(
             source_img,
             median_filter_size=source_median_filter_size,
             clipping_quantile=source_clipping_quantile,
+            transform_func=source_transform_func,
             gaussian_filter_sigma=source_gaussian_filter_sigma,
             inplace=True,
         )
@@ -940,6 +985,7 @@ def cli_register_intensities(
             target_img,
             median_filter_size=target_median_filter_size,
             clipping_quantile=target_clipping_quantile,
+            transform_func=target_transform_func,
             gaussian_filter_sigma=target_gaussian_filter_sigma,
             inplace=True,
         )
@@ -955,9 +1001,9 @@ def cli_register_intensities(
         transform = register_image_intensities(
             source_img,
             target_img,
-            sitk_metric,
-            sitk_optimizer,
-            sitk_transform_type=sitk_transform_types[sitk_transform_type_name],
+            sitk_metric_type(**sitk_metric_kwargs),
+            sitk_optimizer_type(**sitk_optimizer_kwargs),
+            sitk_transform_type=sitk_transform_type,
             initial_transform=initial_transform,
             show=show,
             hold=hold,
@@ -970,11 +1016,6 @@ def cli_register_intensities(
 
 @cli.command(name="match")
 @click.argument(
-    "mask_matching_algorithm_name",
-    metavar="ALGORITHM",
-    type=click.Choice(mask_matching_algorithm_names),
-)
-@click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
     type=click.Path(exists=True, path_type=Path),
@@ -985,7 +1026,13 @@ def cli_register_intensities(
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--args",
+    "--algorithm",
+    "mask_matching_algorithm_name",
+    required=True,
+    type=click.Choice(mask_matching_algorithm_names),
+)
+@click.option(
+    "--algorithm-args",
     "mask_matching_algorithm_kwargs",
     default="",
     show_default=True,
@@ -1032,9 +1079,49 @@ def cli_register_intensities(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
-    "--transform",
-    "--transforms",
-    "transform_path",
+    "--denoise-source",
+    "source_median_filter_size",
+    type=click.IntRange(min=3),
+)
+@click.option(
+    "--denoise-target",
+    "target_median_filter_size",
+    type=click.IntRange(min=3),
+)
+@click.option(
+    "--clip-source",
+    "source_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--clip-target",
+    "target_clipping_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--transform-source",
+    "source_transform_func",
+    type=NUMPY_FUNCTION,
+)
+@click.option(
+    "--transform-target",
+    "target_transform_func",
+    type=NUMPY_FUNCTION,
+)
+@click.option(
+    "--blur-source",
+    "source_gaussian_filter_sigma",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--blur-target",
+    "target_gaussian_filter_sigma",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--prior-transform",
+    "--prior-transforms",
+    "prior_transform_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
@@ -1050,9 +1137,9 @@ def cli_register_intensities(
 )
 @catch_exception(handle=SpellmatchException)
 def cli_match(
-    mask_matching_algorithm_name: str,
     source_mask_path: Path,
     target_mask_path: Path,
+    mask_matching_algorithm_name: str,
     mask_matching_algorithm_kwargs: dict[str, Any],
     source_img_path: Optional[Path],
     target_img_path: Optional[Path],
@@ -1060,7 +1147,15 @@ def cli_match(
     target_panel_file: Path,
     source_scale: float,
     target_scale: float,
-    transform_path: Optional[Path],
+    source_median_filter_size: Optional[int],
+    target_median_filter_size: Optional[int],
+    source_clipping_quantile: Optional[float],
+    target_clipping_quantile: Optional[float],
+    source_transform_func: Callable[[np.ndarray], np.ndarray],
+    target_transform_func: Callable[[np.ndarray], np.ndarray],
+    source_gaussian_filter_sigma: Optional[float],
+    target_gaussian_filter_sigma: Optional[float],
+    prior_transform_path: Optional[Path],
     reverse: bool,
     scores_path: Path,
 ) -> None:
@@ -1090,21 +1185,21 @@ def cli_match(
         and target_mask_path.is_file()
         and (source_img_path is None or source_img_path.is_file())
         and (target_img_path is None or target_img_path.is_file())
-        and (transform_path is None or transform_path.is_file())
+        and (prior_transform_path is None or prior_transform_path.is_file())
         and (not scores_path.exists() or scores_path.is_file())
     ):
         source_mask_files = [source_mask_path]
         target_mask_files = [target_mask_path]
         source_img_files = [source_img_path]
         target_img_files = [target_img_path]
-        transform_files = [transform_path]
+        prior_transform_files = [prior_transform_path]
         scores_files = [scores_path]
     elif (
         source_mask_path.is_dir()
         and target_mask_path.is_dir()
         and (source_img_path is None or source_img_path.is_dir())
         and (target_img_path is None or target_img_path.is_dir())
-        and (transform_path is None or transform_path.is_dir())
+        and (prior_transform_path is None or prior_transform_path.is_dir())
         and (not scores_path.exists() or scores_path.is_dir())
     ):
         source_mask_files = glob_sorted(source_mask_path, "*.tiff")
@@ -1123,12 +1218,12 @@ def cli_match(
             )
         else:
             target_img_files = [None] * len(target_mask_files)
-        if transform_path is not None:
-            transform_files = glob_sorted(
-                transform_path, "*.npy", expect=len(source_mask_files)
+        if prior_transform_path is not None:
+            prior_transform_files = glob_sorted(
+                prior_transform_path, "*.npy", expect=len(source_mask_files)
             )
         else:
-            transform_files = [None] * len(source_mask_files)
+            prior_transform_files = [None] * len(source_mask_files)
         scores_path.mkdir(exist_ok=True)
         scores_files = [
             scores_path
@@ -1146,7 +1241,7 @@ def cli_match(
         target_mask_file,
         source_img_file,
         target_img_file,
-        transform_file,
+        prior_transform_file,
         scores_file,
     ) in enumerate(
         zip(
@@ -1154,7 +1249,7 @@ def cli_match(
             target_mask_files,
             source_img_files,
             target_img_files,
-            transform_files,
+            prior_transform_files,
             scores_files,
         )
     ):
@@ -1174,6 +1269,14 @@ def cli_match(
             source_img = io.read_image(
                 source_img_file, panel=source_panel, scale=source_scale
             )
+            preprocess_image(
+                source_img,
+                median_filter_size=source_median_filter_size,
+                clipping_quantile=source_clipping_quantile,
+                transform_func=source_transform_func,
+                gaussian_filter_sigma=source_gaussian_filter_sigma,
+                inplace=True,
+            )
             logger.info(
                 f"Source image: {source_img_file.name} ({describe_image(source_img)})"
             )
@@ -1184,32 +1287,44 @@ def cli_match(
             target_img = io.read_image(
                 target_img_file, panel=target_panel, scale=target_scale
             )
+            preprocess_image(
+                target_img,
+                median_filter_size=target_median_filter_size,
+                clipping_quantile=target_clipping_quantile,
+                transform_func=target_transform_func,
+                gaussian_filter_sigma=target_gaussian_filter_sigma,
+                inplace=True,
+            )
             logger.info(
                 f"Target image: {target_img_file.name} ({describe_image(target_img)})"
             )
         else:
             target_img = None
             logger.info("Target image: None")
-        if transform_file is not None:
-            transform = io.read_transform(transform_file)
+        if prior_transform_file is not None:
+            prior_transform = io.read_transform(prior_transform_file)
             logger.info(
-                f"Transform: {transform_file.name} ({describe_transform(transform)})"
+                f"Prior transform: {prior_transform_file.name} "
+                f"({describe_transform(prior_transform)})"
             )
         else:
-            transform = None
-            logger.info("Transform: None")
+            prior_transform = None
+            logger.info("Prior transform: None")
         if reverse:
             source_mask, target_mask = target_mask, source_mask
             source_img, target_img = target_img, source_img
-            if transform is not None:
-                transform = ProjectiveTransform(matrix=np.linalg.inv(transform.params))
+            if prior_transform is not None:
+                prior_transform_matrix = np.linalg.inv(prior_transform.params)
+                prior_transform = ProjectiveTransform(matrix=prior_transform_matrix)
         scores = mask_matching_algorithm.match_masks(
             source_mask,
             target_mask,
             source_img=source_img,
             target_img=target_img,
-            transform=transform,
+            prior_transform=prior_transform,
         )
+        if reverse:
+            scores = scores.transpose()
         io.write_scores(scores_file, scores)
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
 
@@ -1221,26 +1336,26 @@ def cli_match(
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--normalize/--no-normalize",
-    "normalize",
+    "--strategy",
+    "assignment_strategy_name",
+    required=True,
+    type=click.Choice(list(assignment_strategies.keys())),
+)
+@click.option(
+    "--normalize-directed/--no-normalize-directed",
+    "normalize_directed",
     default=False,
     show_default=True,
+)
+@click.option(
+    "--directed-margin-thres",
+    "directed_margin_thres",
+    type=click.FloatRange(min=0),
 )
 @click.option(
     "--score-thres",
     "score_thres",
-    type=click.FLOAT,
-)
-@click.option(
-    "--margin-thres",
-    "margin_thres",
     type=click.FloatRange(min=0),
-)
-@click.option(
-    "--reverse/--no-reverse",
-    "reverse",
-    default=False,
-    show_default=True,
 )
 @click.option(
     "--source-mask",
@@ -1286,10 +1401,10 @@ def cli_match(
 @catch_exception(handle=SpellmatchException)
 def cli_assign(
     scores_path: Path,
-    normalize: bool,
+    assignment_strategy_name: str,
+    normalize_directed: bool,
+    directed_margin_thres: Optional[float],
     score_thres: Optional[float],
-    margin_thres: Optional[float],
-    reverse: bool,
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
     source_scale: float,
@@ -1298,6 +1413,7 @@ def cli_assign(
     validation_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
+    assignment_strategy = assignment_strategies[assignment_strategy_name]
     if (
         scores_path.is_file()
         and (source_mask_path is None or source_mask_path.is_file())
@@ -1378,13 +1494,12 @@ def cli_assign(
         else:
             target_mask = None
             logger.info("Target mask: None")
-        if reverse:
-            source_mask, target_mask = target_mask, source_mask
-        assignment = assign_scores(
+        assignment = assign(
             scores,
-            normalize=normalize,
+            assignment_strategy,
+            normalize_directed=normalize_directed,
+            directed_margin_thres=directed_margin_thres,
             score_thres=score_thres,
-            margin_thres=margin_thres,
         )
         if show is not None and source_mask is not None and target_mask is not None:
             show_assignment(source_mask, target_mask, assignment, n=show)
@@ -1394,11 +1509,6 @@ def cli_assign(
         )
         if validation_file is not None:
             validation_assignment = io.read_assignment(validation_file)
-            if reverse:
-                validation_assignment["Source"], validation_assignment["Target"] = (
-                    validation_assignment["Target"],
-                    validation_assignment["Source"],
-                )
             recovered = validate_assignment(assignment, validation_assignment)
             logger.info(
                 f"Validation: {validation_file.name} "
@@ -1420,8 +1530,7 @@ def cli_assign(
 @click.option(
     "--strategy",
     "assignment_combination_strategy_name",
-    default="intersection",
-    show_default=True,
+    required=True,
     type=click.Choice(list(assignment_combination_strategies.keys())),
 )
 @click.option(
@@ -1478,6 +1587,9 @@ def cli_combine(
     validation_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
+    assignment_combination_strategy = assignment_combination_strategies[
+        assignment_combination_strategy_name
+    ]
     if (
         forward_assignment_path.is_file()
         and reverse_assignment_path.is_file()
@@ -1575,11 +1687,7 @@ def cli_combine(
             target_mask = None
             logger.info("Target mask: None")
         assignment = combine_assignments(
-            forward_assignment,
-            reverse_assignment,
-            strategy=assignment_combination_strategies[
-                assignment_combination_strategy_name
-            ],
+            forward_assignment, reverse_assignment, assignment_combination_strategy
         )
         if show is not None and source_mask is not None and target_mask is not None:
             show_assignment(source_mask, target_mask, assignment, n=show)
@@ -1594,7 +1702,6 @@ def cli_combine(
                 f"Validation: {validation_file.name} "
                 f"({describe_assignment(validation_assignment, recovered=recovered)})"
             )
-    pass
 
 
 if __name__ == "__main__":

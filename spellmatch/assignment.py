@@ -5,39 +5,64 @@ import cv2
 import numpy as np
 import pandas as pd
 import xarray as xr
+from scipy.optimize import linear_sum_assignment
 from skimage.color import label2rgb
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
 from skimage.util import img_as_ubyte
 
+from spellmatch.matching.algorithms.spellmatch import SpellmatchException
+
 from .utils import show_image
 
 
-def assign_scores(
+class AssignmentStrategy(Enum):
+    THRES = "thres"
+    LINEAR_SUM = "linear_sum"
+    FORWARD_MAX = "forward_max"
+    REVERSE_MAX = "reverse_max"
+
+
+assignment_strategies: dict[str, AssignmentStrategy] = {
+    "thres": AssignmentStrategy.THRES,
+    "linear_sum": AssignmentStrategy.LINEAR_SUM,
+    "forward_max": AssignmentStrategy.FORWARD_MAX,
+    "reverse_max": AssignmentStrategy.REVERSE_MAX,
+}
+
+
+def assign(
     scores: xr.DataArray,
-    normalize: bool = False,
+    strategy: AssignmentStrategy,
+    normalize_directed: bool = False,
+    directed_margin_thres: Optional[float] = None,
     score_thres: Optional[float] = None,
-    margin_thres: Optional[float] = None,
-) -> pd.DataFrame:
-    if normalize:
-        scores = scores.copy()
-        score_sums = np.sum(scores.to_numpy(), axis=1)
-        scores[score_sums != 0] /= score_sums[score_sums != 0, np.newaxis]
-    source_ind = np.arange(scores.shape[0])
-    max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)[:, :2]
-    max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
-    if score_thres is not None:
-        m = max2_scores[:, 0] > score_thres
-        source_ind = source_ind[m]
-        max2_score_ind = max2_score_ind[m, :]
-        max2_scores = max2_scores[m, :]
-    if margin_thres is not None:
+):
+    scores_arr = scores.to_numpy()
+    if normalize_directed:
+        max_scores = np.amax(scores_arr, axis=1)
+        scores_arr[max_scores != 0, :] /= np.sum(
+            scores_arr[max_scores != 0, :], axis=1, keepdims=True
+        )
+    if directed_margin_thres is not None:
+        max2_scores = -np.partition(-scores_arr, 1, axis=1)[:, :2]
         margins = max2_scores[:, 0] - max2_scores[:, 1]
-        m = margins > margin_thres
-        source_ind = source_ind[m]
-        max2_score_ind = max2_score_ind[m, :]
-        max2_scores = max2_scores[m, :]
-    target_ind = max2_score_ind[:, 0]
+        scores_arr[margins <= directed_margin_thres, :] = 0
+    if strategy == AssignmentStrategy.THRES:
+        if score_thres is None:
+            raise SpellmatchAssignmentException("Unspecified score threshold")
+        source_ind, target_ind = np.nonzero(scores_arr > score_thres)
+    elif strategy == AssignmentStrategy.LINEAR_SUM:
+        source_ind, target_ind = linear_sum_assignment(scores_arr, maximize=True)
+    elif strategy == AssignmentStrategy.FORWARD_MAX:
+        source_ind = np.arange(scores_arr.shape[0])
+        target_ind = np.argmax(scores_arr, axis=1)
+    elif strategy == AssignmentStrategy.REVERSE_MAX:
+        source_ind = np.argmax(scores_arr, axis=0)
+        target_ind = np.arange(scores_arr.shape[1])
+    if score_thres is not None and strategy != AssignmentStrategy.THRES:
+        m = scores_arr[source_ind, target_ind] > score_thres
+        source_ind, target_ind = source_ind[m], target_ind[m]
     assignment = pd.DataFrame(
         data={
             "Source": scores.coords[scores.dims[0]].to_numpy()[source_ind],
@@ -49,14 +74,14 @@ def assign_scores(
 
 class AssigmentCombinationStrategy(Enum):
     UNION = "outer"
-    INTERSECTION = "inner"
+    INTERSECT = "inner"
     FORWARD_ONLY = "left"
     REVERSE_ONLY = "right"
 
 
 assignment_combination_strategies: dict[str, AssigmentCombinationStrategy] = {
     "union": AssigmentCombinationStrategy.UNION,
-    "intersection": AssigmentCombinationStrategy.INTERSECTION,
+    "intersect": AssigmentCombinationStrategy.INTERSECT,
     "forward_only": AssigmentCombinationStrategy.FORWARD_ONLY,
     "reverse_only": AssigmentCombinationStrategy.REVERSE_ONLY,
 }
@@ -65,16 +90,11 @@ assignment_combination_strategies: dict[str, AssigmentCombinationStrategy] = {
 def combine_assignments(
     forward_assignment: pd.DataFrame,
     reverse_assignment: pd.DataFrame,
-    strategy: AssigmentCombinationStrategy = AssigmentCombinationStrategy.INTERSECTION,
+    strategy: AssigmentCombinationStrategy,
 ) -> pd.DataFrame:
-    reversed_reverse_assigmnent = reverse_assignment.copy()
-    reversed_reverse_assigmnent["Source"], reversed_reverse_assigmnent["Target"] = (
-        reversed_reverse_assigmnent["Target"],
-        reversed_reverse_assigmnent["Source"],
-    )
     return pd.merge(
         forward_assignment,
-        reversed_reverse_assigmnent,
+        reverse_assignment,
         how=strategy.value,
         on=["Source", "Target"],
     )
@@ -135,3 +155,7 @@ def show_assignment(
     )
     _, imv_loop = show_image(matches_img, window_title="spellmatch assignment")
     imv_loop.exec()
+
+
+class SpellmatchAssignmentException(SpellmatchException):
+    pass

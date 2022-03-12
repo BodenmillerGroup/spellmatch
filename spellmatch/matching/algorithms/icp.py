@@ -66,7 +66,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_bbox: Optional[Polygon] = None,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
-        transform: Optional[ProjectiveTransform] = None,
+        prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
         self._last_dists_mean = None
         self._last_dists_std = None
@@ -77,7 +77,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             target_bbox,
             source_intensities,
             target_intensities,
-            transform,
+            prior_transform,
         )
         self._current_dists_mean = None
         self._current_dists_std = None

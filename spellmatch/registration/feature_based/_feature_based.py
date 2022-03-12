@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import Enum
 from typing import Any, Optional
 
 import cv2
@@ -14,7 +14,7 @@ except ImportError:
     cv2_xfeatures2d = None
 
 
-class CV2MatcherType(IntEnum):
+class CV2MatcherType(Enum):
     FLANNBASED = cv2.DESCRIPTOR_MATCHER_FLANNBASED
     BRUTEFORCE = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE
     BRUTEFORCE_L1 = cv2.DESCRIPTOR_MATCHER_BRUTEFORCE_L1
@@ -63,7 +63,7 @@ def register_image_features(
     target_img = (target_img * 255).astype(np.uint8)
     source_kps, source_descs = cv2_feature.detectAndCompute(source_img, None)
     target_kps, target_descs = cv2_feature.detectAndCompute(target_img, None)
-    cv2_matcher = cv2.DescriptorMatcher_create(int(cv2_matcher_type))
+    cv2_matcher = cv2.DescriptorMatcher_create(cv2_matcher_type.value)
     matches = cv2_matcher.match(source_descs, target_descs)
     if keep_matches_frac is not None:
         matches = matches[: int(len(matches) * keep_matches_frac)]
