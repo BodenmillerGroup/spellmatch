@@ -1390,7 +1390,7 @@ def cli_match(
 )
 @click.option(
     "--validate",
-    "validation_path",
+    "validation_assignment_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
@@ -1410,7 +1410,7 @@ def cli_assign(
     source_scale: float,
     target_scale: float,
     show: Optional[int],
-    validation_path: Optional[Path],
+    validation_assignment_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
     assignment_strategy = assignment_strategies[assignment_strategy_name]
@@ -1419,19 +1419,19 @@ def cli_assign(
         and (source_mask_path is None or source_mask_path.is_file())
         and (target_mask_path is None or target_mask_path.is_file())
         and (not assignment_path.exists() or assignment_path.is_file())
-        and (validation_path is None or validation_path.is_file())
+        and (validation_assignment_path is None or validation_assignment_path.is_file())
     ):
         scores_files = [scores_path]
         source_mask_files = [source_mask_path]
         target_mask_files = [target_mask_path]
+        validation_assignment_files = [validation_assignment_path]
         assignment_files = [assignment_path]
-        validation_files = [validation_path]
     elif (
         scores_path.is_dir()
         and (source_mask_path is None or source_mask_path.is_dir())
         and (target_mask_path is None or target_mask_path.is_dir())
         and (not assignment_path.exists() or assignment_path.is_dir())
-        and (validation_path is None or validation_path.is_dir())
+        and (validation_assignment_path is None or validation_assignment_path.is_dir())
     ):
         scores_files = glob_sorted(scores_path, "*.nc")
         if source_mask_path is not None:
@@ -1446,15 +1446,16 @@ def cli_assign(
             )
         else:
             target_mask_files = [None] * len(scores_files)
+        validation_assignment_files = glob_sorted(
+            validation_assignment_path, "*.csv", expect=len(assignment_files)
+        )
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [
             assignment_path
             / scores_file.with_suffix(".csv").name.replace("scores_", "assignment_")
             for scores_file in scores_files
         ]
-        validation_files = glob_sorted(
-            validation_path, "*.csv", expect=len(assignment_files)
-        )
+
     else:
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
@@ -1463,15 +1464,15 @@ def cli_assign(
         scores_file,
         source_mask_file,
         target_mask_file,
+        validation_assignment_file,
         assignment_file,
-        validation_file,
     ) in enumerate(
         zip(
             scores_files,
             source_mask_files,
             target_mask_files,
+            validation_assignment_files,
             assignment_files,
-            validation_files,
         )
     ):
         if len(scores_files) > 1:
@@ -1494,6 +1495,10 @@ def cli_assign(
         else:
             target_mask = None
             logger.info("Target mask: None")
+        if validation_assignment_file is not None:
+            validation_assignment = io.read_assignment(validation_assignment_file)
+        else:
+            validation_assignment = None
         assignment = assign(
             scores,
             assignment_strategy,
@@ -1507,11 +1512,10 @@ def cli_assign(
         logger.info(
             f"Assignment: {assignment_file.name} ({describe_assignment(assignment)})"
         )
-        if validation_file is not None:
-            validation_assignment = io.read_assignment(validation_file)
+        if validation_assignment is not None:
             recovered = validate_assignment(assignment, validation_assignment)
             logger.info(
-                f"Validation: {validation_file.name} "
+                f"Validation: {validation_assignment_file.name} "
                 f"({describe_assignment(validation_assignment, recovered=recovered)})"
             )
 
@@ -1566,7 +1570,7 @@ def cli_assign(
 )
 @click.option(
     "--validate",
-    "validation_path",
+    "validation_assignment_path",
     type=click.Path(exists=True, path_type=Path),
 )
 @click.argument(
@@ -1584,7 +1588,7 @@ def cli_combine(
     source_scale: float,
     target_scale: float,
     show: Optional[int],
-    validation_path: Optional[Path],
+    validation_assignment_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
     assignment_combination_strategy = assignment_combination_strategies[
@@ -1596,21 +1600,22 @@ def cli_combine(
         and (source_mask_path is None or source_mask_path.is_file())
         and (target_mask_path is None or target_mask_path.is_file())
         and (not assignment_path.exists() or assignment_path.is_file())
-        and (validation_path is None or validation_path.is_file())
+        and (validation_assignment_path is None or validation_assignment_path.is_file())
     ):
         forward_assignment_files = [forward_assignment_path]
         reverse_assignment_files = [reverse_assignment_path]
         source_mask_files = [source_mask_path]
         target_mask_files = [target_mask_path]
+        validation_assignment_files = [validation_assignment_path]
         assignment_files = [assignment_path]
-        validation_files = [validation_path]
+
     elif (
         forward_assignment_path.is_dir()
         and reverse_assignment_path.is_dir()
         and (source_mask_path is None or source_mask_path.is_dir())
         and (target_mask_path is None or target_mask_path.is_dir())
         and (not assignment_path.exists() or assignment_path.is_dir())
-        and (validation_path is None or validation_path.is_dir())
+        and (validation_assignment_path is None or validation_assignment_path.is_dir())
     ):
         forward_assignment_files = glob_sorted(forward_assignment_path, "*.csv")
         reverse_assignment_files = glob_sorted(
@@ -1628,14 +1633,15 @@ def cli_combine(
             )
         else:
             target_mask_files = [None] * len(forward_assignment_files)
+        validation_assignment_files = glob_sorted(
+            validation_assignment_path, "*.csv", expect=len(assignment_files)
+        )
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [
             assignment_path / forward_assignment_file.name
             for forward_assignment_file in forward_assignment_files
         ]
-        validation_files = glob_sorted(
-            validation_path, "*.csv", expect=len(assignment_files)
-        )
+
     else:
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
@@ -1645,16 +1651,16 @@ def cli_combine(
         reverse_assignment_file,
         source_mask_file,
         target_mask_file,
+        validation_assignment_file,
         assignment_file,
-        validation_file,
     ) in enumerate(
         zip(
             forward_assignment_files,
             reverse_assignment_files,
             source_mask_files,
             target_mask_files,
+            validation_assignment_files,
             assignment_files,
-            validation_files,
         )
     ):
         if len(forward_assignment_files) > 1:
@@ -1686,6 +1692,10 @@ def cli_combine(
         else:
             target_mask = None
             logger.info("Target mask: None")
+        if validation_assignment_file is not None:
+            validation_assignment = io.read_assignment(validation_assignment_file)
+        else:
+            validation_assignment = None
         assignment = combine_assignments(
             forward_assignment, reverse_assignment, assignment_combination_strategy
         )
@@ -1695,11 +1705,10 @@ def cli_combine(
         logger.info(
             f"Assignment: {assignment_file.name} ({describe_assignment(assignment)})"
         )
-        if validation_file is not None:
-            validation_assignment = io.read_assignment(validation_file)
+        if validation_assignment is not None:
             recovered = validate_assignment(assignment, validation_assignment)
             logger.info(
-                f"Validation: {validation_file.name} "
+                f"Validation: {validation_assignment_file.name} "
                 f"({describe_assignment(validation_assignment, recovered=recovered)})"
             )
 
