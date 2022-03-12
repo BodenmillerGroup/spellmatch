@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -33,23 +33,23 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         *,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         num_iter: int = 200,
         transform_type: Union[str, Type[ProjectiveTransform]] = EuclideanTransform,
-        transform_estim_type: Union[
-            str, IterativePointsMatchingAlgorithm.TransformEstimationType
-        ] = IterativePointsMatchingAlgorithm.TransformEstimationType.MAX_SCORE,
-        transform_estim_topn: Optional[int] = None,
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
     ) -> None:
         super(IterativeClosestPoints, self).__init__(
-            outlier_dist=max_dist,  # exclude points that anyway couldn't be assigned
+            outlier_dist=max_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             num_iter=num_iter,
             transform_type=transform_type,
-            transform_estim_type=transform_estim_type,
-            transform_estim_topn=transform_estim_topn,
+            transform_estim_type=self.TransformEstimationType.MAX_SCORE,
+            transform_estim_topn=None,
         )
         self.max_dist = max_dist
         self.min_change = min_change

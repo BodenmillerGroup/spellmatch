@@ -32,7 +32,7 @@ cv2_matcher_types: dict[str, CV2MatcherType] = {
     "bruteforce_sl2": CV2MatcherType.BRUTEFORCE_SL2,
 }
 
-cv2_feature_types: dict[str, callable] = {
+cv2_feature_types: dict[str, Any] = {
     "ORB": cv2.ORB_create,
     "SIFT": cv2.SIFT_create,
 }

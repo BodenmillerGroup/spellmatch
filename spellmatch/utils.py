@@ -65,7 +65,6 @@ def preprocess_image(
     img: xr.DataArray,
     median_filter_size: Optional[int] = None,
     clipping_quantile: Optional[float] = None,
-    transform_func: Optional[Callable[[np.ndarray], np.ndarray]] = None,
     gaussian_filter_sigma: Optional[float] = None,
     inplace=False,
 ) -> Optional[xr.DataArray]:
@@ -76,8 +75,6 @@ def preprocess_image(
     if clipping_quantile is not None:
         clipping_max = np.quantile(img.to_numpy(), clipping_quantile)
         img[:] = np.clip(img.to_numpy(), None, clipping_max)
-    if transform_func is not None:
-        img[:] = transform_func(img.to_numpy())
     if gaussian_filter_sigma is not None:
         img[:] = gaussian_filter(img.to_numpy(), gaussian_filter_sigma)
     if not inplace:
@@ -109,12 +106,16 @@ def compute_intensities(
     mask: xr.DataArray,
     regions: Optional[list] = None,
     intensities_feature: str = "intensity_mean",
+    intensities_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> pd.DataFrame:
     if regions is None:
         intensity_image = np.moveaxis(img.to_numpy(), 0, -1)
         regions = regionprops(mask.to_numpy(), intensity_image=intensity_image)
+    intensities_data = np.array([r[intensities_feature] for r in regions])
+    if intensities_transform is not None:
+        intensities_data = intensities_transform(intensities_data)
     return pd.DataFrame(
-        data=np.array([r[intensities_feature] for r in regions]),
+        data=intensities_data,
         index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
         columns=img.coords.get("c"),
     )
@@ -174,13 +175,19 @@ def restore_outlier_scores(
 def create_graph(
     points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
 ) -> Tuple[xr.DataArray, xr.DataArray]:
+    dists_data = distance.squareform(distance.pdist(points.to_numpy()))
     dists = xr.DataArray(
-        data=distance.squareform(distance.pdist(points)),
-        coords={xdim: points.index, ydim: points.index},
+        data=dists_data,
+        coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
         name=points.index.name,
     )
-    adj = dists <= adj_radius
-    np.fill_diagonal(adj, False)
+    adj_data = dists_data <= adj_radius
+    np.fill_diagonal(adj_data, False)
+    adj = xr.DataArray(
+        data=adj_data,
+        coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
+        name=points.index.name,
+    )
     return adj, dists
 
 

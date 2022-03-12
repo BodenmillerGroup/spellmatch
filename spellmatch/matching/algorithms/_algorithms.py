@@ -1,6 +1,8 @@
+import builtins
+import importlib
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -90,10 +92,34 @@ class _PointsMatchingMixin:
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
     ) -> None:
+        if isinstance(intensities_transform, str):
+            # TODO refactor into utils module
+            parts = intensities_transform.rsplit(sep=".", maxsplit=1)
+            if len(parts) == 1:
+                module_name = "builtins"
+                function_name = parts
+                module = builtins
+            else:
+                module_name, function_name = parts
+                try:
+                    module = importlib.import_module(module_name)
+                except ImportError as e:
+                    raise SpellmatchMatchingAlgorithmException(
+                        f"Failed to import module '{module_name}': {e}"
+                    )
+            try:
+                intensities_transform = getattr(module, function_name)
+            except AttributeError as e:
+                raise SpellmatchMatchingAlgorithmException(
+                    f"Failed to get function '{function_name}' "
+                    f"from module '{module_name}': {e}"
+                )
         self.outlier_dist = outlier_dist
         self.points_feature = points_feature
         self.intensities_feature = intensities_feature
+        self.intensities_transform = intensities_transform
 
     def _match_points_from_masks(
         self,
@@ -130,6 +156,7 @@ class _PointsMatchingMixin:
                 source_mask,
                 regions=source_regions,
                 intensities_feature=self.intensities_feature,
+                intensities_transform=self.intensities_transform,
             )
         target_intensities = None
         if target_img is not None:
@@ -138,6 +165,7 @@ class _PointsMatchingMixin:
                 target_mask,
                 regions=target_regions,
                 intensities_feature=self.intensities_feature,
+                intensities_transform=self.intensities_transform,
             )
         scores = self.match_points(
             source_points,
@@ -362,12 +390,14 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
     ) -> None:
         super(PointsMatchingAlgorithm, self).__init__()
         self._init_points_matching(
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
         )
 
     def _match_masks(
@@ -400,6 +430,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[str, TransformEstimationType],
@@ -413,6 +444,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
         )
         self.num_iter = num_iter
         self.transform_type = transform_type
@@ -518,6 +550,7 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
         *,
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         exclude_outliers: bool,
         adj_radius: float,
     ) -> None:
@@ -525,6 +558,7 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
             outlier_dist=adj_radius if exclude_outliers else None,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
         )
         self._init_graph_matching(adj_radius=adj_radius)
 
@@ -548,6 +582,7 @@ class IterativeGraphMatchingAlgorithm(
         *,
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[
@@ -561,6 +596,7 @@ class IterativeGraphMatchingAlgorithm(
             outlier_dist=adj_radius if exclude_outliers else None,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=transform_estim_type,

@@ -1,6 +1,6 @@
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Callable, Optional, Type
+from typing import Any, Optional, Type
 
 import click
 import click_log
@@ -102,7 +102,7 @@ class KeywordArgumentsParamType(click.ParamType):
         if not value:
             return {}
         key_val_pairs = []
-        for key_val_pair_str in value.split(","):
+        for key_val_pair_str in value.split(sep=","):
             key_val_pair = key_val_pair_str.strip().split(sep="=", maxsplit=1)
             if len(key_val_pair) != 2:
                 self.fail(
@@ -119,23 +119,7 @@ class KeywordArgumentsParamType(click.ParamType):
         return kwargs
 
 
-class NumpyFunctionParamType(click.ParamType):
-    name = "numpy function"
-
-    def convert(
-        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
-    ) -> Any:
-        if not isinstance(value, str):
-            self.fail(f"'{value}' is not a string", param=param, ctx=ctx)
-        if not value:
-            return lambda x: x
-        if not hasattr(np, value):
-            self.fail(f"'{value}' is not a numpy function", param=param, ctx=ctx)
-        return getattr(np, value)
-
-
 KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
-NUMPY_FUNCTION = NumpyFunctionParamType()
 
 
 @click.group(name="spellmatch")
@@ -452,16 +436,6 @@ def cli_register_interactive(
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
-    "--transform-source",
-    "source_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
-    "--transform-target",
-    "target_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
@@ -531,8 +505,6 @@ def cli_register_features(
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
     target_clipping_quantile: Optional[float],
-    source_transform_func: Callable[[np.ndarray], np.ndarray],
-    target_transform_func: Callable[[np.ndarray], np.ndarray],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     cv2_feature_type_name: str,
@@ -619,7 +591,6 @@ def cli_register_features(
             source_img,
             median_filter_size=source_median_filter_size,
             clipping_quantile=source_clipping_quantile,
-            transform_func=source_transform_func,
             gaussian_filter_sigma=source_gaussian_filter_sigma,
             inplace=True,
         )
@@ -653,7 +624,6 @@ def cli_register_features(
             target_img,
             median_filter_size=target_median_filter_size,
             clipping_quantile=target_clipping_quantile,
-            transform_func=target_transform_func,
             gaussian_filter_sigma=target_gaussian_filter_sigma,
             inplace=True,
         )
@@ -747,16 +717,6 @@ def cli_register_features(
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
-    "--transform-source",
-    "source_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
-    "--transform-target",
-    "target_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
@@ -846,8 +806,6 @@ def cli_register_intensities(
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
     target_clipping_quantile: Optional[float],
-    source_transform_func: Callable[[np.ndarray], np.ndarray],
-    target_transform_func: Callable[[np.ndarray], np.ndarray],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     sitk_metric_type_name: str,
@@ -951,7 +909,6 @@ def cli_register_intensities(
             source_img,
             median_filter_size=source_median_filter_size,
             clipping_quantile=source_clipping_quantile,
-            transform_func=source_transform_func,
             gaussian_filter_sigma=source_gaussian_filter_sigma,
             inplace=True,
         )
@@ -985,7 +942,6 @@ def cli_register_intensities(
             target_img,
             median_filter_size=target_median_filter_size,
             clipping_quantile=target_clipping_quantile,
-            transform_func=target_transform_func,
             gaussian_filter_sigma=target_gaussian_filter_sigma,
             inplace=True,
         )
@@ -1099,16 +1055,6 @@ def cli_register_intensities(
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
-    "--transform-source",
-    "source_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
-    "--transform-target",
-    "target_transform_func",
-    type=NUMPY_FUNCTION,
-)
-@click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
@@ -1151,8 +1097,6 @@ def cli_match(
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
     target_clipping_quantile: Optional[float],
-    source_transform_func: Callable[[np.ndarray], np.ndarray],
-    target_transform_func: Callable[[np.ndarray], np.ndarray],
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     prior_transform_path: Optional[Path],
@@ -1273,7 +1217,6 @@ def cli_match(
                 source_img,
                 median_filter_size=source_median_filter_size,
                 clipping_quantile=source_clipping_quantile,
-                transform_func=source_transform_func,
                 gaussian_filter_sigma=source_gaussian_filter_sigma,
                 inplace=True,
             )
@@ -1291,7 +1234,6 @@ def cli_match(
                 target_img,
                 median_filter_size=target_median_filter_size,
                 clipping_quantile=target_clipping_quantile,
-                transform_func=target_transform_func,
                 gaussian_filter_sigma=target_gaussian_filter_sigma,
                 inplace=True,
             )

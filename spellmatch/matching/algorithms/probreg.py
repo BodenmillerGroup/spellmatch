@@ -1,6 +1,6 @@
 import logging
 from abc import abstractmethod
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -49,12 +49,14 @@ class _Probreg(PointsMatchingAlgorithm):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         max_dist: Optional[float],
     ) -> None:
         super(_Probreg, self).__init__(
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
         )
         self.max_dist = max_dist
         self._current_iteration: Optional[int] = None
@@ -72,9 +74,9 @@ class _Probreg(PointsMatchingAlgorithm):
         )
         self._current_iteration = None
         source_ind = np.arange(len(source_points.index))
-        target_nn = NearestNeighbors(n_neighbors=1)
-        target_nn.fit(target_points.to_numpy())
-        nn_dists, target_ind = target_nn.kneighbors(
+        nn = NearestNeighbors(n_neighbors=1)
+        nn.fit(target_points.to_numpy())
+        nn_dists, target_ind = nn.kneighbors(
             transform.transform(source_points.to_numpy())
         )
         nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
@@ -111,6 +113,7 @@ class _CoherentPointDrift(_Probreg):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         max_dist: Optional[float],
         w: float,
         num_iter: int,
@@ -120,6 +123,7 @@ class _CoherentPointDrift(_Probreg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
         )
         self.w = w
@@ -151,6 +155,9 @@ class RigidCoherentPointDrift(_CoherentPointDrift):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -161,6 +168,7 @@ class RigidCoherentPointDrift(_CoherentPointDrift):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -182,6 +190,9 @@ class AffineCoherentPointDrift(_CoherentPointDrift):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -191,6 +202,7 @@ class AffineCoherentPointDrift(_CoherentPointDrift):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -209,6 +221,9 @@ class NonRigidCoherentPointDrift(_CoherentPointDrift):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -220,6 +235,7 @@ class NonRigidCoherentPointDrift(_CoherentPointDrift):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -242,6 +258,7 @@ class _BayesianCoherentPointDrift(_Probreg):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         max_dist: Optional[float],
         w: float,
         num_iter: int,
@@ -251,6 +268,7 @@ class _BayesianCoherentPointDrift(_Probreg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
         )
         self.w = w
@@ -282,6 +300,9 @@ class CombinedBayesianCoherentPointDrift(_BayesianCoherentPointDrift):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -294,6 +315,7 @@ class CombinedBayesianCoherentPointDrift(_BayesianCoherentPointDrift):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -316,6 +338,7 @@ class _FilterReg(_Probreg):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         max_dist: Optional[float],
         w: float,
         num_iter: int,
@@ -326,6 +349,7 @@ class _FilterReg(_Probreg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
         )
         self.w = w
@@ -362,6 +386,9 @@ class RigidFilterReg(_FilterReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -374,6 +401,7 @@ class RigidFilterReg(_FilterReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -396,6 +424,9 @@ class DeformableKinematicFilterReg(_FilterReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         w: float = 0,
         num_iter: int = 50,
@@ -407,6 +438,7 @@ class DeformableKinematicFilterReg(_FilterReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             w=w,
             num_iter=num_iter,
@@ -426,6 +458,7 @@ class _L2DistReg(_Probreg):
         outlier_dist: Optional[float],
         points_feature: str,
         intensities_feature: str,
+        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         max_dist: Optional[float],
         num_iter: int,
         tol: float,
@@ -436,6 +469,7 @@ class _L2DistReg(_Probreg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
         )
         self.num_iter = num_iter
@@ -472,6 +506,9 @@ class RigidGMMReg(_L2DistReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         num_iter: int = 1,
         tol: float = 1e-3,
@@ -486,6 +523,7 @@ class RigidGMMReg(_L2DistReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             num_iter=num_iter,
             tol=tol,
@@ -514,6 +552,9 @@ class TPSGMMReg(_L2DistReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         num_iter: int = 1,
         tol: float = 1e-3,
@@ -530,6 +571,7 @@ class TPSGMMReg(_L2DistReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             num_iter=num_iter,
             tol=tol,
@@ -562,6 +604,9 @@ class RigidSVR(_L2DistReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         num_iter: int = 1,
         tol: float = 1e-3,
@@ -577,6 +622,7 @@ class RigidSVR(_L2DistReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             num_iter=num_iter,
             tol=tol,
@@ -607,6 +653,9 @@ class TPSSVR(_L2DistReg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         num_iter: int = 1,
         tol: float = 1e-3,
@@ -624,6 +673,7 @@ class TPSSVR(_L2DistReg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
             num_iter=num_iter,
             tol=tol,
@@ -658,6 +708,9 @@ class GMMTree(_Probreg):
         outlier_dist: Optional[float] = None,
         points_feature: str = "centroid",
         intensities_feature: str = "intensity_mean",
+        intensities_transform: Union[
+            str, Callable[[np.ndarray], np.ndarray], None
+        ] = None,
         max_dist: Optional[float] = None,
         tree_level: int = 2,
         lambda_c: float = 0.01,
@@ -669,6 +722,7 @@ class GMMTree(_Probreg):
             outlier_dist=outlier_dist,
             points_feature=points_feature,
             intensities_feature=intensities_feature,
+            intensities_transform=intensities_transform,
             max_dist=max_dist,
         )
         self.tree_level = tree_level
