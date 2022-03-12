@@ -5,11 +5,9 @@ source_masks/
 target_masks/
 source_panel.csv
 target_panel.csv
-initial_assignments/
-initial_transforms/
-refined_transforms/
-forward_scores/
-reverse_scores/
-forward_assignments/
-reverse_assignments/
-assignments/
+initial_transforms_refined/
+scores_icp_forward/
+scores_icp_reverse/
+assignments_icp_forward/
+assignments_icp_reverse/
+assignments_icp/
