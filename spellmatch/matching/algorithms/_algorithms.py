@@ -1,5 +1,3 @@
-import builtins
-import importlib
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Type, Union
@@ -22,6 +20,7 @@ from ...utils import (
     create_bounding_box,
     create_graph,
     filter_outlier_points,
+    get_function_by_name,
     restore_outlier_scores,
     transform_bounding_box,
     transform_points,
@@ -90,36 +89,21 @@ class _PointsMatchingMixin:
         self,
         *,
         outlier_dist: Optional[float],
-        points_feature: str,
-        intensities_feature: str,
-        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        point_feature: str,
+        intensity_feature: str,
+        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
     ) -> None:
-        if isinstance(intensities_transform, str):
-            # TODO refactor into utils module
-            parts = intensities_transform.rsplit(sep=".", maxsplit=1)
-            if len(parts) == 1:
-                module_name = "builtins"
-                function_name = parts
-                module = builtins
-            else:
-                module_name, function_name = parts
-                try:
-                    module = importlib.import_module(module_name)
-                except ImportError as e:
-                    raise SpellmatchMatchingAlgorithmException(
-                        f"Failed to import module '{module_name}': {e}"
-                    )
+        if isinstance(intensity_transform, str):
             try:
-                intensities_transform = getattr(module, function_name)
-            except AttributeError as e:
+                intensity_transform = get_function_by_name(intensity_transform)
+            except (ImportError, AttributeError) as e:
                 raise SpellmatchMatchingAlgorithmException(
-                    f"Failed to get function '{function_name}' "
-                    f"from module '{module_name}': {e}"
+                    f"Failed to import function '{intensity_transform}': {e}"
                 )
         self.outlier_dist = outlier_dist
-        self.points_feature = points_feature
-        self.intensities_feature = intensities_feature
-        self.intensities_transform = intensities_transform
+        self.point_feature = point_feature
+        self.intensity_feature = intensity_feature
+        self.intensity_transform = intensity_transform
 
     def _match_points_from_masks(
         self,
@@ -142,10 +126,10 @@ class _PointsMatchingMixin:
             target_mask.to_numpy(), intensity_image=target_intensity_image
         )
         source_points = compute_points(
-            source_mask, regions=source_regions, points_feature=self.points_feature
+            source_mask, regions=source_regions, point_feature=self.point_feature
         )
         target_points = compute_points(
-            target_mask, regions=target_regions, points_feature=self.points_feature
+            target_mask, regions=target_regions, point_feature=self.point_feature
         )
         source_bbox = create_bounding_box(source_mask)
         target_bbox = create_bounding_box(target_mask)
@@ -155,8 +139,8 @@ class _PointsMatchingMixin:
                 source_img,
                 source_mask,
                 regions=source_regions,
-                intensities_feature=self.intensities_feature,
-                intensities_transform=self.intensities_transform,
+                intensity_feature=self.intensity_feature,
+                intensity_transform=self.intensity_transform,
             )
         target_intensities = None
         if target_img is not None:
@@ -164,8 +148,8 @@ class _PointsMatchingMixin:
                 target_img,
                 target_mask,
                 regions=target_regions,
-                intensities_feature=self.intensities_feature,
-                intensities_transform=self.intensities_transform,
+                intensity_feature=self.intensity_feature,
+                intensity_transform=self.intensity_transform,
             )
         scores = self.match_points(
             source_points,
@@ -388,16 +372,16 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         self,
         *,
         outlier_dist: Optional[float],
-        points_feature: str,
-        intensities_feature: str,
-        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        point_feature: str,
+        intensity_feature: str,
+        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
     ) -> None:
         super(PointsMatchingAlgorithm, self).__init__()
         self._init_points_matching(
             outlier_dist=outlier_dist,
-            points_feature=points_feature,
-            intensities_feature=intensities_feature,
-            intensities_transform=intensities_transform,
+            point_feature=point_feature,
+            intensity_feature=intensity_feature,
+            intensity_transform=intensity_transform,
         )
 
     def _match_masks(
@@ -428,9 +412,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         self,
         *,
         outlier_dist: Optional[float],
-        points_feature: str,
-        intensities_feature: str,
-        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        point_feature: str,
+        intensity_feature: str,
+        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[str, TransformEstimationType],
@@ -442,9 +426,9 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             transform_estim_type = self.TransformEstimationType(transform_estim_type)
         super(IterativePointsMatchingAlgorithm, self).__init__(
             outlier_dist=outlier_dist,
-            points_feature=points_feature,
-            intensities_feature=intensities_feature,
-            intensities_transform=intensities_transform,
+            point_feature=point_feature,
+            intensity_feature=intensity_feature,
+            intensity_transform=intensity_transform,
         )
         self.num_iter = num_iter
         self.transform_type = transform_type
@@ -548,17 +532,17 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
     def __init__(
         self,
         *,
-        points_feature: str,
-        intensities_feature: str,
-        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        point_feature: str,
+        intensity_feature: str,
+        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         exclude_outliers: bool,
         adj_radius: float,
     ) -> None:
         super(GraphMatchingAlgorithm, self).__init__(
             outlier_dist=adj_radius if exclude_outliers else None,
-            points_feature=points_feature,
-            intensities_feature=intensities_feature,
-            intensities_transform=intensities_transform,
+            point_feature=point_feature,
+            intensity_feature=intensity_feature,
+            intensity_transform=intensity_transform,
         )
         self._init_graph_matching(adj_radius=adj_radius)
 
@@ -580,9 +564,9 @@ class IterativeGraphMatchingAlgorithm(
     def __init__(
         self,
         *,
-        points_feature: str,
-        intensities_feature: str,
-        intensities_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        point_feature: str,
+        intensity_feature: str,
+        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
         num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[
@@ -594,9 +578,9 @@ class IterativeGraphMatchingAlgorithm(
     ) -> None:
         super(IterativeGraphMatchingAlgorithm, self).__init__(
             outlier_dist=adj_radius if exclude_outliers else None,
-            points_feature=points_feature,
-            intensities_feature=intensities_feature,
-            intensities_transform=intensities_transform,
+            point_feature=point_feature,
+            intensity_feature=intensity_feature,
+            intensity_transform=intensity_transform,
             num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=transform_estim_type,

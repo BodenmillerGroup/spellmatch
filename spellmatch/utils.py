@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+import builtins
+import importlib
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -83,12 +85,12 @@ def preprocess_image(
 
 
 def compute_points(
-    mask: xr.DataArray, regions: Optional[list] = None, points_feature: str = "centroid"
+    mask: xr.DataArray, regions: Optional[list] = None, point_feature: str = "centroid"
 ) -> pd.DataFrame:
     if regions is None:
         regions = regionprops(mask.to_numpy())
     points = (
-        np.array([region[points_feature] for region in regions])
+        np.array([region[point_feature] for region in regions])
         - 0.5 * np.array([mask.shape])
         + 0.5
     )[:, ::-1]
@@ -105,15 +107,15 @@ def compute_intensities(
     img: xr.DataArray,
     mask: xr.DataArray,
     regions: Optional[list] = None,
-    intensities_feature: str = "intensity_mean",
-    intensities_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    intensity_feature: str = "intensity_mean",
+    intensity_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> pd.DataFrame:
     if regions is None:
         intensity_image = np.moveaxis(img.to_numpy(), 0, -1)
         regions = regionprops(mask.to_numpy(), intensity_image=intensity_image)
-    intensities_data = np.array([r[intensities_feature] for r in regions])
-    if intensities_transform is not None:
-        intensities_data = intensities_transform(intensities_data)
+    intensities_data = np.array([r[intensity_feature] for r in regions])
+    if intensity_transform is not None:
+        intensities_data = intensity_transform(intensities_data)
     return pd.DataFrame(
         data=intensities_data,
         index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
@@ -209,3 +211,15 @@ def show_image(
         imv.setWindowTitle(window_title)
     imv.show()
     return imv, imv_loop
+
+
+def get_function_by_name(name: str) -> Any:
+    parts = name.rsplit(sep=".", maxsplit=1)
+    if len(parts) == 1:
+        module_name = "builtins"
+        function_name = parts
+        module = builtins
+    else:
+        module_name, function_name = parts
+        module = importlib.import_module(module_name)
+    return getattr(module, function_name)

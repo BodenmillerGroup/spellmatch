@@ -35,8 +35,8 @@ def assign(
     scores: xr.DataArray,
     strategy: AssignmentStrategy,
     normalize_directed: bool = False,
-    directed_margin_thres: Optional[float] = None,
-    score_thres: Optional[float] = None,
+    min_directed_margin: Optional[float] = None,
+    score_thres: float = 0,
 ):
     scores_arr = scores.to_numpy()
     if normalize_directed:
@@ -44,10 +44,10 @@ def assign(
         scores_arr[max_scores != 0, :] /= np.sum(
             scores_arr[max_scores != 0, :], axis=1, keepdims=True
         )
-    if directed_margin_thres is not None:
+    if min_directed_margin is not None:
         max2_scores = -np.partition(-scores_arr, 1, axis=1)[:, :2]
         margins = max2_scores[:, 0] - max2_scores[:, 1]
-        scores_arr[margins <= directed_margin_thres, :] = 0
+        scores_arr[margins < min_directed_margin, :] = 0
     if strategy == AssignmentStrategy.THRES:
         if score_thres is None:
             raise SpellmatchAssignmentException("Unspecified score threshold")

@@ -31,9 +31,9 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     def __init__(
         self,
         *,
-        points_feature: str = "centroid",
-        intensities_feature: str = "intensity_mean",
-        intensities_transform: Union[
+        point_feature: str = "centroid",
+        intensity_feature: str = "intensity_mean",
+        intensity_transform: Union[
             str, Callable[[np.ndarray], np.ndarray], None
         ] = None,
         num_iter: int = 200,
@@ -43,9 +43,9 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     ) -> None:
         super(IterativeClosestPoints, self).__init__(
             outlier_dist=max_dist,
-            points_feature=points_feature,
-            intensities_feature=intensities_feature,
-            intensities_transform=intensities_transform,
+            point_feature=point_feature,
+            intensity_feature=intensity_feature,
+            intensity_transform=intensity_transform,
             num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=self.TransformEstimationType.MAX_SCORE,
@@ -91,8 +91,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         nn = NearestNeighbors(n_neighbors=1)
-        nn.fit(target_points.to_numpy())
-        nn_dists, nn_ind = nn.kneighbors(source_points.to_numpy())
+        nn.fit(target_points)
+        nn_dists, nn_ind = nn.kneighbors(source_points)
         dists, target_ind = nn_dists[:, 0], nn_ind[:, 0]
         source_ind = np.arange(len(source_points.index))
         if self.max_dist is not None:
