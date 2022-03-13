@@ -434,7 +434,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[str, TransformEstimationType],
-        transform_estim_topn: Optional[int],
+        transform_estim_k_best: Optional[int],
     ) -> None:
         if isinstance(transform_type, str):
             transform_type = self.TRANSFORM_TYPES[transform_type]
@@ -449,7 +449,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         self.num_iter = num_iter
         self.transform_type = transform_type
         self.transform_estim_type = transform_estim_type
-        self.transform_estim_topn = transform_estim_topn
+        self.transform_estim_k_best = transform_estim_k_best
 
     def match_points(
         self,
@@ -500,35 +500,35 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             max_scores = np.take_along_axis(
                 scores.to_numpy(), np.expand_dims(max_score_ind, axis=1), axis=1
             ).squeeze(axis=1)
-            if self.transform_estim_topn is not None:
-                top_source_ind = np.argpartition(
-                    -max_scores, self.transform_estim_topn - 1
-                )[: self.transform_estim_topn]
+            if self.transform_estim_k_best is not None:
+                source_ind = np.argpartition(
+                    -max_scores, self.transform_estim_k_best - 1
+                )[: self.transform_estim_k_best]
             else:
-                top_source_ind = np.arange(len(source_points.index))
-            top_source_ind = top_source_ind[max_scores[top_source_ind] > 0]
-            top_target_ind = max_score_ind[top_source_ind]
+                source_ind = np.arange(len(source_points.index))
+            source_ind = source_ind[max_scores[source_ind] > 0]
+            target_ind = max_score_ind[source_ind]
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
             max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)[:, :2]
             max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
-            margins = max2_scores[:, 0] - max2_scores[:, 1]
-            if self.transform_estim_topn is not None:
-                top_source_ind = np.argpartition(
-                    -margins, self.transform_estim_topn - 1
-                )[: self.transform_estim_topn]
+            if self.transform_estim_k_best is not None:
+                margins = max2_scores[:, 0] - max2_scores[:, 1]
+                source_ind = np.argpartition(-margins, self.transform_estim_k_best - 1)[
+                    : self.transform_estim_k_best
+                ]
             else:
-                top_source_ind = np.arange(len(source_points.index))
-            top_source_ind = top_source_ind[max2_scores[top_source_ind, 0] > 0]
-            top_target_ind = max2_score_ind[top_source_ind, 0]
+                source_ind = np.arange(len(source_points.index))
+            source_ind = source_ind[max2_scores[source_ind, 0] > 0]
+            target_ind = max2_score_ind[source_ind, 0]
         else:
             raise NotImplementedError()
         updated_transform = self.transform_type()
         if (
-            len(top_source_ind) > 0
-            and len(top_target_ind) > 0
+            len(source_ind) > 0
+            and len(target_ind) > 0
             and updated_transform.estimate(
-                source_points.iloc[top_source_ind, :].to_numpy(),
-                target_points.iloc[top_target_ind, :].to_numpy(),
+                source_points.iloc[source_ind, :].to_numpy(),
+                target_points.iloc[target_ind, :].to_numpy(),
             )
         ):
             return updated_transform
@@ -588,7 +588,7 @@ class IterativeGraphMatchingAlgorithm(
         transform_estim_type: Union[
             str, IterativePointsMatchingAlgorithm.TransformEstimationType
         ],
-        transform_estim_topn: Optional[int],
+        transform_estim_k_best: Optional[int],
         exclude_outliers: bool,
         adj_radius: float,
     ) -> None:
@@ -600,7 +600,7 @@ class IterativeGraphMatchingAlgorithm(
             num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=transform_estim_type,
-            transform_estim_topn=transform_estim_topn,
+            transform_estim_k_best=transform_estim_k_best,
         )
         self._init_graph_matching(adj_radius=adj_radius)
 

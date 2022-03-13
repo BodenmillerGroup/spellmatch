@@ -49,7 +49,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=self.TransformEstimationType.MAX_SCORE,
-            transform_estim_topn=None,
+            transform_estim_k_best=None,
         )
         self.max_dist = max_dist
         self.min_change = min_change
@@ -92,15 +92,15 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     ) -> xr.DataArray:
         nn = NearestNeighbors(n_neighbors=1)
         nn.fit(target_points.to_numpy())
-        nn_dists, target_ind = nn.kneighbors(source_points.to_numpy())
-        nn_dists, target_ind = nn_dists[:, 0], target_ind[:, 0]
+        nn_dists, nn_ind = nn.kneighbors(source_points.to_numpy())
+        dists, target_ind = nn_dists[:, 0], nn_ind[:, 0]
         source_ind = np.arange(len(source_points.index))
         if self.max_dist is not None:
-            source_ind = source_ind[nn_dists <= self.max_dist]
-            target_ind = target_ind[nn_dists <= self.max_dist]
-            nn_dists = nn_dists[nn_dists <= self.max_dist]
-        self._current_dists_mean = np.mean(nn_dists)
-        self._current_dists_std = np.std(nn_dists)
+            source_ind = source_ind[dists <= self.max_dist]
+            target_ind = target_ind[dists <= self.max_dist]
+            dists = dists[dists <= self.max_dist]
+        self._current_dists_mean = np.mean(dists)
+        self._current_dists_std = np.std(dists)
         scores_data = np.zeros((len(source_points.index), len(target_points.index)))
         scores_data[source_ind, target_ind] = 1
         scores = xr.DataArray(

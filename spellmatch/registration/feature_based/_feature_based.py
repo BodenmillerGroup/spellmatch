@@ -9,7 +9,7 @@ from skimage.transform import ProjectiveTransform
 from ...utils import show_image
 
 try:
-    from cv2 import xfeatures2d as cv2_xfeatures2d
+    from cv2 import xfeatures2d as cv2_xfeatures2d  # type: ignore
 except ImportError:
     cv2_xfeatures2d = None
 
