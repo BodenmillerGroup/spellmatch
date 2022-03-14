@@ -6,8 +6,5 @@ target_masks/
 source_panel.csv
 target_panel.csv
 initial_transforms_refined/
-scores_icp_forward/
-scores_icp_reverse/
-assignments_icp_forward/
-assignments_icp_reverse/
-assignments_icp/
+scores_*/
+assignments_*/
