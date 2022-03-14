@@ -1398,7 +1398,7 @@ def cli_assign(
         else:
             target_mask_files = [None] * len(scores_files)
         validation_assignment_files = glob_sorted(
-            validation_assignment_path, "*.csv", expect=len(assignment_files)
+            validation_assignment_path, "*.csv", expect=len(scores_files)
         )
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [
@@ -1406,7 +1406,6 @@ def cli_assign(
             / scores_file.with_suffix(".csv").name.replace("scores_", "assignment_")
             for scores_file in scores_files
         ]
-
     else:
         raise click.UsageError(
             "Either specify individual files, or directories, but not both"
@@ -1585,7 +1584,7 @@ def cli_combine(
         else:
             target_mask_files = [None] * len(forward_assignment_files)
         validation_assignment_files = glob_sorted(
-            validation_assignment_path, "*.csv", expect=len(assignment_files)
+            validation_assignment_path, "*.csv", expect=len(forward_assignment_files)
         )
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [

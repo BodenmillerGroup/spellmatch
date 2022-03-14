@@ -234,7 +234,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 )
                 n_components = n_target_features
             for current_lmd in np.linspace(0, 1, self.intensity_interp_lmd):
-                logger.info(f"Evaluating lambda={current_lmd:.3f}")
+                logger.info(f"Evaluating lambda={current_lmd:.3g}")
                 current_s_mat = self._match_graphs_for_lambda(
                     n1,
                     n2,
@@ -264,13 +264,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                         offset=cca.n_components,
                     )
                 )
-                logger.debug(f"CCA: canonical correlations mean={current_cancors_mean}")
+                logger.debug(
+                    f"CCA: canonical correlations mean={current_cancors_mean:.6f}"
+                )
                 if cancors_mean is None or current_cancors_mean > cancors_mean:
                     lmd = current_lmd
                     s_mat = current_s_mat
                     cancors_mean = current_cancors_mean
             logger.info(
-                f"Best lambda={lmd:.3f} (canonical correlations mean={cancors_mean})"
+                f"Best lambda={lmd:.3g} "
+                f"(canonical correlations mean={cancors_mean:.6f})"
             )
         scores = xr.DataArray(
             data=s_mat,
@@ -341,11 +344,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
             opt_loss = np.linalg.norm(s_cvec[:, 0] - s_cvec_new[:, 0])
             s_cvec = s_cvec_new
-            logger.debug(f"Optimizer iteration {opt_iteration}: {opt_loss:.6f}")
+            logger.debug(f"Optimizer iteration {opt_iteration:03d}: {opt_loss:.6f}")
             if opt_loss < self.opt_tol:
                 break
         s_mat = s_cvec[:, 0].reshape((n1, n2))
-        logger.info(f"Done ({opt_iteration} iterations)")
+        logger.info(f"Done ({opt_iteration:03d} iterations)")
         return s_mat
 
     def _compute_degree_cross_distance(

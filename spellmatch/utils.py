@@ -51,7 +51,7 @@ def describe_scores(scores: xr.DataArray) -> str:
     max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
     mean_score = np.mean(max2_scores[:, 0])
     mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
-    return f"mean score: {mean_score}, mean margin: {mean_margin}"
+    return f"mean score: {mean_score:.6f}, mean margin: {mean_margin:.6f}"
 
 
 def describe_assignment(

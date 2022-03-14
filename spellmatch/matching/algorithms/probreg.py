@@ -100,7 +100,7 @@ class _Probreg(PointsMatchingAlgorithm):
         raise NotImplementedError()
 
     def _callback(self, transformation: Transformation) -> None:
-        logger.info(f"Iteration {self._current_iteration}")
+        logger.info(f"Iteration {self._current_iteration:03d}")
         self._current_iteration += 1
 
 
