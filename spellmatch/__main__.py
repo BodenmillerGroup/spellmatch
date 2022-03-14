@@ -1,3 +1,4 @@
+import logging
 from functools import partial, wraps
 from pathlib import Path
 from typing import Any, Optional, Type
@@ -46,7 +47,13 @@ from .utils import (
     preprocess_image,
 )
 
-click_log.basic_config(logger=logger)
+# click_log.basic_config(logger=logger)
+logger_handler = click_log.ClickHandler()
+logger_handler.formatter = logging.Formatter(
+    fmt="%(asctime)s %(levelname)s %(name)s - %(message)s"
+)
+logger.handlers = [logger_handler]
+logger.propagate = False
 
 pm = pluggy.PluginManager("spellmatch")
 pm.add_hookspecs(hookspecs)
@@ -123,8 +130,8 @@ KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
 
 
 @click.group(name="spellmatch")
-@click.version_option()
 @click_log.simple_verbosity_option(logger=logger)
+@click.version_option()
 def cli() -> None:
     pass
 

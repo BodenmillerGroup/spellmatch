@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, Optional, Type, Union
+from typing import TYPE_CHECKING, Callable, Optional, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,9 @@ from ._algorithms import (
     MaskMatchingAlgorithm,
     SpellmatchMatchingAlgorithmException,
 )
+
+if TYPE_CHECKING:
+    from skimage.transform import ProjectiveTransform
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self._current_source_points: Optional[pd.DataFrame] = None
         self._current_target_points: Optional[pd.DataFrame] = None
 
+    def _pre_iter(
+        self, iteration: int, current_transform: Optional["ProjectiveTransform"]
+    ) -> None:
+        logger.info(f"Iteration {iteration + 1}")
+
     def _match_graphs_from_points(
         self,
         source_points: pd.DataFrame,
@@ -124,18 +132,18 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
     ) -> xr.DataArray:
         n1 = len(source_adj)
         n2 = len(target_adj)
-        adj1 = source_adj.to_numpy()
-        adj2 = target_adj.to_numpy()
-        adj = sparse.kron(adj1, adj2)
-        deg1 = np.sum(adj1, axis=1)
-        deg2 = np.sum(adj2, axis=1)
-        deg = deg1[:, np.newaxis] * deg2[np.newaxis, :]
-        degree_cdist = None
+        adj1_mat = source_adj.to_numpy()
+        adj2_mat = target_adj.to_numpy()
+        deg1_rvec = np.sum(adj1_mat, axis=1)
+        deg2_rvec = np.sum(adj2_mat, axis=1)
+        adj_coo = sparse.coo_array(sparse.kron(adj1_mat, adj2_mat, format="coo"))
+        deg_mat: np.ndarray = deg1_rvec[:, np.newaxis] * deg2_rvec[np.newaxis, :]
+        degree_cdist_mat = None
         if self.degree_weight > 0:
             logger.info("Computing degree cross-distance")
-            degree_cdist = self._compute_degree_cross_distance(deg1, deg2)
-        shared_intensity_cdist = None
-        full_intensity_cdist = None
+            degree_cdist_mat = self._compute_degree_cross_distance(deg1_rvec, deg2_rvec)
+        shared_intensity_cdist_mat = None
+        full_intensity_cdist_mat = None
         if self.intensity_weight > 0:
             if source_intensities is None or target_intensities is None:
                 raise SpellmatchException(
@@ -143,8 +151,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 )
             if self.intensity_interp_lmd != 0:
                 logger.info("Computing shared intensity cross-distances")
-                shared_intensity_cdist = self._compute_shared_intensity_cross_distance(
-                    source_intensities, target_intensities
+                shared_intensity_cdist_mat = (
+                    self._compute_shared_intensity_cross_distance(
+                        source_intensities, target_intensities
+                    )
                 )
             if self.intensity_interp_lmd != 1:
                 if (
@@ -156,21 +166,21 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                         "Spellmatch algorithm in point registration mode"
                     )
                 logger.info("Computing full intensity cross-distances")
-                full_intensity_cdist = self._compute_full_intensity_cross_distance(
+                full_intensity_cdist_mat = self._compute_full_intensity_cross_distance(
                     self._current_source_points,
                     self._current_target_points,
                     source_intensities,
                     target_intensities,
                 )
-        distance_cdist = None
+        distance_cdist_csr = None
         if self.distance_weight > 0:
             if source_dists is None or target_dists is None:
                 raise SpellmatchException(
                     "Spatial distances are required for computing their cross-distances"
                 )
             logger.info("Computing spatial distance cross-distances")
-            distance_cdist = self._compute_distance_cross_distance(
-                adj1, adj2, source_dists.to_numpy(), target_dists.to_numpy()
+            distance_cdist_csr = self._compute_distance_cross_distance(
+                adj1_mat, adj2_mat, source_dists.to_numpy(), target_dists.to_numpy()
             )
         if self.use_spatial_prior:
             if (
@@ -182,28 +192,27 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     "running the Spellmatch algorithm in point registration mode"
                 )
             logger.info("Computing spatial cross-distance similarity prior")
-            h = self._compute_spatial_cross_distance_similarity_prior(
+            h_cvec = self._compute_spatial_cross_distance_similarity_prior(
                 self._current_source_points, self._current_target_points
             )
         else:
-            h = np.ones(n1 * n2) / (n1 * n2)
-        logger.info("Optimizing")
+            h_cvec = np.ones((n1 * n2, 1)) / (n1 * n2)
         if 0 <= self.intensity_interp_lmd <= 1:
-            s = self._match_graphs_for_lambda(
+            s_mat = self._match_graphs_for_lambda(
                 n1,
                 n2,
-                adj,
-                deg,
-                degree_cdist,
-                shared_intensity_cdist,
-                full_intensity_cdist,
-                distance_cdist,
-                h,
+                adj_coo,
+                deg_mat,
+                degree_cdist_mat,
+                shared_intensity_cdist_mat,
+                full_intensity_cdist_mat,
+                distance_cdist_csr,
+                h_cvec,
                 self.intensity_interp_lmd,
             )
         else:
-            s = None
             lmd = None
+            s_mat = None
             cancors_mean = None
             n_components = self.intensity_interp_cca_n_components
             n_source_features = len(source_intensities.columns)
@@ -225,22 +234,21 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 )
                 n_components = n_target_features
             for current_lmd in np.linspace(0, 1, self.intensity_interp_lmd):
-                logger.debug(f"Evaluating lambda={current_lmd}")
-                current_s = self._match_graphs_for_lambda(
+                logger.info(f"Evaluating lambda={current_lmd:.3f}")
+                current_s_mat = self._match_graphs_for_lambda(
                     n1,
                     n2,
-                    adj,
-                    deg,
-                    degree_cdist,
-                    shared_intensity_cdist,
-                    full_intensity_cdist,
-                    distance_cdist,
-                    h,
+                    adj_coo,
+                    deg_mat,
+                    degree_cdist_mat,
+                    shared_intensity_cdist_mat,
+                    full_intensity_cdist_mat,
+                    distance_cdist_csr,
+                    h_cvec,
                     current_lmd,
                 )
-                row_ind, col_ind = linear_sum_assignment(
-                    np.reshape(current_s, (n1, n2)), maximize=True
-                )
+                logger.debug("Calculating naive linear sum assignment")
+                row_ind, col_ind = linear_sum_assignment(current_s_mat, maximize=True)
                 cca = CCA(
                     n_components=n_components,
                     max_iter=self.cca_max_iter,
@@ -256,17 +264,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                         offset=cca.n_components,
                     )
                 )
-                logger.debug(f"Canonical correlations mean={current_cancors_mean}")
+                logger.debug(f"CCA: canonical correlations mean={current_cancors_mean}")
                 if cancors_mean is None or current_cancors_mean > cancors_mean:
-                    s = current_s
                     lmd = current_lmd
+                    s_mat = current_s_mat
                     cancors_mean = current_cancors_mean
             logger.info(
-                f"Selected lambda={lmd} (canonical correlations mean={cancors_mean})"
+                f"Best lambda={lmd:.3f} (canonical correlations mean={cancors_mean})"
             )
-        logger.info("Done")
         scores = xr.DataArray(
-            data=np.reshape(s, (n1, n2)),
+            data=s_mat,
             coords={
                 source_adj.name: source_adj.coords["a"].to_numpy(),
                 target_adj.name: target_adj.coords["x"].to_numpy(),
@@ -278,68 +285,76 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         n1: int,
         n2: int,
-        adj: sparse.spmatrix,
-        deg: np.ndarray,
-        degree_cdist: Optional[np.ndarray],
-        shared_intensity_cdist: Optional[np.ndarray],
-        full_intensity_cdist: Optional[np.ndarray],
-        distance_cdist: Optional[sparse.spmatrix],
-        h: np.ndarray,
+        adj_coo: sparse.coo_array,
+        deg_mat: np.ndarray,
+        degree_cdist_mat: Optional[np.ndarray],
+        shared_intensity_cdist_mat: Optional[np.ndarray],
+        full_intensity_cdist_mat: Optional[np.ndarray],
+        distance_cdist_csr: Optional[sparse.csr_array],
+        h_cvec: np.ndarray,
         lmd: float,
     ) -> np.ndarray:
-        intensity_cdist = None
-        if shared_intensity_cdist is not None and full_intensity_cdist is not None:
-            intensity_cdist: np.ndarray = (
-                lmd * shared_intensity_cdist + (1 - lmd) * full_intensity_cdist
+        logger.info("Initializing similarity matrix")
+        if (
+            shared_intensity_cdist_mat is not None
+            and full_intensity_cdist_mat is not None
+        ):
+            intensity_cdist_mat: np.ndarray = (
+                lmd * shared_intensity_cdist_mat + (1 - lmd) * full_intensity_cdist_mat
             )
         else:
-            intensity_cdist = shared_intensity_cdist or full_intensity_cdist
-        w = sparse.csr_matrix((n1 * n2, n1 * n2))
+            intensity_cdist_mat: np.ndarray = (
+                shared_intensity_cdist_mat or full_intensity_cdist_mat
+            )
+        w_csr = sparse.csr_array((n1 * n2, n1 * n2))
         total_weight = 0
-        if degree_cdist is not None:
-            degree_cdist_flat = degree_cdist.ravel()
-            w += adj * (
-                self.degree_weight * degree_cdist_flat[:, np.newaxis]
-            )  # FIXME fix memory problem
-            w += adj * (
-                self.degree_weight * degree_cdist_flat[np.newaxis, :]
-            )  # FIXME fix memory problem
+        if degree_cdist_mat is not None:
+            w_csr += adj_coo * (
+                self.degree_weight * degree_cdist_mat.ravel()[:, np.newaxis]
+            )
+            w_csr += adj_coo * (
+                self.degree_weight * degree_cdist_mat.ravel()[np.newaxis, :]
+            )
             total_weight += 2 * self.degree_weight
-        if intensity_cdist is not None:
-            intensity_cdist_flat = intensity_cdist.ravel()
-            w += adj * (
-                self.intensity_weight * intensity_cdist_flat[:, np.newaxis]
-            )  # FIXME fix memory problem
-            w += adj * (
-                self.intensity_weight * intensity_cdist_flat[np.newaxis, :]
-            )  # FIXME fix memory problem
+        if intensity_cdist_mat is not None:
+            w_csr += adj_coo * (
+                self.intensity_weight * intensity_cdist_mat.ravel()[:, np.newaxis]
+            )
+            w_csr += adj_coo * (
+                self.intensity_weight * intensity_cdist_mat.ravel()[np.newaxis, :]
+            )
             total_weight += 2 * self.intensity_weight
-        if distance_cdist is not None:
-            w += self.distance_weight * distance_cdist
+        if distance_cdist_csr is not None:
+            w_csr += self.distance_weight * distance_cdist_csr
             total_weight += self.distance_weight
         if total_weight > 0:
-            w /= total_weight
-        with np.errstate(divide="ignore"):
-            d = np.where(deg != 0, deg ** (-0.5), 0)
-        d = sparse.dia_matrix((d.ravel(), [0]), shape=(n1 * n2, n1 * n2))
-        w: sparse.spmatrix = d @ (adj - w) @ d
-        s = np.ones(n1 * n2) / (n1 * n2)
+            w_csr /= total_weight
+        d_diagvec = deg_mat.flatten()
+        d_diagvec[d_diagvec != 0] = d_diagvec[d_diagvec != 0] ** (-0.5)
+        d_dia = sparse.dia_array((d_diagvec, [0]), shape=(n1 * n2, n1 * n2))
+        w_csr: sparse.csr_array = d_dia @ (adj_coo - w_csr) @ d_dia
+        logger.info("Optimizing score matrix")
+        s_cvec = np.ones((n1 * n2, 1)) / (n1 * n2)
         for opt_iteration in range(self.opt_max_iter):
-            s_new = self.alpha * w.dot(s) + (1 - self.alpha) * h
-            opt_loss = np.linalg.norm(s - s_new)
-            s = s_new
-            logger.debug(f"Optimization iteration {opt_iteration}: {opt_loss:.6f}")
+            s_cvec_new: np.ndarray = (
+                self.alpha * (w_csr @ s_cvec) + (1 - self.alpha) * h_cvec
+            )
+            opt_loss = np.linalg.norm(s_cvec[:, 0] - s_cvec_new[:, 0])
+            s_cvec = s_cvec_new
+            logger.debug(f"Optimizer iteration {opt_iteration}: {opt_loss:.6f}")
             if opt_loss < self.opt_tol:
                 break
-        return s
+        s_mat = s_cvec[:, 0].reshape((n1, n2))
+        logger.info(f"Done ({opt_iteration} iterations)")
+        return s_mat
 
     def _compute_degree_cross_distance(
-        self, deg1: np.ndarray, deg2: np.ndarray
+        self, deg1_rvec: np.ndarray, deg2_rvec: np.ndarray
     ) -> np.ndarray:
-        degree_cdiff = np.abs(deg1[:, np.newaxis] - deg2[np.newaxis, :])
-        np.clip(degree_cdiff / self.degree_cdiff_thres, 0, 1, out=degree_cdiff)
-        degree_cdist = degree_cdiff**2
-        return degree_cdist
+        m = np.abs(deg1_rvec[:, np.newaxis] - deg2_rvec[np.newaxis, :])
+        np.clip(m / self.degree_cdiff_thres, 0, 1, out=m)
+        degree_cdist_mat = m**2
+        return degree_cdist_mat
 
     def _compute_distance_cross_distance(
         self,
@@ -347,14 +362,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         adj2: np.ndarray,
         dists1: np.ndarray,
         dists2: np.ndarray,
-    ) -> sparse.csr_matrix:
-        m: sparse.csr_matrix = abs(
+    ) -> sparse.csr_array:
+        m: sparse.csr_array = abs(
             sparse.kron(adj1 * dists1, adj2, format="csr")
             - sparse.kron(adj1, adj2 * dists2, format="csr")
         )
         np.clip(m.data / self.adj_radius, 0, 1, out=m.data)
-        distance_cdist = m**2
-        return distance_cdist
+        distance_cdist_csr = m**2
+        return distance_cdist_csr
 
     def _compute_shared_intensity_cross_distance(
         self,
@@ -384,10 +399,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         svd_intensities1 = svd.transform(intensities1[shared_intensities.columns])
         svd_intensities2 = svd.transform(intensities2[shared_intensities.columns])
-        shared_intensity_cdist = 0.5 * distance.cdist(
+        shared_intensity_cdist_mat = 0.5 * distance.cdist(
             svd_intensities1, svd_intensities2, metric="correlation"
         )
-        return shared_intensity_cdist
+        return shared_intensity_cdist_mat
 
     def _compute_full_intensity_cross_distance(
         self,
@@ -446,10 +461,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         logger.debug(f"CCA: canonical correlations mean={cancors_mean:.6f}")
         cca_intensities1, cca_intensities2 = cca.transform(intensities1, intensities2)
-        full_intensity_cdist = 0.5 * distance.cdist(
+        full_intensity_cdist_mat = 0.5 * distance.cdist(
             cca_intensities1, cca_intensities2, metric="correlation"
         )
-        return full_intensity_cdist
+        return full_intensity_cdist_mat
 
     def _compute_spatial_cross_distance_similarity_prior(
         self, points1: pd.DataFrame, points2: pd.DataFrame
@@ -459,7 +474,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         spatial_cdist_similarity = 1 - clipped_spatial_cdist**2
         spatial_cdist_similarity_prior = np.ravel(
             spatial_cdist_similarity / np.sum(spatial_cdist_similarity)
-        )
+        )[:, np.newaxis]
         return spatial_cdist_similarity_prior
 
 

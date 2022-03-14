@@ -15,7 +15,7 @@ SITKProjectiveTransform = Union[
     sitk.Euler2DTransform, sitk.Similarity2DTransform, sitk.AffineTransform
 ]
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.rpartition(".")[0])
 
 sitk_transform_types: dict[str, SITKProjectiveTransform] = {
     "rigid": sitk.Euler2DTransform,
