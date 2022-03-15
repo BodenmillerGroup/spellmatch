@@ -13,7 +13,6 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-<link href="../assets/_mkdocstrings.css" rel="stylesheet"/>
 <link href="../_css/mkdocstrings.css" rel="stylesheet"/>
 <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
@@ -124,13 +123,18 @@
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../benchmark/">
-        Benchmark
+<a class="md-tabs__link" href="../reference/">
+        Reference
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../reference/">
-        Reference
+<a class="md-tabs__link" href="../protocol/">
+        Protocol
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../benchmark/">
+        Benchmark
       </a>
 </li>
 </ul>
@@ -203,11 +207,6 @@
     Installation
   </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#usage">
-    Usage
-  </a>
-</li>
 </ul>
 </nav>
 </li>
@@ -229,22 +228,17 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/mask_alignment/">
-        Mask alignment
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../usage/image_registration/">
+<a class="md-nav__link" href="../usage/registration/">
         Image registration
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/spatial_cell_matching/">
+<a class="md-nav__link" href="../usage/matching/">
         Spatial cell matching
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/cell_assignment/">
+<a class="md-nav__link" href="../usage/assignment/">
         Cell assignment
       </a>
 </li>
@@ -283,7 +277,17 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
 <a class="md-nav__link" href="../algorithms/">
-        Algorithms
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/points_matching/">
+        Points matching
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/graph_matching/">
+        Graph matching
       </a>
 </li>
 </ul>
@@ -292,18 +296,18 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
-          Benchmark
+          Reference
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<nav aria-label="Reference" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_3">
 <span class="md-nav__icon md-icon"></span>
-          Benchmark
+          Reference
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../benchmark/">
-        Benchmark
+<a class="md-nav__link" href="../reference/">
+        Overview
       </a>
 </li>
 </ul>
@@ -312,18 +316,38 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
 <label class="md-nav__link" for="__nav_4">
-          Reference
+          Protocol
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Reference" class="md-nav" data-md-level="1">
+<nav aria-label="Protocol" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_4">
 <span class="md-nav__icon md-icon"></span>
-          Reference
+          Protocol
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../reference/">
-        Reference
+<a class="md-nav__link" href="../protocol/">
+        Overview
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+          Benchmark
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Benchmark
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../benchmark/">
+        Overview
       </a>
 </li>
 </ul>
@@ -353,11 +377,6 @@
     Installation
   </a>
 </li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="#usage">
-    Usage
-  </a>
-</li>
 </ul>
 </nav>
 </div>
@@ -369,44 +388,22 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">¶</a></h1>
-<p><em>Spellmatch</em> is implemented in Python and shipped as a Python package.</p>
+<p>Spellmatch is implemented in Python and shipped as a Python package.</p>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">¶</a></h2>
-<p>The <code>spellmatch</code> Python package requires Python 3.9.</p>
-<p>A user interface for Jupyter notebooks, e.g.
-<a href="https://jupyterlab.readthedocs.io">JupyterLab</a> (optional, for opening notebooks).</p>
+<p>The spellmatch Python package requires Python 3.9.</p>
+<p>For opening analysis notebooks, <a href="https://jupyterlab.readthedocs.io">JupyterLab</a> is
+recommended.</p>
 <p>Using virtual environments (e.g. <a href="https://docs.conda.io">conda</a>) is strongly recommended
 for reproducibility reasons.</p>
-<div class="admonition note">
-<p class="admonition-title">Hardware resources</p>
-<p>Several spatial cell matching algorithms implemented in <em>spellmatch</em> require
-extensive hardware resources, depending on image sizes, hyper-parameters etc. A
-system with at least 64GB of RAM is recommended.</p>
-</div>
 <h2 id="installation_1">Installation<a class="headerlink" href="#installation_1" title="Permanent link">¶</a></h2>
-<p>You can install <em>spellmatch</em> <a href="https://pypi.org/project/spellmatch/">from PyPI</a> using
+<p>You can install spellmatch <a href="https://pypi.org/project/spellmatch/">from PyPI</a> using
 <a href="https://pypi.org/project/pip/">pip</a>:</p>
 <pre><code>pip install spellmatch
 </code></pre>
-<p>Alternatively, you can install <em>spellmatch</em>
-<a href="https://github.com/conda-forge/spellmatch-feedstock">from conda-forge</a> using
-<a href="https://docs.conda.io/en/latest/">conda</a>:</p>
-<pre><code>conda install -c conda-forge spellmatch
+<p>The latest development version can be installed
+<a href="https://github.com/BodenmillerGroup/spellmatch">directly from GitHub</a>:</p>
+<pre><code>pip install git+https://github.com/bodenmillergroup/spellmatch
 </code></pre>
-<!-- TODO conda-forge -->
-<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">¶</a></h2>
-<p><em>Spellmatch</em> can be used from the command-line (terminal in Linux/MacOS, console in
-Windows):</p>
-<pre><code>&gt; spellmatch --help
-Usage: spellmatch [OPTIONS] COMMAND [ARGS]...
-
-Options:
---version  Show the version and exit.
---help     Show this message and exit.
-
-Commands:
-...
-</code></pre>
-<p>Refer to <a href="../usage/">Usage</a> for detailed instructions on how to use <em>spellmatch</em>.</p>
 </article>
 </div>
 </div>

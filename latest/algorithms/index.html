@@ -7,13 +7,12 @@
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <link href="../assets/images/favicon.png" rel="icon"/>
 <meta content="mkdocs-1.2.3, mkdocs-material-8.2.5" name="generator"/>
-<title>Algorithms - spellmatch</title>
+<title>Overview - spellmatch</title>
 <link href="../assets/stylesheets/main.2d9f7617.min.css" rel="stylesheet"/>
 <link href="../assets/stylesheets/palette.e6a45f82.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-<link href="../assets/_mkdocstrings.css" rel="stylesheet"/>
 <link href="../_css/mkdocstrings.css" rel="stylesheet"/>
 <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
@@ -22,7 +21,7 @@
 <input autocomplete="off" class="md-toggle" data-md-toggle="search" id="__search" type="checkbox"/>
 <label class="md-overlay" for="__drawer"></label>
 <div data-md-component="skip">
-<a class="md-skip" href="#algorithms">
+<a class="md-skip" href="#overview">
           Skip to content
         </a>
 </div>
@@ -63,7 +62,7 @@
 <div class="md-header__topic" data-md-component="header-topic">
 <span class="md-ellipsis">
             
-              Algorithms
+              Overview
             
           </span>
 </div>
@@ -124,13 +123,18 @@
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../benchmark/">
-        Benchmark
+<a class="md-tabs__link" href="../reference/">
+        Reference
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../reference/">
-        Reference
+<a class="md-tabs__link" href="../protocol/">
+        Protocol
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../benchmark/">
+        Benchmark
       </a>
 </li>
 </ul>
@@ -201,22 +205,17 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/mask_alignment/">
-        Mask alignment
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../usage/image_registration/">
+<a class="md-nav__link" href="../usage/registration/">
         Image registration
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/spatial_cell_matching/">
+<a class="md-nav__link" href="../usage/matching/">
         Spatial cell matching
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/cell_assignment/">
+<a class="md-nav__link" href="../usage/assignment/">
         Cell assignment
       </a>
 </li>
@@ -255,8 +254,45 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+          Overview
+          <span class="md-nav__icon md-icon"></span>
+</label>
 <a class="md-nav__link md-nav__link--active" href="./">
-        Algorithms
+        Overview
+      </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#algorithm-types">
+    Algorithm types
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#algorithm-polymorphism">
+    Algorithm polymorphism
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#iterative-algorithms">
+    Iterative algorithms
+  </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="points_matching/">
+        Points matching
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="graph_matching/">
+        Graph matching
       </a>
 </li>
 </ul>
@@ -265,18 +301,18 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
-          Benchmark
+          Reference
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<nav aria-label="Reference" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_3">
 <span class="md-nav__icon md-icon"></span>
-          Benchmark
+          Reference
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../benchmark/">
-        Benchmark
+<a class="md-nav__link" href="../reference/">
+        Overview
       </a>
 </li>
 </ul>
@@ -285,18 +321,38 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
 <label class="md-nav__link" for="__nav_4">
-          Reference
+          Protocol
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Reference" class="md-nav" data-md-level="1">
+<nav aria-label="Protocol" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_4">
 <span class="md-nav__icon md-icon"></span>
-          Reference
+          Protocol
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../reference/">
-        Reference
+<a class="md-nav__link" href="../protocol/">
+        Overview
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+          Benchmark
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Benchmark
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../benchmark/">
+        Overview
       </a>
 </li>
 </ul>
@@ -311,6 +367,27 @@
 <div class="md-sidebar__scrollwrap">
 <div class="md-sidebar__inner">
 <nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#algorithm-types">
+    Algorithm types
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#algorithm-polymorphism">
+    Algorithm polymorphism
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#iterative-algorithms">
+    Iterative algorithms
+  </a>
+</li>
+</ul>
 </nav>
 </div>
 </div>
@@ -320,8 +397,80 @@
 <a class="md-content__button md-icon" href="https://github.com/BodenmillerGroup/spellmatch/edit/master/docs/algorithms/index.md" title="Edit this page">
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
-<h1 id="algorithms">Algorithms<a class="headerlink" href="#algorithms" title="Permanent link">¶</a></h1>
-<!-- TODO docs -->
+<h1 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">¶</a></h1>
+<p>All matching algorithms implemented in spellmatch share a common interface.</p>
+<h2 id="algorithm-types">Algorithm types<a class="headerlink" href="#algorithm-types" title="Permanent link">¶</a></h2>
+<p>There are three main types of matching algorithms implemented in spellmatch:</p>
+<ul>
+<li>
+<p><strong>Mask matching algorithms</strong> take pairs of cell <em>masks</em> and, optionally, single- or
+  multichannel 2D <em>images</em> matching in width and height to produce a probabilistic
+  matching. The two masks (images) are expected to approximately align (co-register) in
+  physical space; their physical alignment can be specified using a projective
+  <em>transform</em>.</p>
+</li>
+<li>
+<p><strong>Points matching algorithms</strong> take pairs of <em>points</em> (i.e., sets of spatial cell 
+  coordinates) and, optionally, corresponding single-cell <em>intensities</em> to produce a
+  probabilistic matching. The two sets of points are expected to approximately align
+  (co-register) in physical space; their physical alignment can be specified using a
+  projective <em>transform</em>. <em>Bounding boxes</em> may be specified to exclude non-overlapping
+  spatial regions from the matching process.</p>
+</li>
+<li>
+<p><strong>Graph matching algorithms</strong> take pairs of <em>spatial cell graphs</em> (i.e., adjacency
+  matrices) to produce a probabilistic matching. Optionally, these cell graphs can be
+  <em>attributed</em>: single-cell <em>intensities</em> can be specified as node features, and spatial
+  cell-cell <em>distances</em> can be specified as edge features. In general, graph matching
+  algorithms do not consider spatial alignment <em>per se</em>, however, when used in points
+  matching mode (see below), they may take spatial alignment into consideration.</p>
+</li>
+</ul>
+<h2 id="algorithm-polymorphism">Algorithm polymorphism<a class="headerlink" href="#algorithm-polymorphism" title="Permanent link">¶</a></h2>
+<p>By constructing (attributed) graphs from sets of spatial cell coordinates and,
+optionally, corresponding single-cell intensities, every graph matching algorithm may be
+used in a points matching setting (<em>points matching mode</em>). Similarly, by extracting
+spatial cell coordinates and, optionally, corresponding single-cell intensities from
+pairs of masks (images), every points matching algorithm may be used in a mask matching
+setting (<em>mask matching mode</em>).</p>
+<p>This hierarchy is also reflected in the following class diagram, where children inherit
+all functionality from their parents:</p>
+<div class="mermaid">classDiagram
+    MatchingAlgorithm &lt;|-- MaskMatchingAlgorithm
+    MaskMatchingAlgorithm &lt;|-- PointsMatchingAlgorithm
+    PointsMatchingAlgorithm &lt;|-- GraphMatchingAlgorithm
+
+    class MaskMatchingAlgorithm{
+        +match_masks(source_mask, target_mask, source_img, target_img, prior_transform)
+    }
+
+    class PointsMatchingAlgorithm{
+        -outlier_dist
+        -point_feature
+        -intensity_feature
+        -intensity_transform
+        +match_points(source_points, target_points, source_bbox, target_bbox, source_intensities, target_intensities, prior_transform)
+    }
+
+    class GraphMatchingAlgorithm{
+        -filter_outliers
+        -adj_radius
+        +match_graphs(source_adj, target_adj, source_dists, target_dists,source_intensities, target_intensities)
+    }
+</div>
+<h2 id="iterative-algorithms">Iterative algorithms<a class="headerlink" href="#iterative-algorithms" title="Permanent link">¶</a></h2>
+<p>In addition, <em>iterative</em> variants of the points matching and graph matching algorithms
+exist:</p>
+<ul>
+<li><code>IterativePointsMatchingAlgorithm</code></li>
+<li><code>IterativeGraphMatchingAlgorithm</code></li>
+</ul>
+<p>As their name suggests, these algorithms iteratively refine a spatial transform by
+matching cells, adding a geometric constraint (cf. image co-registration) to the
+matching problem. Note that not every points matching/graph matching algorithm may be
+used in an iterative setting, as support for matching priors is required to this end.
+Please refer to <a href="https://arxiv.org/abs/1908.03201">(Ravindra et al., 2019)</a> for further
+conceptual information.</p>
 </article>
 </div>
 </div>
@@ -345,13 +494,13 @@
             </div>
 </div>
 </a>
-<a aria-label="Next: Benchmark" class="md-footer__link md-footer__link--next" href="../benchmark/" rel="next">
+<a aria-label="Next: Points matching" class="md-footer__link md-footer__link--next" href="points_matching/" rel="next">
 <div class="md-footer__title">
 <div class="md-ellipsis">
 <span class="md-footer__direction">
                 Next
               </span>
-              Benchmark
+              Points matching
             </div>
 </div>
 <div class="md-footer__button md-icon">
@@ -376,5 +525,7 @@
 <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.top"], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.bd0b6b67.min.js", "version": {"provider": "mike"}}</script>
 <script src="../assets/javascripts/bundle.467223ff.min.js"></script>
 <script src="https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js"></script>
-</body>
+<script>mermaid.initialize({
+    securityLevel: "loose"
+});</script></body>
 </html>

@@ -13,7 +13,6 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-<link href="../assets/_mkdocstrings.css" rel="stylesheet"/>
 <link href="../_css/mkdocstrings.css" rel="stylesheet"/>
 <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
@@ -124,13 +123,18 @@
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../benchmark/">
-        Benchmark
+<a class="md-tabs__link" href="../reference/">
+        Reference
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../reference/">
-        Reference
+<a class="md-tabs__link" href="../protocol/">
+        Protocol
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../benchmark/">
+        Benchmark
       </a>
 </li>
 </ul>
@@ -216,8 +220,13 @@
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#input-data">
-    Input data
+<a class="md-nav__link" href="#usage">
+    Usage
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#input">
+    Input
   </a>
 </li>
 <li class="md-nav__item">
@@ -225,26 +234,26 @@
     Tasks
   </a>
 </li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#output">
+    Output
+  </a>
+</li>
 </ul>
 </nav>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="mask_alignment/">
-        Mask alignment
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="image_registration/">
+<a class="md-nav__link" href="registration/">
         Image registration
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="spatial_cell_matching/">
+<a class="md-nav__link" href="matching/">
         Spatial cell matching
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="cell_assignment/">
+<a class="md-nav__link" href="assignment/">
         Cell assignment
       </a>
 </li>
@@ -283,7 +292,17 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
 <a class="md-nav__link" href="../algorithms/">
-        Algorithms
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/points_matching/">
+        Points matching
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/graph_matching/">
+        Graph matching
       </a>
 </li>
 </ul>
@@ -292,18 +311,18 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
-          Benchmark
+          Reference
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<nav aria-label="Reference" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_3">
 <span class="md-nav__icon md-icon"></span>
-          Benchmark
+          Reference
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../benchmark/">
-        Benchmark
+<a class="md-nav__link" href="../reference/">
+        Overview
       </a>
 </li>
 </ul>
@@ -312,18 +331,38 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
 <label class="md-nav__link" for="__nav_4">
-          Reference
+          Protocol
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Reference" class="md-nav" data-md-level="1">
+<nav aria-label="Protocol" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_4">
 <span class="md-nav__icon md-icon"></span>
-          Reference
+          Protocol
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../reference/">
-        Reference
+<a class="md-nav__link" href="../protocol/">
+        Overview
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+          Benchmark
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Benchmark
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../benchmark/">
+        Overview
       </a>
 </li>
 </ul>
@@ -349,13 +388,23 @@
   </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="#input-data">
-    Input data
+<a class="md-nav__link" href="#usage">
+    Usage
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#input">
+    Input
   </a>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="#tasks">
     Tasks
+  </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="#output">
+    Output
   </a>
 </li>
 </ul>
@@ -369,81 +418,119 @@
 <svg viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"></path></svg>
 </a>
 <h1 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">¶</a></h1>
-<!-- TODO docs -->
+<p>In this chapter, the usage of spellmatch is introduced by example. The dataset being
+showcased is a subset of 
+<a href="https://doi.org/10.5281/zenodo.4752030">(Kuett and Catena et al., 2022)</a>, which can be
+found in <code>data/kuett_catena_2022</code> of the
+<a href="https://github.com/BodenmillerGroup/spellmatch">spellmatch repository</a>.</p>
 <h2 id="workflow">Workflow<a class="headerlink" href="#workflow" title="Permanent link">¶</a></h2>
-<p>The following flowchart illustrates the <em>spellmatch</em> workflow. Blue rectangles indicate
+<p>The following flowchart illustrates the spellmatch workflow. Blue rectangles indicate
 <em>steps</em>, yellow boxes represent <em>modules</em>. Cylinders indicate input and output data of
 the workflow.</p>
 <div class="mermaid">flowchart TB
+    source_data[("Source data&lt;br&gt;(masks, images, panel)")] --&gt; initial_registration
+    target_data[("Target data&lt;br&gt;(masks, images, panel)")] --&gt; initial_registration
 
-    source_data[("Source data&lt;br&gt;(mask, image, panel)")] --&gt; interactive_matching
-    target_data[("Target data&lt;br&gt;(mask, image, panel)")] --&gt; interactive_matching
+    subgraph Registration
+        initial_registration["Interactive cell matching&lt;br&gt;OR&lt;br&gt;Feature-based image registration"]
+        refined_registration[Intensity-based image registration]
 
-    subgraph registration
-        interactive_matching[Interactive cell matching]
-        transform_initialization[Geometric transform initialization]
-        image_registration[Automatic image registration]
-
-        interactive_matching --&gt;|"initial cell pairs (n&gt;=3)"| transform_initialization
-        transform_initialization --&gt; image_registration
+        initial_registration --&gt;|"initial transform"| refined_registration
     end
 
-    transform_initialization --&gt;|initial transform| automatic_matching
-    image_registration --&gt;|refined transform| automatic_matching
+    initial_registration --&gt;|"initial assignment&lt;br&gt;(for validation, optional)"| assignment
+    refined_registration --&gt;|refined transform| matching
 
-    subgraph matching
-        automatic_matching[Automatic cell matching]
-        transform_update["Geometric transform update&lt;br&gt;(iterative algorithms only)"]
-        score_thresholding[Assignment score thresholding]
+    subgraph Matching
+        matching[Automatic cell matching]
+        transform_update["Transform estimation&lt;br&gt;(iterative algorithms only)"]        
 
-        automatic_matching --&gt;|assignment scores| transform_update
-        transform_update --&gt;|updated transform| automatic_matching
-        automatic_matching --&gt;|assignment scores| score_thresholding
+        matching --&gt;|matching scores| transform_update
+        transform_update --&gt;|updated transform| matching
     end
 
-    score_thresholding --&gt; cell_pairs[("Cell assignment&lt;br&gt;(final cell pairs)")]
+    matching --&gt;|matching scores| assignment
+
+    subgraph Assignment
+        assignment["Cell assignment&lt;br&gt;(directed/undirected)"]
+        combination["Assignment combination&lt;br&gt;(directed assignments only)"]
+
+        assignment --&gt;|"forward assignment&lt;br&gt;reverse assignment"| combination
+    end
+
+    combination --&gt; cell_pairs[("Cell assignment&lt;br&gt;(directed/undirected)")]
     transform_update --&gt; transform[(Geometric transform)]
-
 </div>
-<h2 id="input-data">Input data<a class="headerlink" href="#input-data" title="Permanent link">¶</a></h2>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">¶</a></h2>
+<p>Spellmatch can be used from the command-line (terminal in Linux/MacOS, console in
+Windows):</p>
+<pre><code>❯ spellmatch --help
+Usage: spellmatch [OPTIONS] COMMAND [ARGS]...
+
+Options:
+-v, --verbosity LVL  Either CRITICAL, ERROR, WARNING, INFO or DEBUG
+--version            Show the version and exit.
+--help               Show this message and exit.
+
+Commands:
+...
+</code></pre>
+<p>As indicated above, all spellmatch commands support <code>-v</code> option for enabling more
+verbose output. In addition, many spellmatch commands support a <code>--show</code> option for
+graphical visualization of the current operation. At any point, use the <code>--help</code> option
+to display additional information about a specific command.</p>
+<p>All spellmatch commands can operate on individual file pairs as well as on entire
+directories.</p>
+<h2 id="input">Input<a class="headerlink" href="#input" title="Permanent link">¶</a></h2>
 <p>Spellmatch requires pairs of source data and target data, where source/target data
 consist of:</p>
 <ul>
 <li>2D cell masks (TIFF files of any data type)</li>
 <li>2D single- or multichannel images (TIFF files of any data type, optional)</li>
-<li>For multi-channel images: panel with channel information (CSV files, in channel order)<br/>
+<li>For multichannel images: panel with channel information (CSV files, in channel order)<br/>
   Column headers: <code>name</code> (channel name, unique), <code>keep</code> (<code>0</code> or <code>1</code>, optional)</li>
 </ul>
-<p>Images and corresponding masks have to match in size. For multi-channel images, the
+<p>Images and corresponding masks have to match in size. For multichannel images, the
 number of rows in the panel (exluding column headers) has to match the number of image
 channels. Images and masks are matched by filename (alphabetical order).</p>
 <p>Source and target data are matched by filename (alphabetical order). Source and target
 images/masks do not have to have the same size, scale (pixel size), or number of
 channels. Source panel and target panel can share channels, but do not have to.</p>
 <h2 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">¶</a></h2>
-<p>For convenience, multiple steps are combined into <em>tasks</em>. For each task, <em>spellmatch</em>
+<p>For convenience, multiple steps are combined into <em>tasks</em>. For each task, spellmatch
 provides a dedicated <em>command</em>. The individual tasks and commands are described on the
 following pages.</p>
 <ol>
-<li><a href="mask_alignment/">Mask alignment</a><ul>
+<li><a href="registration/">Image registration</a><ul>
 <li>Interactive cell matching</li>
-<li>Geometric transform initialization</li>
+<li>Feature-based image registration</li>
+<li>Intensity-based image registration</li>
 </ul>
 </li>
-<li><a href="image_registration/">Image registration</a> (optional)<ul>
-<li>Automatic image registration</li>
-</ul>
-</li>
-<li><a href="spatial_cell_matching/">Spatial cell matching</a><ul>
+<li><a href="matching/">Spatial cell matching</a><ul>
 <li>Automatic cell matching</li>
-<li>Geometric transform update</li>
+<li>Transform estimation (iterative algorithms only)</li>
 </ul>
 </li>
-<li><a href="cell_assignment/">Cell assignment</a><ul>
-<li>Assignment score thresholding</li>
+<li><a href="assignment/">Cell assignment</a><ul>
+<li>Cell assignment (directed/undirected)</li>
+<li>Assignment combination (directed assignments only)</li>
 </ul>
 </li>
 </ol>
+<h2 id="output">Output<a class="headerlink" href="#output" title="Permanent link">¶</a></h2>
+<p>Spellmatch produces the following output data:</p>
+<ul>
+<li>Projective transformations (3x3 numpy array, stored as numpy <code>.npy</code> files)<br/>
+<em>Note: geometric transforms are computed from centered masks/images</em></li>
+<li>Matching scores (xarray DataArray, stored as netCDF <code>.nc</code> files)<br/>
+  Shape: source labels x target labels, data type: floating point</li>
+<li>Directed/undirected assignments (CSV files holding cell label pairs)<br/>
+  Column headers: <code>Source</code> (source cell label), <code>Target</code> (target cell label)</li>
+</ul>
+<p>By default, all files are named <code>{source}_to_{target}.{suffix}</code>, where <code>{source}</code>
+corresponds to the source mask/image name and <code>{target}</code> corresponds to the target
+mask/image name.</p>
 </article>
 </div>
 </div>
@@ -467,13 +554,13 @@ following pages.</p>
             </div>
 </div>
 </a>
-<a aria-label="Next: Mask alignment" class="md-footer__link md-footer__link--next" href="mask_alignment/" rel="next">
+<a aria-label="Next: Image registration" class="md-footer__link md-footer__link--next" href="registration/" rel="next">
 <div class="md-footer__title">
 <div class="md-ellipsis">
 <span class="md-footer__direction">
                 Next
               </span>
-              Mask alignment
+              Image registration
             </div>
 </div>
 <div class="md-footer__button md-icon">

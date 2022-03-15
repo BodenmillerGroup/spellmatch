@@ -13,7 +13,6 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
-<link href="../assets/_mkdocstrings.css" rel="stylesheet"/>
 <link href="../_css/mkdocstrings.css" rel="stylesheet"/>
 <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
 </head>
@@ -124,13 +123,18 @@
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../benchmark/">
-        Benchmark
+<a class="md-tabs__link" href="../reference/">
+        Reference
       </a>
 </li>
 <li class="md-tabs__item">
-<a class="md-tabs__link" href="../reference/">
-        Reference
+<a class="md-tabs__link" href="../protocol/">
+        Protocol
+      </a>
+</li>
+<li class="md-tabs__item">
+<a class="md-tabs__link" href="../benchmark/">
+        Benchmark
       </a>
 </li>
 </ul>
@@ -201,22 +205,17 @@
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/mask_alignment/">
-        Mask alignment
-      </a>
-</li>
-<li class="md-nav__item">
-<a class="md-nav__link" href="../usage/image_registration/">
+<a class="md-nav__link" href="../usage/registration/">
         Image registration
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/spatial_cell_matching/">
+<a class="md-nav__link" href="../usage/matching/">
         Spatial cell matching
       </a>
 </li>
 <li class="md-nav__item">
-<a class="md-nav__link" href="../usage/cell_assignment/">
+<a class="md-nav__link" href="../usage/assignment/">
         Cell assignment
       </a>
 </li>
@@ -230,26 +229,9 @@
 </li>
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" data-md-toggle="toc" id="__toc" type="checkbox"/>
-<label class="md-nav__link md-nav__link--active" for="__toc">
-          Changelog
-          <span class="md-nav__icon md-icon"></span>
-</label>
 <a class="md-nav__link md-nav__link--active" href="./">
         Changelog
       </a>
-<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#010-2022-02-20">
-    0.1.0 - 2022-02-20 
-  </a>
-</li>
-</ul>
-</nav>
 </li>
 <li class="md-nav__item">
 <a class="md-nav__link" href="../license/">
@@ -273,7 +255,17 @@
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
 <a class="md-nav__link" href="../algorithms/">
-        Algorithms
+        Overview
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/points_matching/">
+        Points matching
+      </a>
+</li>
+<li class="md-nav__item">
+<a class="md-nav__link" href="../algorithms/graph_matching/">
+        Graph matching
       </a>
 </li>
 </ul>
@@ -282,18 +274,18 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_3" id="__nav_3" type="checkbox"/>
 <label class="md-nav__link" for="__nav_3">
-          Benchmark
+          Reference
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<nav aria-label="Reference" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_3">
 <span class="md-nav__icon md-icon"></span>
-          Benchmark
+          Reference
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../benchmark/">
-        Benchmark
+<a class="md-nav__link" href="../reference/">
+        Overview
       </a>
 </li>
 </ul>
@@ -302,18 +294,38 @@
 <li class="md-nav__item md-nav__item--nested">
 <input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
 <label class="md-nav__link" for="__nav_4">
-          Reference
+          Protocol
           <span class="md-nav__icon md-icon"></span>
 </label>
-<nav aria-label="Reference" class="md-nav" data-md-level="1">
+<nav aria-label="Protocol" class="md-nav" data-md-level="1">
 <label class="md-nav__title" for="__nav_4">
 <span class="md-nav__icon md-icon"></span>
-          Reference
+          Protocol
         </label>
 <ul class="md-nav__list" data-md-scrollfix="">
 <li class="md-nav__item">
-<a class="md-nav__link" href="../reference/">
-        Reference
+<a class="md-nav__link" href="../protocol/">
+        Overview
+      </a>
+</li>
+</ul>
+</nav>
+</li>
+<li class="md-nav__item md-nav__item--nested">
+<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
+<label class="md-nav__link" for="__nav_5">
+          Benchmark
+          <span class="md-nav__icon md-icon"></span>
+</label>
+<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
+<label class="md-nav__title" for="__nav_5">
+<span class="md-nav__icon md-icon"></span>
+          Benchmark
+        </label>
+<ul class="md-nav__list" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="../benchmark/">
+        Overview
       </a>
 </li>
 </ul>
@@ -328,17 +340,6 @@
 <div class="md-sidebar__scrollwrap">
 <div class="md-sidebar__inner">
 <nav aria-label="Table of contents" class="md-nav md-nav--secondary">
-<label class="md-nav__title" for="__toc">
-<span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="#010-2022-02-20">
-    0.1.0 - 2022-02-20 
-  </a>
-</li>
-</ul>
 </nav>
 </div>
 </div>
@@ -352,8 +353,14 @@
 <p>All notable changes to this project will be documented in this file.</p>
 <p>The format is based on <a href="https://keepachangelog.com/en/1.0.0/">Keep a Changelog</a>,
 and this project adheres to <a href="https://semver.org/spec/v2.0.0.html">Semantic Versioning</a>.</p>
-<h2 id="010-2022-02-20"><a href="https://github.com/BodenmillerGroup/spellmatch/releases/tag/v0.1.0">0.1.0</a> - 2022-02-20 <!-- TODO changelog --><a class="headerlink" href="#010-2022-02-20" title="Permanent link">¶</a></h2>
-<p>Initial release</p>
+<!--## [0.1.0] - 2022-03-15
+
+Initial release
+
+
+[0.1.0]: https://github.com/BodenmillerGroup/spellmatch/releases/tag/v0.1.0
+-->
+<p>This package has not yet been released.</p>
 </article>
 </div>
 </div>
