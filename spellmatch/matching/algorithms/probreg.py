@@ -28,7 +28,7 @@ def spellmatch_get_mask_matching_algorithm(
         "rigid_cpd": RigidCoherentPointDrift,
         "affine_cpd": AffineCoherentPointDrift,
         "nonrigid_cpd": NonRigidCoherentPointDrift,
-        "combined_bayesian_cpd": CombinedBayesianCoherentPointDrift,
+        "combined_bcpd": CombinedBayesianCoherentPointDrift,
         "rigid_filterreg": RigidFilterReg,
         "deformable_kinematic_filterreg": DeformableKinematicFilterReg,
         "rigid_gmmreg": RigidGMMReg,

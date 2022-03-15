@@ -159,7 +159,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 ):
                     raise SpellmatchException(
                         "Computing full intensity cross-distances requires running "
-                        "the Spellmatch algorithm in point registration mode"
+                        "the Spellmatch algorithm in point set registration mode"
                     )
                 logger.info("Computing full intensity cross-distance")
                 full_intensity_cdist = self._compute_full_intensity_cross_distance(
@@ -189,7 +189,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             ):
                 raise SpellmatchException(
                     "Computing spatial cross-distance requires running the Spellmatch "
-                    "algorithm in point registration or mask matching mode"
+                    "algorithm in point set registration or mask matching mode"
                 )
             logger.info("Computing spatial cross-distance")
             spatial_cdist = distance.cdist(
