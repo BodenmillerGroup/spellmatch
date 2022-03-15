@@ -20,6 +20,7 @@ from ...utils import (
     compute_points,
     create_bounding_box,
     create_graph,
+    describe_transform,
     filter_outlier_points,
     get_function_by_name,
     restore_outlier_scores,
@@ -401,7 +402,6 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         )
 
 
-# TODO add change criterion (num_iter --> max_iter)?
 class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     TRANSFORM_TYPES: dict[str, Type[ProjectiveTransform]] = {
         "rigid": EuclideanTransform,
@@ -420,10 +420,12 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         point_feature: str,
         intensity_feature: str,
         intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[str, TransformEstimationType],
         transform_estim_k_best: Optional[int],
+        max_iter: int,
+        scores_tol: Optional[float],
+        transform_tol: Optional[float],
     ) -> None:
         if isinstance(transform_type, str):
             transform_type = self.TRANSFORM_TYPES[transform_type]
@@ -435,10 +437,13 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
         )
-        self.num_iter = num_iter
         self.transform_type = transform_type
         self.transform_estim_type = transform_estim_type
         self.transform_estim_k_best = transform_estim_k_best
+        self.max_iter = max_iter
+        self.scores_tol = scores_tol
+        self.transform_tol = transform_tol
+        self._last_scores: Optional[xr.DataArray] = None
 
     def match_points(
         self,
@@ -450,8 +455,11 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
+        self._last_scores = None
         current_transform = prior_transform
-        for iteration in range(self.num_iter):
+        updated_transform = None
+        converged = False
+        for iteration in range(self.max_iter):
             self._pre_iter(iteration, current_transform)
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
                 source_points,
@@ -465,12 +473,17 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             updated_transform = self._update_transform(
                 source_points, target_points, current_scores
             )
-            stop = self._post_iter(
+            converged = self._post_iter(
                 iteration, current_transform, current_scores, updated_transform
             )
-            if updated_transform is None or stop:
+            if updated_transform is None or converged:
                 break
             current_transform = updated_transform
+        if not converged:
+            logger.warning(
+                f"Iterative algorithm did not converge within {self.max_iter} "
+                f"iterations (updated_transform={updated_transform})"
+            )
         return current_scores
 
     def _pre_iter(
@@ -529,8 +542,27 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         current_transform: Optional[ProjectiveTransform],
         current_scores: xr.DataArray,
         updated_transform: Optional[ProjectiveTransform],
+        converged: bool = False,
     ) -> bool:
-        return False
+        scores_loss = float("inf")
+        if self._last_scores is not None:
+            scores_loss = np.linalg.norm(current_scores - self._last_scores)
+        if self.scores_tol is not None and scores_loss < self.scores_tol:
+            converged = True
+        transform_loss = np.linalg.norm(
+            updated_transform.params - current_transform.params
+        )
+        if self.transform_tol is not None and transform_loss < self.transform_tol:
+            converged = True
+        logger.info(
+            f"Iterative algorithm iteration {iteration + 1}: "
+            f"scores_loss={scores_loss:.6f}, "
+            f"transform_loss={transform_loss:.6f} "
+            f"({describe_transform(updated_transform)}), "
+            f"converged={converged}"
+        )
+        self._last_scores = current_scores
+        return converged
 
 
 class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
@@ -572,12 +604,14 @@ class IterativeGraphMatchingAlgorithm(
         point_feature: str,
         intensity_feature: str,
         intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        num_iter: int,
         transform_type: Union[str, Type[ProjectiveTransform]],
         transform_estim_type: Union[
             str, IterativePointsMatchingAlgorithm.TransformEstimationType
         ],
         transform_estim_k_best: Optional[int],
+        max_iter: int,
+        scores_tol: Optional[float],
+        transform_tol: Optional[float],
         filter_outliers: bool,
         adj_radius: float,
     ) -> None:
@@ -586,10 +620,12 @@ class IterativeGraphMatchingAlgorithm(
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
-            num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=transform_estim_type,
             transform_estim_k_best=transform_estim_k_best,
+            max_iter=max_iter,
+            scores_tol=scores_tol,
+            transform_tol=transform_tol,
         )
         self._init_graph_matching(adj_radius=adj_radius)
 

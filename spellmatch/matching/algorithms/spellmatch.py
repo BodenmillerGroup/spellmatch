@@ -42,10 +42,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensity_transform: Union[
             str, Callable[[np.ndarray], np.ndarray], None
         ] = None,
-        num_iter: int = 3,
         transform_type: str = "rigid",
         transform_estim_type: str = "max_score",
         transform_estim_k_best: int = 50,
+        max_iter: int = 10,
+        scores_tol: Optional[float] = None,
+        transform_tol: Optional[float] = None,
         filter_outliers: bool = True,
         adj_radius: float = 15,
         alpha: float = 0.8,
@@ -70,10 +72,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
-            num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=transform_estim_type,
             transform_estim_k_best=transform_estim_k_best,
+            max_iter=max_iter,
+            scores_tol=scores_tol,
+            transform_tol=transform_tol,
             filter_outliers=filter_outliers,
             adj_radius=adj_radius,
         )
@@ -330,13 +334,20 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             s = np.ones((n1 * n2, 1)) / (n1 * n2)
         logger.info("Optimizing")
+        opt_converged = False
         for opt_iteration in range(self.opt_max_iter):
             s_new: np.ndarray = self.alpha * (w @ s) + (1 - self.alpha) * h
             opt_loss = np.linalg.norm(s[:, 0] - s_new[:, 0])
             s = s_new
             logger.debug(f"Optimizer iteration {opt_iteration:03d}: {opt_loss:.6f}")
             if opt_loss < self.opt_tol:
+                opt_converged = True
                 break
+        if not opt_converged:
+            logger.warning(
+                f"Optimization did not converge within {self.opt_max_iter} iterations "
+                f"(last loss: {opt_loss})"
+            )
         logger.info(f"Done ({opt_iteration + 1} iterations)")
         return s[:, 0].reshape((n1, n2))
 

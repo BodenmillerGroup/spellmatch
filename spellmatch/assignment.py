@@ -17,14 +17,14 @@ from .utils import show_image
 
 
 class AssignmentStrategy(Enum):
-    THRES = "thres"
+    THRESHOLD = "threshold"
     LINEAR_SUM = "linear_sum"
     FORWARD_MAX = "forward_max"
     REVERSE_MAX = "reverse_max"
 
 
 assignment_strategies: dict[str, AssignmentStrategy] = {
-    "thres": AssignmentStrategy.THRES,
+    "threshold": AssignmentStrategy.THRESHOLD,
     "linear_sum": AssignmentStrategy.LINEAR_SUM,
     "forward_max": AssignmentStrategy.FORWARD_MAX,
     "reverse_max": AssignmentStrategy.REVERSE_MAX,
@@ -35,7 +35,7 @@ def assign(
     scores: xr.DataArray,
     strategy: AssignmentStrategy,
     normalize_directed: bool = False,
-    min_directed_margin: Optional[float] = None,
+    directed_margin_thres: Optional[float] = None,
     score_thres: float = 0,
 ):
     scores_arr = scores.to_numpy()
@@ -44,11 +44,11 @@ def assign(
         scores_arr[max_scores != 0, :] /= np.sum(
             scores_arr[max_scores != 0, :], axis=1, keepdims=True
         )
-    if min_directed_margin is not None:
+    if directed_margin_thres is not None:
         max2_scores = -np.partition(-scores_arr, 1, axis=1)[:, :2]
         margins = max2_scores[:, 0] - max2_scores[:, 1]
-        scores_arr[margins < min_directed_margin, :] = 0
-    if strategy == AssignmentStrategy.THRES:
+        scores_arr[margins <= directed_margin_thres, :] = 0
+    if strategy == AssignmentStrategy.THRESHOLD:
         if score_thres is None:
             raise SpellmatchAssignmentException("Unspecified score threshold")
         source_ind, target_ind = np.nonzero(scores_arr > score_thres)
@@ -60,7 +60,7 @@ def assign(
     elif strategy == AssignmentStrategy.REVERSE_MAX:
         source_ind = np.argmax(scores_arr, axis=0)
         target_ind = np.arange(scores_arr.shape[1])
-    if score_thres is not None and strategy != AssignmentStrategy.THRES:
+    if score_thres is not None and strategy != AssignmentStrategy.THRESHOLD:
         m = scores_arr[source_ind, target_ind] > score_thres
         source_ind, target_ind = source_ind[m], target_ind[m]
     assignment = pd.DataFrame(

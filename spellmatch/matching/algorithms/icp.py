@@ -9,7 +9,6 @@ from skimage.transform import EuclideanTransform, ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
-from ...utils import describe_transform
 from ._algorithms import IterativePointsMatchingAlgorithm, MaskMatchingAlgorithm
 
 logger = logging.getLogger(__name__)
@@ -36,8 +35,10 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         intensity_transform: Union[
             str, Callable[[np.ndarray], np.ndarray], None
         ] = None,
-        num_iter: int = 200,
         transform_type: Union[str, Type[ProjectiveTransform]] = EuclideanTransform,
+        max_iter: int = 200,
+        scores_tol: Optional[float] = None,
+        transform_tol: Optional[float] = None,
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
     ) -> None:
@@ -46,10 +47,12 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
-            num_iter=num_iter,
             transform_type=transform_type,
             transform_estim_type=self.TransformEstimationType.MAX_SCORE,
             transform_estim_k_best=None,
+            max_iter=max_iter,
+            scores_tol=scores_tol,
+            transform_tol=transform_tol,
         )
         self.max_dist = max_dist
         self.min_change = min_change
@@ -118,43 +121,37 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         current_transform: Optional[ProjectiveTransform],
         current_scores: xr.DataArray,
         updated_transform: Optional[ProjectiveTransform],
+        converged: bool = False,
     ) -> bool:
-        stop = super(IterativeClosestPoints, self)._post_iter(
-            iteration, current_transform, current_scores, updated_transform
-        )
-        transform_change = np.linalg.norm(
-            current_transform.params - updated_transform.params
-        )
-        dists_mean_change = self._compute_distance_mean_change()
-        dists_std_change = self._compute_distance_std_change()
+        dists_mean_change = float("inf")
+        if self._last_dists_mean is not None:
+            dists_mean_change = np.abs(
+                (self._current_dists_mean - self._last_dists_mean)
+                / self._last_dists_mean
+            )
+        dists_std_change = float("inf")
+        if self._last_dists_std is not None:
+            dists_std_change = np.abs(
+                (self._current_dists_std - self._last_dists_std) / self._last_dists_std
+            )
         if (
             self.min_change is not None
             and dists_mean_change < self.min_change
             and dists_std_change < self.min_change
         ):
-            stop = True
+            converged = True
         logger.info(
             f"Iteration {iteration + 1}: "
-            f"transform_change={transform_change:.6f} "
-            f"({describe_transform(updated_transform)}), "
             f"dists_mean_change={dists_mean_change:.6f}, "
             f"dists_std_change={dists_std_change:.6f}, "
-            f"stop={stop}"
+            f"converged={converged}"
         )
         self._last_dists_mean = self._current_dists_mean
         self._last_dists_std = self._current_dists_std
-        return stop
-
-    def _compute_distance_mean_change(self) -> float:
-        if not self._last_dists_mean:
-            return float("inf")
-        return np.abs(
-            (self._current_dists_mean - self._last_dists_mean) / self._last_dists_mean
-        )
-
-    def _compute_distance_std_change(self) -> float:
-        if not self._last_dists_std:
-            return float("inf")
-        return np.abs(
-            (self._current_dists_std - self._last_dists_std) / self._last_dists_std
+        return super(IterativeClosestPoints, self)._post_iter(
+            iteration,
+            current_transform,
+            current_scores,
+            updated_transform,
+            converged=converged,
         )

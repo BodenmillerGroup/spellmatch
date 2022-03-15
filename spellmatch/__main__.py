@@ -1289,8 +1289,8 @@ def cli_match(
     show_default=True,
 )
 @click.option(
-    "--min-directed-margin",
-    "min_directed_margin",
+    "--directed-margin-thres",
+    "directed_margin_thres",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -1346,7 +1346,7 @@ def cli_assign(
     scores_path: Path,
     assignment_strategy_name: str,
     normalize_directed: bool,
-    min_directed_margin: Optional[float],
+    directed_margin_thres: Optional[float],
     score_thres: Optional[float],
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
@@ -1445,7 +1445,7 @@ def cli_assign(
             scores,
             assignment_strategy,
             normalize_directed=normalize_directed,
-            min_directed_margin=min_directed_margin,
+            directed_margin_thres=directed_margin_thres,
             score_thres=score_thres,
         )
         if show is not None and source_mask is not None and target_mask is not None:
