@@ -312,9 +312,7 @@ def cli_register_interactive(
         )
     ):
         if len(source_mask_files) > 1:
-            logger.info(
-                f"########## MASK PAIR {i + 1}/{len(source_mask_files)} ##########"
-            )
+            logger.info(f"MASK PAIR {i + 1}/{len(source_mask_files)}")
         source_mask = io.read_mask(source_mask_file, scale=source_scale)
         logger.info(
             f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
@@ -565,9 +563,7 @@ def cli_register_features(
         transform_file,
     ) in enumerate(zip(source_img_files, target_img_files, transform_files)):
         if len(source_img_files) > 1:
-            logger.info(
-                f"########## IMAGE PAIR {i + 1}/{len(source_img_files)} ##########"
-            )
+            logger.info(f"IMAGE PAIR {i + 1}/{len(source_img_files)}")
         source_img = io.read_image(
             source_img_file, panel=source_panel, scale=source_scale
         )
@@ -883,9 +879,7 @@ def cli_register_intensities(
         )
     ):
         if len(source_img_files) > 1:
-            logger.info(
-                f"########## IMAGE PAIR {i + 1}/{len(source_img_files)} ##########"
-            )
+            logger.info(f"IMAGE PAIR {i + 1}/{len(source_img_files)}")
         source_img = io.read_image(
             source_img_file, panel=source_panel, scale=source_scale
         )
@@ -1205,9 +1199,7 @@ def cli_match(
         )
     ):
         if len(source_mask_files) > 1:
-            logger.info(
-                f"########## MASK PAIR {i + 1}/{len(source_mask_files)} ##########"
-            )
+            logger.info(f"MASK PAIR {i + 1}/{len(source_mask_files)}")
         source_mask = io.read_mask(source_mask_file, scale=source_scale)
         logger.info(
             f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
@@ -1426,7 +1418,7 @@ def cli_assign(
         )
     ):
         if len(scores_files) > 1:
-            logger.info(f"########## SCORES {i + 1}/{len(scores_files)} ##########")
+            logger.info(f"SCORES {i + 1}/{len(scores_files)}")
         scores = io.read_scores(scores_file)
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
         if source_mask_file is not None:
@@ -1615,7 +1607,7 @@ def cli_combine(
     ):
         if len(forward_assignment_files) > 1:
             n = len(forward_assignment_files)
-            logger.info(f"########## ASSIGNMENT PAIR {i + 1}/{n} ##########")
+            logger.info(f"ASSIGNMENT PAIR {i + 1}/{n}")
         forward_assignment = io.read_assignment(forward_assignment_file)
         logger.info(
             f"Forward assignment: {forward_assignment_file.name} "

@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Callable, Optional, Type, Union
@@ -26,6 +27,8 @@ from ...utils import (
     transform_points,
 )
 from .. import SpellmatchMatchingException
+
+logger = logging.getLogger(__name__.rpartition(".")[0])
 
 
 class _MaskMatchingMixin:
@@ -113,17 +116,18 @@ class _PointsMatchingMixin:
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
     ) -> xr.DataArray:
-        source_intensity_image = None
-        if source_img is not None:
-            source_intensity_image = np.moveaxis(source_img.to_numpy(), 0, -1)
+        logger.info("Extracting points from masks")
         source_regions = regionprops(
-            source_mask.to_numpy(), intensity_image=source_intensity_image
+            source_mask.to_numpy(),
+            intensity_image=np.moveaxis(source_img.to_numpy(), 0, -1)
+            if source_img is not None
+            else None,
         )
-        target_intensity_image = None
-        if target_img is not None:
-            target_intensity_image = np.moveaxis(target_img.to_numpy(), 0, -1)
         target_regions = regionprops(
-            target_mask.to_numpy(), intensity_image=target_intensity_image
+            target_mask.to_numpy(),
+            intensity_image=np.moveaxis(target_img.to_numpy(), 0, -1)
+            if target_img is not None
+            else None,
         )
         source_points = compute_points(
             source_mask, regions=source_regions, point_feature=self.point_feature
@@ -193,7 +197,6 @@ class _PointsMatchingMixin:
                     filtered_source_intensities = source_intensities.loc[
                         filtered_transformed_source_points.index, :
                     ]
-
             if transformed_source_bbox is not None:
                 filtered_target_points = filter_outlier_points(
                     target_points, transformed_source_bbox, self.outlier_dist
@@ -269,6 +272,7 @@ class _GraphMatchingMixin:
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
+        logger.info("Constructing graphs from points")
         source_adj, source_dists = create_graph(
             source_points, self.adj_radius, "a", "b"
         )
@@ -397,6 +401,7 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         )
 
 
+# TODO add change criterion (num_iter --> max_iter)?
 class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     TRANSFORM_TYPES: dict[str, Type[ProjectiveTransform]] = {
         "rigid": EuclideanTransform,
@@ -471,7 +476,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     def _pre_iter(
         self, iteration: int, current_transform: Optional[ProjectiveTransform]
     ) -> None:
-        pass
+        logger.info(f"Iterative algorithm iteration {iteration + 1}")
 
     def _update_transform(
         self,
@@ -535,11 +540,11 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
         point_feature: str,
         intensity_feature: str,
         intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        exclude_outliers: bool,
+        filter_outliers: bool,
         adj_radius: float,
     ) -> None:
         super(GraphMatchingAlgorithm, self).__init__(
-            outlier_dist=adj_radius if exclude_outliers else None,
+            outlier_dist=adj_radius if filter_outliers else None,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
@@ -573,11 +578,11 @@ class IterativeGraphMatchingAlgorithm(
             str, IterativePointsMatchingAlgorithm.TransformEstimationType
         ],
         transform_estim_k_best: Optional[int],
-        exclude_outliers: bool,
+        filter_outliers: bool,
         adj_radius: float,
     ) -> None:
         super(IterativeGraphMatchingAlgorithm, self).__init__(
-            outlier_dist=adj_radius if exclude_outliers else None,
+            outlier_dist=adj_radius if filter_outliers else None,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
