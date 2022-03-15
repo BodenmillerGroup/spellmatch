@@ -1,50 +1,25 @@
 # Installation
 
-*Spellmatch* is implemented in Python and shipped as a Python package.
+Spellmatch is implemented in Python and shipped as a Python package.
 
 ## Requirements
 
-The `spellmatch` Python package requires Python 3.9.
+The spellmatch Python package requires Python 3.9.
 
-A user interface for Jupyter notebooks, e.g.
-[JupyterLab](https://jupyterlab.readthedocs.io) (optional, for opening notebooks).
+For opening analysis notebooks, [JupyterLab](https://jupyterlab.readthedocs.io) is
+recommended.
 
 Using virtual environments (e.g. [conda](https://docs.conda.io)) is strongly recommended
 for reproducibility reasons.
 
-!!! note "Hardware resources"
-    Several spatial cell matching algorithms implemented in *spellmatch* require
-    extensive hardware resources, depending on image sizes, hyper-parameters etc. A
-    system with at least 64GB of RAM is recommended.
-
 ## Installation
 
-You can install *spellmatch* [from PyPI](https://pypi.org/project/spellmatch/) using
+You can install spellmatch [from PyPI](https://pypi.org/project/spellmatch/) using
 [pip](https://pypi.org/project/pip/):
 
     pip install spellmatch
 
-Alternatively, you can install *spellmatch*
-[from conda-forge](https://github.com/conda-forge/spellmatch-feedstock) using
-[conda](https://docs.conda.io/en/latest/):
+The latest development version can be installed
+[directly from GitHub](https://github.com/BodenmillerGroup/spellmatch):
 
-    conda install -c conda-forge spellmatch
-
-<!-- TODO conda-forge -->
-
-## Usage
-
-*Spellmatch* can be used from the command-line (terminal in Linux/MacOS, console in
-Windows):
-
-    > spellmatch --help
-    Usage: spellmatch [OPTIONS] COMMAND [ARGS]...
-
-    Options:
-    --version  Show the version and exit.
-    --help     Show this message and exit.
-
-    Commands:
-    ...
-
-Refer to [Usage](usage/index.md) for detailed instructions on how to use *spellmatch*.
+    pip install git+https://github.com/bodenmillergroup/spellmatch

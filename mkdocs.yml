@@ -17,10 +17,21 @@ plugins:
       version: 8.6.4
       arguments:
         securityLevel: 'loose'
-  - mkdocstrings:
-      watch: 
-      - spellmatch
-      default_handler: python
+  # - mkdocstrings:
+  #     watch: 
+  #     - spellmatch
+  #     default_handler: python
+  #     handlers:
+  #       python:
+  #         selection:
+  #           filters:
+  #             - "!^_"
+  #           inherited_members: yes
+  #         rendering:
+  #           show_root_heading: yes
+  #           show_if_no_docstring: yes
+  #           show_signature_annotations: yes
+  #           show_source: no
 
 extra:
   generator: false
@@ -50,16 +61,19 @@ nav:
     - installation.md
     - Usage:
       - usage/index.md
-      - usage/mask_alignment.md
-      - usage/image_registration.md
-      - usage/spatial_cell_matching.md
-      - usage/cell_assignment.md
+      - usage/registration.md
+      - usage/matching.md
+      - usage/assignment.md
     - contributing.md
     - changelog.md
     - license.md
   - Algorithms:
     - algorithms/index.md
-  - Benchmark:
-    - benchmark/index.md
+    - algorithms/points_matching.md
+    - algorithms/graph_matching.md
   - Reference:
     - reference/index.md
+  - Protocol:
+    - protocol/index.md
+  - Benchmark:
+    - benchmark/index.md
