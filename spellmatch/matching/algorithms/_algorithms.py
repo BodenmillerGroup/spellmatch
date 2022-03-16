@@ -555,7 +555,6 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         if self.transform_tol is not None and transform_loss < self.transform_tol:
             converged = True
         logger.info(
-            f"Iterative algorithm iteration {iteration + 1}: "
             f"scores_loss={scores_loss:.6f}, "
             f"transform_loss={transform_loss:.6f} "
             f"({describe_transform(updated_transform)}), "

@@ -130,7 +130,6 @@ KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
 
 
 @click.group(name="spellmatch")
-@click_log.simple_verbosity_option(logger=logger)
 @click.version_option()
 def cli() -> None:
     pass
@@ -209,6 +208,7 @@ def cli_register() -> None:
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_interactive(
     source_mask_path: Path,
@@ -496,6 +496,7 @@ def cli_register_interactive(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_features(
     source_img_path: Path,
@@ -795,6 +796,7 @@ def cli_register_features(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_intensities(
     source_img_path: Path,
@@ -1082,6 +1084,7 @@ def cli_register_intensities(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_match(
     source_mask_path: Path,
@@ -1341,6 +1344,7 @@ def cli_match(
     metavar="ASSIGNMENT(S)",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_assign(
     scores_path: Path,
@@ -1520,6 +1524,7 @@ def cli_assign(
     metavar="ASSIGNMENT(S)",
     type=click.Path(path_type=Path),
 )
+@click_log.simple_verbosity_option(logger=logger)
 @catch_exception(handle=SpellmatchException)
 def cli_combine(
     forward_assignment_path: Path,

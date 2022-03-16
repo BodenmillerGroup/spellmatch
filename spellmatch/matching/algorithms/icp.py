@@ -141,7 +141,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         ):
             converged = True
         logger.info(
-            f"Iteration {iteration + 1}: "
             f"dists_mean_change={dists_mean_change:.6f}, "
             f"dists_std_change={dists_std_change:.6f}, "
             f"converged={converged}"

@@ -45,7 +45,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         transform_type: str = "rigid",
         transform_estim_type: str = "max_score",
         transform_estim_k_best: int = 50,
-        max_iter: int = 10,
+        max_iter: int = 50,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
         filter_outliers: bool = True,
