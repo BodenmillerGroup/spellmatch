@@ -5,6 +5,6 @@ source_masks/
 target_masks/
 source_panel.csv
 target_panel.csv
-initial_transforms_refined/
+refined_transforms/
 scores_*/
 assignments_*/
