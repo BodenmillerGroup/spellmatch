@@ -249,6 +249,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 row_ind, col_ind = linear_sum_assignment(
                     current_scores_data, maximize=True
                 )
+                nonzero_mask = current_scores_data[row_ind, col_ind] > 0
+                row_ind, col_ind = row_ind[nonzero_mask], col_ind[nonzero_mask]
                 cca = CCA(
                     n_components=n_components,
                     max_iter=self.cca_max_iter,

@@ -61,8 +61,8 @@ def assign(
         source_ind = np.argmax(scores_arr, axis=0)
         target_ind = np.arange(scores_arr.shape[1])
     if score_thres is not None and strategy != AssignmentStrategy.THRESHOLD:
-        m = scores_arr[source_ind, target_ind] > score_thres
-        source_ind, target_ind = source_ind[m], target_ind[m]
+        thres_mask = scores_arr[source_ind, target_ind] > score_thres
+        source_ind, target_ind = source_ind[thres_mask], target_ind[thres_mask]
     assignment = pd.DataFrame(
         data={
             "Source": scores.coords[scores.dims[0]].to_numpy()[source_ind],
