@@ -8,6 +8,6 @@
 ![Pull requests](https://img.shields.io/github/issues-pr/BodenmillerGroup/spellmatch)
 ![License](https://img.shields.io/github/license/BodenmillerGroup/spellmatch)
 
-Spatial cell-cell matching
+Spatial cell representation matching
 
 Documentation is available at https://bodenmillergroup.github.io/spellmatch
