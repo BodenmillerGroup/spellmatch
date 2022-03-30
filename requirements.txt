@@ -3,5 +3,10 @@
 # See also: https://caremad.io/posts/2013/07/setup-vs-requirement/
 
 -e .
+git+ssh://git@github.com/BodenmillerGroup/simutome
 jupyterlab
-simutome
+matplotlib
+numpy
+pandas
+scipy
+seaborn
