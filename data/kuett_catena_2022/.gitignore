@@ -7,4 +7,5 @@ source_panel.csv
 target_panel.csv
 refined_transforms/
 scores_*/
+sectioning/
 assignments_*/
