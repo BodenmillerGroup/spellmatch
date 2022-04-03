@@ -6,7 +6,9 @@
 git+ssh://git@github.com/BodenmillerGroup/simutome
 jupyterlab
 matplotlib
+napari[all]
 numpy
 pandas
 scipy
 seaborn
+tifffile
