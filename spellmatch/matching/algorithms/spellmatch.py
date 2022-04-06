@@ -61,6 +61,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         full_intensity_cca_n_components: int = 10,
         intensity_interp_lmd: Union[int, float] = 11,
         intensity_interp_cca_n_components: int = 10,
+        distance_cdiff_thres: float = 15,
         spatial_cdist_prior_thres: Optional[float] = None,
         max_spatial_cdist: Optional[float] = None,
         cca_max_iter: int = 500,
@@ -94,6 +95,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.full_intensity_cca_n_components = full_intensity_cca_n_components
         self.intensity_interp_lmd = intensity_interp_lmd
         self.intensity_interp_cca_n_components = intensity_interp_cca_n_components
+        self.distance_cdiff_thres = distance_cdiff_thres
         self.spatial_cdist_prior_thres = spatial_cdist_prior_thres
         self.max_spatial_cdist = max_spatial_cdist
         self.cca_max_iter = cca_max_iter
@@ -361,21 +363,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         degree_cdist = degree_cdiff**2
         return degree_cdist
 
-    def _compute_distance_cross_distance(
-        self,
-        adj1: np.ndarray,
-        adj2: np.ndarray,
-        dists1: np.ndarray,
-        dists2: np.ndarray,
-    ) -> sparse.csr_array:
-        distance_cdiff: sparse.csr_array = abs(
-            sparse.kron(adj1 * dists1, adj2, format="csr")
-            - sparse.kron(adj1, adj2 * dists2, format="csr")
-        )
-        np.clip(distance_cdiff.data / self.adj_radius, 0, 1, out=distance_cdiff.data)
-        distance_cdist = distance_cdiff**2
-        return distance_cdist
-
     def _compute_shared_intensity_cross_distance(
         self,
         intensities1: pd.DataFrame,
@@ -470,6 +457,26 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             cca_intensities1, cca_intensities2, metric="correlation"
         )
         return full_intensity_cdist
+
+    def _compute_distance_cross_distance(
+        self,
+        adj1: np.ndarray,
+        adj2: np.ndarray,
+        dists1: np.ndarray,
+        dists2: np.ndarray,
+    ) -> sparse.csr_array:
+        distance_cdiff: sparse.csr_array = abs(
+            sparse.kron(adj1 * dists1, adj2, format="csr")
+            - sparse.kron(adj1, adj2 * dists2, format="csr")
+        )
+        np.clip(
+            distance_cdiff.data / self.distance_cdiff_thres,
+            0,
+            1,
+            out=distance_cdiff.data,
+        )
+        distance_cdist = distance_cdiff**2
+        return distance_cdist
 
 
 class SpellmatchException(SpellmatchMatchingAlgorithmException):
