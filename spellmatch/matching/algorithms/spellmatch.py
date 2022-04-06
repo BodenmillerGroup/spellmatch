@@ -53,7 +53,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         alpha: float = 0.8,
         degree_weight: float = 0,
         intensity_weight: float = 0,
-        celldist_weight: float = 0,
+        distance_weight: float = 0,
         degree_cdiff_thres: int = 3,
         shared_intensity_pca_n_components: int = 5,
         full_intensity_cca_fit_k_closest: int = 500,
@@ -84,7 +84,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.alpha = alpha
         self.degree_weight = degree_weight
         self.intensity_weight = intensity_weight
-        self.celldist_weight = celldist_weight
+        self.distance_weight = distance_weight
         self.degree_cdiff_thres = degree_cdiff_thres
         self.shared_intensity_pca_n_components = shared_intensity_pca_n_components
         self.full_intensity_cca_fit_k_closest = full_intensity_cca_fit_k_closest
@@ -168,14 +168,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     source_intensities,
                     target_intensities,
                 )
-        celldist_cdist = None
-        if self.celldist_weight > 0:
+        distance_cdist = None
+        if self.distance_weight > 0:
             if source_dists is None or target_dists is None:
                 raise SpellmatchException(
-                    "Cell distances are required for computing their cross-distance"
+                    "Distances are required for computing their cross-distance"
                 )
-            logger.info("Computing cell distance cross-distance")
-            celldist_cdist = self._compute_cell_distance_cross_distance(
+            logger.info("Computing distance cross-distance")
+            distance_cdist = self._compute_distance_cross_distance(
                 adj1, adj2, source_dists.to_numpy(), target_dists.to_numpy()
             )
         spatial_cdist = None
@@ -205,7 +205,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 degree_cdist,
                 shared_intensity_cdist,
                 full_intensity_cdist,
-                celldist_cdist,
+                distance_cdist,
                 spatial_cdist,
                 self.intensity_interp_lmd,
             )
@@ -242,7 +242,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     degree_cdist,
                     shared_intensity_cdist,
                     full_intensity_cdist,
-                    celldist_cdist,
+                    distance_cdist,
                     spatial_cdist,
                     current_lmd,
                 )
@@ -290,7 +290,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         degree_cdist: Optional[np.ndarray],
         shared_intensity_cdist: Optional[np.ndarray],
         full_intensity_cdist: Optional[np.ndarray],
-        celldist_cdist: Optional[sparse.csr_array],
+        distance_cdist: Optional[sparse.csr_array],
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
     ) -> np.ndarray:
@@ -315,10 +315,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             w += adj * (self.intensity_weight * intensity_cdist[:, np.newaxis])
             w += adj * (self.intensity_weight * intensity_cdist[np.newaxis, :])
             total_weight += 2 * self.intensity_weight
-        if self.celldist_weight > 0:
-            assert celldist_cdist is not None
-            w += adj * (self.celldist_weight * celldist_cdist)
-            total_weight += self.celldist_weight
+        if self.distance_weight > 0:
+            assert distance_cdist is not None
+            w += adj * (self.distance_weight * distance_cdist)
+            total_weight += self.distance_weight
         d = deg.flatten()
         d[d != 0] = d[d != 0] ** (-0.5)
         d = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
@@ -361,20 +361,20 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         degree_cdist = degree_cdiff**2
         return degree_cdist
 
-    def _compute_cell_distance_cross_distance(
+    def _compute_distance_cross_distance(
         self,
         adj1: np.ndarray,
         adj2: np.ndarray,
         dists1: np.ndarray,
         dists2: np.ndarray,
     ) -> sparse.csr_array:
-        celldist_cdiff: sparse.csr_array = abs(
+        distance_cdiff: sparse.csr_array = abs(
             sparse.kron(adj1 * dists1, adj2, format="csr")
             - sparse.kron(adj1, adj2 * dists2, format="csr")
         )
-        np.clip(celldist_cdiff.data / self.adj_radius, 0, 1, out=celldist_cdiff.data)
-        celldist_cdist = celldist_cdiff**2
-        return celldist_cdist
+        np.clip(distance_cdiff.data / self.adj_radius, 0, 1, out=distance_cdiff.data)
+        distance_cdist = distance_cdiff**2
+        return distance_cdist
 
     def _compute_shared_intensity_cross_distance(
         self,
