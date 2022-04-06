@@ -1,4 +1,4 @@
 raw/
-target_points/
-target_intensities/
-target_clusters/
+source_points/
+source_intensities/
+source_clusters/
