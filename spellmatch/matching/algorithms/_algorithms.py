@@ -573,9 +573,11 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             scores_loss = np.linalg.norm(current_scores - self._last_scores)
         if self.scores_tol is not None and scores_loss < self.scores_tol:
             converged = True
-        transform_loss = np.linalg.norm(
-            updated_transform.params - current_transform.params
-        )
+        transform_loss = float("inf")
+        if current_transform is not None and updated_transform is not None:
+            transform_loss = np.linalg.norm(
+                updated_transform.params - current_transform.params
+            )
         if self.transform_tol is not None and transform_loss < self.transform_tol:
             converged = True
         logger.info(
