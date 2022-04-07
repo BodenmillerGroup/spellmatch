@@ -36,7 +36,7 @@ def assign(
     strategy: AssignmentStrategy,
     normalize_directed: bool = False,
     directed_margin_thres: Optional[float] = None,
-    score_thres: float = 0,
+    score_thres: Optional[float] = None,
 ):
     scores_arr = scores.to_numpy()
     if normalize_directed:

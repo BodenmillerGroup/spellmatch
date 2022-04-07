@@ -98,7 +98,7 @@ def compute_points(
         points *= mask.attrs["scale"]
     return pd.DataFrame(
         data=points,
-        index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
+        index=pd.Index(data=[r["label"] for r in regions], name="cell"),
         columns=["x", "y"],
     )
 
@@ -118,7 +118,7 @@ def compute_intensities(
         intensities_data = intensity_transform(intensities_data)
     return pd.DataFrame(
         data=intensities_data,
-        index=pd.Index(data=[r["label"] for r in regions], name=mask.name),
+        index=pd.Index(data=[r["label"] for r in regions], name="cell"),
         columns=img.coords.get("c"),
     )
 
@@ -138,13 +138,13 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
 
 
 def transform_points(
-    points: pd.DataFrame, transform: ProjectiveTransform
-) -> pd.DataFrame:
-    return pd.DataFrame(
-        data=transform(points.to_numpy()),
-        index=points.index.copy(),
-        columns=points.columns.copy(),
-    )
+    points: pd.DataFrame, transform: ProjectiveTransform, inplace: bool = False
+) -> Optional[pd.DataFrame]:
+    if not inplace:
+        points = points.copy()
+    points[:] = transform(points.to_numpy())
+    if not inplace:
+        return points
 
 
 def transform_bounding_box(bbox: Polygon, transform: ProjectiveTransform) -> Polygon:
@@ -161,13 +161,13 @@ def filter_outlier_points(
 
 
 def restore_outlier_scores(
-    source_index: pd.Index, target_index: pd.Index, filtered_scores: xr.DataArray
+    source_labels: np.ndarray, target_labels: np.ndarray, filtered_scores: xr.DataArray
 ) -> xr.DataArray:
     scores = xr.DataArray(
-        data=np.zeros((len(source_index), len(target_index))),
+        data=np.zeros((len(source_labels), len(target_labels))),
         coords={
-            source_index.name: source_index.to_numpy(),
-            target_index.name: target_index.to_numpy(),
+            filtered_scores.dims[0]: source_labels,
+            filtered_scores.dims[1]: target_labels,
         },
     )
     scores.loc[filtered_scores.coords] = filtered_scores
@@ -175,20 +175,20 @@ def restore_outlier_scores(
 
 
 def create_graph(
-    points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
+    name: str, points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
 ) -> Tuple[xr.DataArray, xr.DataArray]:
     dists_data = distance.squareform(distance.pdist(points.to_numpy()))
     dists = xr.DataArray(
         data=dists_data,
         coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
-        name=points.index.name,
+        name=name,
     )
     adj_data = dists_data <= adj_radius
     np.fill_diagonal(adj_data, False)
     adj = xr.DataArray(
         data=adj_data,
         coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
-        name=points.index.name,
+        name=name,
     )
     return adj, dists
 

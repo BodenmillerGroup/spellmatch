@@ -63,6 +63,8 @@ class _Probreg(PointsMatchingAlgorithm):
 
     def _match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -87,8 +89,8 @@ class _Probreg(PointsMatchingAlgorithm):
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_points.index.name: source_points.index.to_numpy(),
-                target_points.index.name: target_points.index.to_numpy(),
+                source_name: source_points.index.to_numpy(),
+                target_name: target_points.index.to_numpy(),
             },
         )
         return scores

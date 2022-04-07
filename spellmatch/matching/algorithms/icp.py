@@ -63,6 +63,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
 
     def match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_bbox: Optional[Polygon] = None,
@@ -74,6 +76,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         self._last_dists_mean = None
         self._last_dists_std = None
         scores = super(IterativeClosestPoints, self).match_points(
+            source_name,
+            target_name,
             source_points,
             target_points,
             source_bbox,
@@ -88,6 +92,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
 
     def _match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -109,8 +115,8 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_points.index.name: source_points.index.to_numpy(),
-                target_points.index.name: target_points.index.to_numpy(),
+                source_name: source_points.index.to_numpy(),
+                target_name: target_points.index.to_numpy(),
             },
         )
         return scores

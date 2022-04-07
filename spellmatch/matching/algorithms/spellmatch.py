@@ -55,12 +55,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensity_weight: float = 0,
         distance_weight: float = 0,
         degree_cdiff_thres: int = 3,
+        intensity_interp_lmd: Union[int, float] = 11,
+        intensity_interp_cca_n_components: int = 10,
         shared_intensity_pca_n_components: int = 5,
         full_intensity_cca_fit_k_closest: int = 500,
         full_intensity_cca_fit_k_most_certain: int = 100,
         full_intensity_cca_n_components: int = 10,
-        intensity_interp_lmd: Union[int, float] = 11,
-        intensity_interp_cca_n_components: int = 10,
         distance_cdiff_thres: float = 15,
         spatial_cdist_prior_thres: Optional[float] = None,
         max_spatial_cdist: Optional[float] = None,
@@ -87,14 +87,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.intensity_weight = intensity_weight
         self.distance_weight = distance_weight
         self.degree_cdiff_thres = degree_cdiff_thres
+        self.intensity_interp_lmd = intensity_interp_lmd
+        self.intensity_interp_cca_n_components = intensity_interp_cca_n_components
         self.shared_intensity_pca_n_components = shared_intensity_pca_n_components
         self.full_intensity_cca_fit_k_closest = full_intensity_cca_fit_k_closest
         self.full_intensity_cca_fit_k_most_certain = (
             full_intensity_cca_fit_k_most_certain
         )
         self.full_intensity_cca_n_components = full_intensity_cca_n_components
-        self.intensity_interp_lmd = intensity_interp_lmd
-        self.intensity_interp_cca_n_components = intensity_interp_cca_n_components
         self.distance_cdiff_thres = distance_cdiff_thres
         self.spatial_cdist_prior_thres = spatial_cdist_prior_thres
         self.max_spatial_cdist = max_spatial_cdist
@@ -107,6 +107,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
 
     def _match_graphs_from_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -115,7 +117,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self._current_source_points = source_points
         self._current_target_points = target_points
         scores = super(Spellmatch, self)._match_graphs_from_points(
-            source_points, target_points, source_intensities, target_intensities
+            source_name,
+            target_name,
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
         )
         self._current_source_points = None
         self._current_target_points = None
@@ -277,8 +284,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_adj.name: source_adj.coords["a"].to_numpy(),
-                target_adj.name: target_adj.coords["x"].to_numpy(),
+                source_adj.name or "source": source_adj.coords["a"].to_numpy(),
+                target_adj.name or "target": target_adj.coords["x"].to_numpy(),
             },
         )
         return scores
@@ -298,11 +305,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
     ) -> np.ndarray:
         logger.info("Initializing")
         if shared_intensity_cdist is not None and full_intensity_cdist is not None:
-            intensity_cdist: np.ndarray = (
+            intensity_cdist = (
                 lmd * shared_intensity_cdist + (1 - lmd) * full_intensity_cdist
             )
+        elif shared_intensity_cdist is not None:
+            intensity_cdist = shared_intensity_cdist
+        elif full_intensity_cdist is not None:
+            intensity_cdist = full_intensity_cdist
         else:
-            intensity_cdist: np.ndarray = shared_intensity_cdist or full_intensity_cdist
+            intensity_cdist = None
         w = sparse.csr_array((n1 * n2, n1 * n2))
         total_weight = 0
         if self.degree_weight > 0:

@@ -157,6 +157,8 @@ class _PointsMatchingMixin:
                 intensity_transform=self.intensity_transform,
             )
         scores = self.match_points(
+            source_mask.name or "source",
+            target_mask.name or "target",
             source_points,
             target_points,
             source_bbox=source_bbox,
@@ -169,6 +171,8 @@ class _PointsMatchingMixin:
 
     def match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_bbox: Optional[Polygon] = None,
@@ -207,18 +211,24 @@ class _PointsMatchingMixin:
                         filtered_target_points.index, :
                     ]
         self._pre_match_points(
+            source_name,
+            target_name,
             filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
         )
         filtered_scores = self._match_points(
+            source_name,
+            target_name,
             filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
             filtered_target_intensities,
         )
         filtered_scores = self._post_match_points(
+            source_name,
+            target_name,
             filtered_transformed_source_points,
             filtered_target_points,
             filtered_source_intensities,
@@ -228,12 +238,16 @@ class _PointsMatchingMixin:
         scores = filtered_scores
         if self.outlier_dist is not None:
             scores = restore_outlier_scores(
-                source_points.index, target_points.index, filtered_scores
+                source_points.index.to_numpy(),
+                target_points.index.to_numpy(),
+                filtered_scores,
             )
         return scores
 
     def _pre_match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -244,6 +258,8 @@ class _PointsMatchingMixin:
     @abstractmethod
     def _match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -253,6 +269,8 @@ class _PointsMatchingMixin:
 
     def _post_match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -268,6 +286,8 @@ class _GraphMatchingMixin:
 
     def _match_graphs_from_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
@@ -275,10 +295,10 @@ class _GraphMatchingMixin:
     ) -> xr.DataArray:
         logger.info("Constructing graphs from points")
         source_adj, source_dists = create_graph(
-            source_points, self.adj_radius, "a", "b"
+            source_name, source_points, self.adj_radius, "a", "b"
         )
         target_adj, target_dists = create_graph(
-            target_points, self.adj_radius, "x", "y"
+            target_name, target_points, self.adj_radius, "x", "y"
         )
         scores = self.match_graphs(
             source_adj,
@@ -447,6 +467,8 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
 
     def match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_bbox: Optional[Polygon] = None,
@@ -462,6 +484,8 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         for iteration in range(self.max_iter):
             self._pre_iter(iteration, current_transform)
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
+                source_name,
+                target_name,
                 source_points,
                 target_points,
                 source_bbox=source_bbox,
@@ -584,13 +608,20 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
 
     def _match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         return self._match_graphs_from_points(
-            source_points, target_points, source_intensities, target_intensities
+            source_name,
+            target_name,
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
         )
 
 
@@ -630,13 +661,20 @@ class IterativeGraphMatchingAlgorithm(
 
     def _match_points(
         self,
+        source_name: str,
+        target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
     ) -> xr.DataArray:
         return self._match_graphs_from_points(
-            source_points, target_points, source_intensities, target_intensities
+            source_name,
+            target_name,
+            source_points,
+            target_points,
+            source_intensities,
+            target_intensities,
         )
 
 
