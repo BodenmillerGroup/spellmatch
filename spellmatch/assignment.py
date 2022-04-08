@@ -22,11 +22,6 @@ class AssignmentDirection(Enum):
     UNION = "union"
 
 
-assignment_directions: dict[str, AssignmentDirection] = {
-    item.value: item for item in AssignmentDirection
-}
-
-
 def assign(
     scores: xr.DataArray,
     reverse_scores: Optional[xr.DataArray] = None,
@@ -37,9 +32,11 @@ def assign(
     margin_thres_quantile: Optional[float] = None,
     linear_sum: bool = False,
     max_only: bool = False,
-    direction: AssignmentDirection = AssignmentDirection.FORWARD,
+    direction: Union[str, AssignmentDirection] = AssignmentDirection.FORWARD,
     as_matrix: bool = False,
 ) -> Union[pd.DataFrame, xr.DataArray]:
+    if isinstance(direction, str):
+        direction = AssignmentDirection(direction)
     fwd_scores = None
     if direction != AssignmentDirection.REVERSE:
         fwd_scores = scores.to_numpy()

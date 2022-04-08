@@ -18,8 +18,8 @@ from skimage.transform import (
 from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
 from .assignment import (
+    AssignmentDirection,
     assign,
-    assignment_directions,
     show_assignment,
     validate_assignment,
 )
@@ -1322,9 +1322,9 @@ def cli_match(
 )
 @click.option(
     "--direction",
-    "assignment_direction_name",
+    "assignment_direction",
     required=True,
-    type=click.Choice(list(assignment_directions.keys())),
+    type=click.Choice([item.value for item in AssignmentDirection]),
 )
 @click.option(
     "--source-mask",
@@ -1379,7 +1379,7 @@ def cli_assign(
     margin_thres_quantile: Optional[float],
     linear_sum: bool,
     max_only: bool,
-    assignment_direction_name: str,
+    assignment_direction: str,
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
     source_scale: float,
@@ -1388,7 +1388,6 @@ def cli_assign(
     validation_assignment_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
-    assignment_direction = assignment_directions[assignment_direction_name]
     if (
         scores_path.is_file()
         and (reverse_scores_path is None or reverse_scores_path.is_file())

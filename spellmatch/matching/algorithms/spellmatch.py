@@ -217,7 +217,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 ),
                 dtype=self.precision,
             )
-        if 0 <= self.intensity_interp_lmd <= 1:
+        if (
+            shared_intensity_cdist is None
+            or full_intensity_cdist is None
+            or 0 <= self.intensity_interp_lmd <= 1
+        ):
             scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
@@ -345,7 +349,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             assert distance_cdist is not None
             w += self.distance_weight * (adj * distance_cdist)
             total_weight += self.distance_weight
-        w /= total_weight
+        if total_weight > 0:
+            w /= total_weight
         assert w.dtype == self.precision
         d = np.asarray(deg.flatten(), dtype=self.precision)
         d[d != 0] = d[d != 0] ** (-0.5)
@@ -384,10 +389,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 break
         if not opt_converged:
             logger.warning(
-                f"Optimization did not converge within {self.opt_max_iter} iterations "
+                f"Optimization did not converge after {self.opt_max_iter} iterations "
                 f"(last loss: {opt_loss})"
             )
-        logger.info(f"Done ({opt_iteration + 1} iterations)")
+        logger.info(f"Done after {opt_iteration + 1} iterations")
         return s[:, 0].reshape((n1, n2))
 
     def _compute_degree_cross_distance(

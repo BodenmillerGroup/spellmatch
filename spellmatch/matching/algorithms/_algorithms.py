@@ -505,7 +505,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             current_transform = updated_transform
         if not converged:
             logger.warning(
-                f"Iterative algorithm did not converge within {self.max_iter} "
+                f"Iterative algorithm did not converge after {self.max_iter} "
                 f"iterations (updated_transform={updated_transform})"
             )
         return current_scores

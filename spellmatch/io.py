@@ -10,12 +10,9 @@ from skimage.transform import ProjectiveTransform
 
 from ._spellmatch import SpellmatchException
 
-_DEFAULT_PANEL_NAME_COL = "name"
-_DEFAULT_PANEL_KEEP_COL = "keep"
-
 
 def read_panel(
-    panel_file: Union[str, PathLike], panel_name_col: str = _DEFAULT_PANEL_NAME_COL
+    panel_file: Union[str, PathLike], panel_name_col: str = "name"
 ) -> pd.DataFrame:
     panel_file = Path(panel_file)
     panel = pd.read_csv(panel_file)
@@ -29,8 +26,8 @@ def read_panel(
 def read_image(
     img_file: Union[str, PathLike],
     panel: Optional[pd.DataFrame] = None,
-    panel_name_col: str = _DEFAULT_PANEL_NAME_COL,
-    panel_keep_col: str = _DEFAULT_PANEL_KEEP_COL,
+    panel_name_col: str = "name",
+    panel_keep_col: str = "keep",
     scale: float = 1,
 ) -> xr.DataArray:
     img_file = Path(img_file)

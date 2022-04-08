@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Callable
 
 import numpy as np
@@ -8,7 +9,7 @@ def precision(
     assignment_arr_pred: np.ndarray,
     assignment_arr_true: np.ndarray,
 ) -> float:
-    # Of all predicted matches, what fraction is correct?
+    # of all predicted matches, what fraction is correct?
     tp = np.sum(assignment_arr_pred & assignment_arr_true)
     if tp == 0:
         return 0
@@ -21,7 +22,7 @@ def recall(
     assignment_arr_pred: np.ndarray,
     assignment_arr_true: np.ndarray,
 ) -> float:
-    # Of all true matches, what fraction has been predicted correctly?
+    # of all true matches, what fraction has been predicted correctly?
     tp = np.sum(assignment_arr_pred & assignment_arr_true)
     if tp == 0:
         return 0
@@ -34,7 +35,7 @@ def f1score(
     assignment_arr_pred: np.ndarray,
     assignment_arr_true: np.ndarray,
 ) -> float:
-    # Harmonic mean of precision and recall
+    # harmonic mean of precision and recall
     tp = np.sum(assignment_arr_pred & assignment_arr_true)
     if tp == 0:
         return 0.0
@@ -50,7 +51,7 @@ def accuracy(
     assignment_arr_pred: np.ndarray,
     assignment_arr_true: np.ndarray,
 ) -> float:
-    # Of all predictions (matches & mismatches), what fraction is correct?
+    # of all predictions (matches & mismatches), what fraction is correct?
     return np.mean(assignment_arr_pred == assignment_arr_true)
 
 
@@ -95,9 +96,21 @@ def entropy(
 ) -> float:
     fwd_scores_arr = scores_arr / (np.sum(scores_arr, axis=1, keepdims=True) + eps)
     rev_scores_arr = scores_arr / (np.sum(scores_arr, axis=0, keepdims=True) + eps)
-    fwd_log_products = fwd_scores_arr * np.log(fwd_scores_arr + eps)
-    rev_log_products = rev_scores_arr * np.log(rev_scores_arr + eps)
-    fwd_entropies = -np.sum(fwd_log_products, axis=1)
-    rev_entropies = -np.sum(rev_log_products, axis=0)
+    fwd_entropies = -np.sum(fwd_scores_arr * np.log(fwd_scores_arr + eps), axis=1)
+    rev_entropies = -np.sum(rev_scores_arr * np.log(rev_scores_arr + eps), axis=0)
     entropies = np.concatenate((fwd_entropies, rev_entropies))
     return float(aggr_fn(entropies))
+
+
+default_metrics = {
+    "precision": precision,
+    "recall": recall,
+    "f1score": f1score,
+    "accuracy": accuracy,
+    "uncertainty_mean": partial(uncertainty, aggr_fn=np.mean),
+    "uncertainty_std": partial(uncertainty, aggr_fn=np.std),
+    "margin_mean": partial(margin, aggr_fn=np.mean),
+    "margin_std": partial(margin, aggr_fn=np.std),
+    "entropy_mean": partial(entropy, aggr_fn=np.mean),
+    "entropy_std": partial(entropy, aggr_fn=np.std),
+}
