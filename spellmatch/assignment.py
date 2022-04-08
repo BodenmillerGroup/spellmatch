@@ -11,8 +11,7 @@ from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
 from skimage.util import img_as_ubyte
 
-from spellmatch.matching.algorithms.spellmatch import SpellmatchException
-
+from ._spellmatch import SpellmatchException
 from .utils import show_image
 
 
@@ -137,19 +136,19 @@ def assign(
             rev_scores = new_rev_scores
             del new_rev_scores, row_ind, col_ind
     if direction == AssignmentDirection.FORWARD:
-        assignment = fwd_scores > 0
+        assignment_data = fwd_scores > 0
     elif direction == AssignmentDirection.REVERSE:
-        assignment = rev_scores > 0
+        assignment_data = rev_scores > 0
     elif direction == AssignmentDirection.INTERSECT:
-        assignment = (fwd_scores > 0) & (rev_scores > 0)
+        assignment_data = (fwd_scores > 0) & (rev_scores > 0)
     elif direction == AssignmentDirection.UNION:
-        assignment = (fwd_scores > 0) | (rev_scores > 0)
+        assignment_data = (fwd_scores > 0) | (rev_scores > 0)
     else:
         raise NotImplementedError()
     del fwd_scores, rev_scores
     if as_matrix:
-        return scores.copy(data=assignment)
-    source_ind, target_ind = np.where(assignment)
+        return scores.copy(data=assignment_data)
+    source_ind, target_ind = np.where(assignment_data)
     assignment = pd.DataFrame(
         data={
             scores.dims[0]: scores.coords[scores.dims[0]].to_numpy()[source_ind],
