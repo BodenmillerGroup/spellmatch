@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, Union
 
 import cv2
 import numpy as np
@@ -16,96 +16,154 @@ from spellmatch.matching.algorithms.spellmatch import SpellmatchException
 from .utils import show_image
 
 
-class AssignmentStrategy(Enum):
-    THRESHOLD = "threshold"
-    LINEAR_SUM = "linear_sum"
-    FORWARD_MAX = "forward_max"
-    REVERSE_MAX = "reverse_max"
+class AssignmentDirection(Enum):
+    FORWARD = "forward"
+    REVERSE = "reverse"
+    INTERSECT = "intersect"
+    UNION = "union"
 
 
-assignment_strategies: dict[str, AssignmentStrategy] = {
-    "threshold": AssignmentStrategy.THRESHOLD,
-    "linear_sum": AssignmentStrategy.LINEAR_SUM,
-    "forward_max": AssignmentStrategy.FORWARD_MAX,
-    "reverse_max": AssignmentStrategy.REVERSE_MAX,
+assignment_directions: dict[str, AssignmentDirection] = {
+    item.value: item for item in AssignmentDirection
 }
 
 
 def assign(
     scores: xr.DataArray,
-    strategy: AssignmentStrategy,
-    normalize_directed: bool = False,
-    directed_margin_thres: Optional[float] = None,
-    score_thres: Optional[float] = None,
-):
-    scores_arr = scores.to_numpy()
-    if normalize_directed:
-        max_scores = np.amax(scores_arr, axis=1)
-        scores_arr[max_scores != 0, :] /= np.sum(
-            scores_arr[max_scores != 0, :], axis=1, keepdims=True
-        )
-    if directed_margin_thres is not None:
-        max2_scores = -np.partition(-scores_arr, 1, axis=1)[:, :2]
-        margins = max2_scores[:, 0] - max2_scores[:, 1]
-        scores_arr[margins <= directed_margin_thres, :] = 0
-    if strategy == AssignmentStrategy.THRESHOLD:
-        if score_thres is None:
-            raise SpellmatchAssignmentException("Unspecified score threshold")
-        source_ind, target_ind = np.nonzero(scores_arr > score_thres)
-    elif strategy == AssignmentStrategy.LINEAR_SUM:
-        source_ind, target_ind = linear_sum_assignment(scores_arr, maximize=True)
-    elif strategy == AssignmentStrategy.FORWARD_MAX:
-        source_ind = np.arange(scores_arr.shape[0])
-        target_ind = np.argmax(scores_arr, axis=1)
-    elif strategy == AssignmentStrategy.REVERSE_MAX:
-        source_ind = np.argmax(scores_arr, axis=0)
-        target_ind = np.arange(scores_arr.shape[1])
-    if score_thres is not None and strategy != AssignmentStrategy.THRESHOLD:
-        thres_mask = scores_arr[source_ind, target_ind] > score_thres
-        source_ind, target_ind = source_ind[thres_mask], target_ind[thres_mask]
+    reverse_scores: Optional[xr.DataArray] = None,
+    normalize: bool = False,
+    min_score: Optional[float] = None,
+    min_score_quantile: Optional[float] = None,
+    margin_thres: Optional[float] = None,
+    margin_thres_quantile: Optional[float] = None,
+    linear_sum: bool = False,
+    max_only: bool = False,
+    direction: AssignmentDirection = AssignmentDirection.FORWARD,
+    as_matrix: bool = False,
+) -> Union[pd.DataFrame, xr.DataArray]:
+    fwd_scores = None
+    if direction != AssignmentDirection.REVERSE:
+        fwd_scores = scores.to_numpy()
+    rev_scores = None
+    if direction != AssignmentDirection.FORWARD:
+        if reverse_scores is not None:
+            if reverse_scores.shape != scores.shape:
+                raise SpellmatchAssignmentException(
+                    "Reverse scores shape does not match (forward) scores shape"
+                )
+            rev_scores = reverse_scores.to_numpy()
+        else:
+            rev_scores = scores.to_numpy()
+    if normalize:
+        if fwd_scores is not None:
+            max_fwd_scores = np.amax(fwd_scores, axis=1)
+            fwd_scores[max_fwd_scores > 0, :] /= np.sum(
+                fwd_scores[max_fwd_scores > 0, :], axis=1, keepdims=True
+            )
+            del max_fwd_scores
+        if rev_scores is not None:
+            max_rev_scores = np.amax(rev_scores, axis=0)
+            rev_scores[:, max_rev_scores > 0] /= np.sum(
+                rev_scores[:, max_rev_scores > 0], axis=0, keepdims=True
+            )
+            del max_rev_scores
+    if min_score is not None:
+        if fwd_scores is not None:
+            fwd_scores[fwd_scores < min_score] = 0
+        if rev_scores is not None:
+            rev_scores[rev_scores < min_score] = 0
+    if min_score_quantile is not None:
+        if fwd_scores is not None:
+            min_fwd_score = np.quantile(fwd_scores[fwd_scores > 0], min_score_quantile)
+            fwd_scores[fwd_scores < min_fwd_score] = 0
+            del min_fwd_score
+        if rev_scores is not None:
+            min_rev_score = np.quantile(rev_scores[rev_scores > 0], min_score_quantile)
+            rev_scores[rev_scores < min_rev_score] = 0
+            del min_rev_score
+    if margin_thres is not None or margin_thres_quantile is not None:
+        if fwd_scores is not None:
+            max2_fwd_scores = -np.partition(-fwd_scores, 1, axis=1)[:, :2]
+            fwd_margins = max2_fwd_scores[:, 0] - max2_fwd_scores[:, 1]
+            del max2_fwd_scores
+        if rev_scores is not None:
+            max2_rev_scores = -np.partition(-rev_scores, 1, axis=0)[:2, :]
+            rev_margins = max2_rev_scores[0, :] - max2_rev_scores[1, :]
+            del max2_rev_scores
+        if margin_thres is not None:
+            if fwd_scores is not None:
+                fwd_scores[fwd_margins <= margin_thres, :] = 0
+            if rev_scores is not None:
+                rev_scores[:, rev_margins <= margin_thres] = 0
+        if margin_thres_quantile is not None:
+            if fwd_scores is not None:
+                fwd_margin_thres = np.quantile(
+                    fwd_margins[fwd_margins > 0], margin_thres_quantile
+                )
+                fwd_scores[fwd_margins <= fwd_margin_thres, :] = 0
+                del fwd_margin_thres
+            if rev_scores is not None:
+                rev_margin_thres = np.quantile(
+                    rev_margins[rev_margins > 0], margin_thres_quantile
+                )
+                rev_scores[:, rev_margins <= rev_margin_thres] = 0
+                del rev_margin_thres
+    if linear_sum:
+        if fwd_scores is not None:
+            row_ind, col_ind = linear_sum_assignment(fwd_scores, maximize=True)
+            new_fwd_scores = np.zeros_like(fwd_scores)
+            new_fwd_scores[row_ind, col_ind] = fwd_scores[row_ind, col_ind]
+            fwd_scores = new_fwd_scores
+            del new_fwd_scores, row_ind, col_ind
+        if rev_scores is not None:
+            row_ind, col_ind = linear_sum_assignment(rev_scores, maximize=True)
+            new_rev_scores = np.zeros_like(rev_scores)
+            new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
+            rev_scores = new_rev_scores
+            del new_rev_scores, row_ind, col_ind
+    if max_only:
+        if fwd_scores is not None:
+            row_ind = np.arange(fwd_scores.shape[0])
+            col_ind = np.argmax(fwd_scores, axis=1)
+            new_fwd_scores = np.zeros_like(fwd_scores)
+            new_fwd_scores[row_ind, col_ind] = fwd_scores[row_ind, col_ind]
+            fwd_scores = new_fwd_scores
+            del new_fwd_scores, row_ind, col_ind
+        if rev_scores is not None:
+            row_ind = np.argmax(rev_scores, axis=0)
+            col_ind = np.arange(fwd_scores.shape[1])
+            new_rev_scores = np.zeros_like(rev_scores)
+            new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
+            rev_scores = new_rev_scores
+            del new_rev_scores, row_ind, col_ind
+    if direction == AssignmentDirection.FORWARD:
+        assignment = fwd_scores > 0
+    elif direction == AssignmentDirection.REVERSE:
+        assignment = rev_scores > 0
+    elif direction == AssignmentDirection.INTERSECT:
+        assignment = (fwd_scores > 0) & (rev_scores > 0)
+    elif direction == AssignmentDirection.UNION:
+        assignment = (fwd_scores > 0) | (rev_scores > 0)
+    else:
+        raise NotImplementedError()
+    del fwd_scores, rev_scores
+    if as_matrix:
+        return scores.copy(data=assignment)
+    source_ind, target_ind = np.where(assignment)
     assignment = pd.DataFrame(
         data={
-            "Source": scores.coords[scores.dims[0]].to_numpy()[source_ind],
-            "Target": scores.coords[scores.dims[1]].to_numpy()[target_ind],
+            scores.dims[0]: scores.coords[scores.dims[0]].to_numpy()[source_ind],
+            scores.dims[1]: scores.coords[scores.dims[1]].to_numpy()[target_ind],
         }
     )
+    del source_ind, target_ind
     return assignment
-
-
-class AssigmentCombinationStrategy(Enum):
-    UNION = "outer"
-    INTERSECT = "inner"
-    FORWARD_ONLY = "left"
-    REVERSE_ONLY = "right"
-
-
-assignment_combination_strategies: dict[str, AssigmentCombinationStrategy] = {
-    "union": AssigmentCombinationStrategy.UNION,
-    "intersect": AssigmentCombinationStrategy.INTERSECT,
-    "forward_only": AssigmentCombinationStrategy.FORWARD_ONLY,
-    "reverse_only": AssigmentCombinationStrategy.REVERSE_ONLY,
-}
-
-
-def combine_assignments(
-    forward_assignment: pd.DataFrame,
-    reverse_assignment: pd.DataFrame,
-    strategy: AssigmentCombinationStrategy,
-) -> pd.DataFrame:
-    return pd.merge(
-        forward_assignment,
-        reverse_assignment,
-        how=strategy.value,
-        on=["Source", "Target"],
-    )
 
 
 def validate_assignment(
     assignment: pd.DataFrame, validation_assignment: pd.DataFrame
 ) -> float:
-    merged_assignment = pd.merge(
-        assignment, validation_assignment, how="inner", on=["Source", "Target"]
-    )
+    merged_assignment = pd.merge(assignment, validation_assignment)
     return len(merged_assignment.index) / len(validation_assignment.index)
 
 

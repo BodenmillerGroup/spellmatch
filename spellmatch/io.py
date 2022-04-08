@@ -113,7 +113,12 @@ def write_scores(scores_file: Union[str, PathLike], scores: xr.DataArray) -> Non
 
 def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
     assignment_file = Path(assignment_file)
-    return pd.read_csv(assignment_file, usecols=["Source", "Target"])
+    assignment = pd.read_csv(assignment_file)
+    if len(assignment.columns) != 2:
+        raise SpellmatchIOException(
+            f"Malformed assignment file: {assignment_file.name}"
+        )
+    return assignment
 
 
 def write_assignment(
@@ -121,8 +126,6 @@ def write_assignment(
 ) -> None:
     assignment_file = Path(assignment_file)
     assert len(assignment.columns) == 2
-    assert assignment.columns[0] == "Source"
-    assert assignment.columns[1] == "Target"
     assignment.to_csv(assignment_file, index=False)
 
 

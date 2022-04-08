@@ -185,11 +185,7 @@ def create_graph(
     )
     adj_data = dists_data <= adj_radius
     np.fill_diagonal(adj_data, False)
-    adj = xr.DataArray(
-        data=adj_data,
-        coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
-        name=name,
-    )
+    adj = dists.copy(data=adj_data)
     return adj, dists
 
 

@@ -19,9 +19,7 @@ from . import hookspecs, io
 from ._spellmatch import SpellmatchException, logger
 from .assignment import (
     assign,
-    assignment_combination_strategies,
-    assignment_strategies,
-    combine_assignments,
+    assignment_directions,
     show_assignment,
     validate_assignment,
 )
@@ -1280,28 +1278,53 @@ def cli_match(
     type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--strategy",
-    "assignment_strategy_name",
-    required=True,
-    type=click.Choice(list(assignment_strategies.keys())),
+    "--reverse-scores",
+    "reverse_scores_path",
+    type=click.Path(exists=True, path_type=Path),
 )
 @click.option(
-    "--normalize-directed/--no-normalize-directed",
-    "normalize_directed",
+    "--normalize/--no-normalize",
+    "normalize",
     default=False,
     show_default=True,
 )
 @click.option(
-    "--directed-margin-thres",
-    "directed_margin_thres",
+    "--min-score",
+    "min_score",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
-    "--score-thres",
-    "score_thres",
-    default=0,
+    "--min-scoreQ",
+    "min_score_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--margin-thres",
+    "margin_thres",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--margin-thresQ",
+    "margin_thres_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+)
+@click.option(
+    "--linear-sum/--no-linear-sum",
+    "linear_sum",
+    default=False,
     show_default=True,
-    type=click.FloatRange(min=0),
+)
+@click.option(
+    "--max-only/--no-max-only",
+    "max_only",
+    default=False,
+    show_default=True,
+)
+@click.option(
+    "--direction",
+    "assignment_direction_name",
+    required=True,
+    type=click.Choice(list(assignment_directions.keys())),
 )
 @click.option(
     "--source-mask",
@@ -1348,10 +1371,15 @@ def cli_match(
 @catch_exception(handle=SpellmatchException)
 def cli_assign(
     scores_path: Path,
-    assignment_strategy_name: str,
-    normalize_directed: bool,
-    directed_margin_thres: Optional[float],
-    score_thres: Optional[float],
+    reverse_scores_path: Optional[Path],
+    normalize: bool,
+    min_score: Optional[float],
+    min_score_quantile: Optional[float],
+    margin_thres: Optional[float],
+    margin_thres_quantile: Optional[float],
+    linear_sum: bool,
+    max_only: bool,
+    assignment_direction_name: str,
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
     source_scale: float,
@@ -1360,27 +1388,36 @@ def cli_assign(
     validation_assignment_path: Optional[Path],
     assignment_path: Path,
 ) -> None:
-    assignment_strategy = assignment_strategies[assignment_strategy_name]
+    assignment_direction = assignment_directions[assignment_direction_name]
     if (
         scores_path.is_file()
+        and (reverse_scores_path is None or reverse_scores_path.is_file())
         and (source_mask_path is None or source_mask_path.is_file())
         and (target_mask_path is None or target_mask_path.is_file())
-        and (not assignment_path.exists() or assignment_path.is_file())
         and (validation_assignment_path is None or validation_assignment_path.is_file())
+        and (not assignment_path.exists() or assignment_path.is_file())
     ):
         scores_files = [scores_path]
+        reverse_scores_files = [reverse_scores_path]
         source_mask_files = [source_mask_path]
         target_mask_files = [target_mask_path]
         validation_assignment_files = [validation_assignment_path]
         assignment_files = [assignment_path]
     elif (
         scores_path.is_dir()
+        and (reverse_scores_path is None or reverse_scores_path.is_dir())
         and (source_mask_path is None or source_mask_path.is_dir())
         and (target_mask_path is None or target_mask_path.is_dir())
-        and (not assignment_path.exists() or assignment_path.is_dir())
         and (validation_assignment_path is None or validation_assignment_path.is_dir())
+        and (not assignment_path.exists() or assignment_path.is_dir())
     ):
         scores_files = glob_sorted(scores_path, "*.nc")
+        if reverse_scores_path is not None:
+            reverse_scores_files = glob_sorted(
+                reverse_scores_path, "*.nc", expect=len(scores_files)
+            )
+        else:
+            reverse_scores_files = [None] * len(scores_files)
         if source_mask_path is not None:
             source_mask_files = glob_sorted(
                 source_mask_path, "*.tiff", expect=len(scores_files)
@@ -1408,6 +1445,7 @@ def cli_assign(
         )
     for i, (
         scores_file,
+        reverse_scores_file,
         source_mask_file,
         target_mask_file,
         validation_assignment_file,
@@ -1415,6 +1453,7 @@ def cli_assign(
     ) in enumerate(
         zip(
             scores_files,
+            reverse_scores_files,
             source_mask_files,
             target_mask_files,
             validation_assignment_files,
@@ -1425,6 +1464,15 @@ def cli_assign(
             logger.info(f"SCORES {i + 1}/{len(scores_files)}")
         scores = io.read_scores(scores_file)
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
+        if reverse_scores_file is not None:
+            reverse_scores = io.read_scores(reverse_scores_file)
+            logger.info(
+                f"Reverse scores: {reverse_scores_file.name} "
+                f"({describe_scores(reverse_scores)})"
+            )
+        else:
+            reverse_scores = None
+            logger.info("Reverse scores: None")
         if source_mask_file is not None:
             source_mask = io.read_mask(source_mask_file, scale=source_scale)
             logger.info(
@@ -1447,204 +1495,15 @@ def cli_assign(
             validation_assignment = None
         assignment = assign(
             scores,
-            assignment_strategy,
-            normalize_directed=normalize_directed,
-            directed_margin_thres=directed_margin_thres,
-            score_thres=score_thres,
-        )
-        if show is not None and source_mask is not None and target_mask is not None:
-            show_assignment(source_mask, target_mask, assignment, n=show)
-        io.write_assignment(assignment_file, assignment)
-        logger.info(
-            f"Assignment: {assignment_file.name} ({describe_assignment(assignment)})"
-        )
-        if validation_assignment is not None:
-            recovered = validate_assignment(assignment, validation_assignment)
-            logger.info(
-                f"Validation: {validation_assignment_file.name} "
-                f"({describe_assignment(validation_assignment, recovered=recovered)})"
-            )
-
-
-@cli.command(name="combine")
-@click.argument(
-    "forward_assignment_path",
-    metavar="FORWARD_ASSIGNMENT(S)",
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.argument(
-    "reverse_assignment_path",
-    metavar="REVERSE_ASSIGNMENT(S)",
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.option(
-    "--strategy",
-    "assignment_combination_strategy_name",
-    required=True,
-    type=click.Choice(list(assignment_combination_strategies.keys())),
-)
-@click.option(
-    "--source-mask",
-    "--source-masks",
-    "source_mask_path",
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.option(
-    "--target-mask",
-    "--target-masks",
-    "target_mask_path",
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.option(
-    "--source-scale",
-    "source_scale",
-    default=1,
-    show_default=True,
-    type=click.FloatRange(min=0, min_open=True),
-)
-@click.option(
-    "--target-scale",
-    "target_scale",
-    default=1,
-    show_default=True,
-    type=click.FloatRange(min=0, min_open=True),
-)
-@click.option(
-    "--show",
-    "show",
-    type=click.IntRange(min=0, min_open=True),
-)
-@click.option(
-    "--validate",
-    "validation_assignment_path",
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.argument(
-    "assignment_path",
-    metavar="ASSIGNMENT(S)",
-    type=click.Path(path_type=Path),
-)
-@click_log.simple_verbosity_option(logger=logger)
-@catch_exception(handle=SpellmatchException)
-def cli_combine(
-    forward_assignment_path: Path,
-    reverse_assignment_path: Path,
-    assignment_combination_strategy_name: str,
-    source_mask_path: Optional[Path],
-    target_mask_path: Optional[Path],
-    source_scale: float,
-    target_scale: float,
-    show: Optional[int],
-    validation_assignment_path: Optional[Path],
-    assignment_path: Path,
-) -> None:
-    assignment_combination_strategy = assignment_combination_strategies[
-        assignment_combination_strategy_name
-    ]
-    if (
-        forward_assignment_path.is_file()
-        and reverse_assignment_path.is_file()
-        and (source_mask_path is None or source_mask_path.is_file())
-        and (target_mask_path is None or target_mask_path.is_file())
-        and (not assignment_path.exists() or assignment_path.is_file())
-        and (validation_assignment_path is None or validation_assignment_path.is_file())
-    ):
-        forward_assignment_files = [forward_assignment_path]
-        reverse_assignment_files = [reverse_assignment_path]
-        source_mask_files = [source_mask_path]
-        target_mask_files = [target_mask_path]
-        validation_assignment_files = [validation_assignment_path]
-        assignment_files = [assignment_path]
-
-    elif (
-        forward_assignment_path.is_dir()
-        and reverse_assignment_path.is_dir()
-        and (source_mask_path is None or source_mask_path.is_dir())
-        and (target_mask_path is None or target_mask_path.is_dir())
-        and (not assignment_path.exists() or assignment_path.is_dir())
-        and (validation_assignment_path is None or validation_assignment_path.is_dir())
-    ):
-        forward_assignment_files = glob_sorted(forward_assignment_path, "*.csv")
-        reverse_assignment_files = glob_sorted(
-            reverse_assignment_path, "*.csv", expect=len(forward_assignment_files)
-        )
-        if source_mask_path is not None:
-            source_mask_files = glob_sorted(
-                source_mask_path, "*.tiff", expect=len(forward_assignment_files)
-            )
-        else:
-            source_mask_files = [None] * len(forward_assignment_files)
-        if target_mask_path is not None:
-            target_mask_files = glob_sorted(
-                target_mask_path, "*.tiff", expect=len(forward_assignment_files)
-            )
-        else:
-            target_mask_files = [None] * len(forward_assignment_files)
-        validation_assignment_files = glob_sorted(
-            validation_assignment_path, "*.csv", expect=len(forward_assignment_files)
-        )
-        assignment_path.mkdir(exist_ok=True)
-        assignment_files = [
-            assignment_path / forward_assignment_file.name
-            for forward_assignment_file in forward_assignment_files
-        ]
-
-    else:
-        raise click.UsageError(
-            "Either specify individual files, or directories, but not both"
-        )
-    for i, (
-        forward_assignment_file,
-        reverse_assignment_file,
-        source_mask_file,
-        target_mask_file,
-        validation_assignment_file,
-        assignment_file,
-    ) in enumerate(
-        zip(
-            forward_assignment_files,
-            reverse_assignment_files,
-            source_mask_files,
-            target_mask_files,
-            validation_assignment_files,
-            assignment_files,
-        )
-    ):
-        if len(forward_assignment_files) > 1:
-            n = len(forward_assignment_files)
-            logger.info(f"ASSIGNMENT PAIR {i + 1}/{n}")
-        forward_assignment = io.read_assignment(forward_assignment_file)
-        logger.info(
-            f"Forward assignment: {forward_assignment_file.name} "
-            f"({describe_assignment(forward_assignment)})"
-        )
-        reverse_assignment = io.read_assignment(reverse_assignment_file)
-        logger.info(
-            f"Reverse assignment: {reverse_assignment_file.name} "
-            f"({describe_assignment(reverse_assignment)})"
-        )
-        if source_mask_file is not None:
-            source_mask = io.read_mask(source_mask_file, scale=source_scale)
-            logger.info(
-                f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
-            )
-        else:
-            source_mask = None
-            logger.info("Source mask: None")
-        if target_mask_file is not None:
-            target_mask = io.read_mask(target_mask_file, scale=target_scale)
-            logger.info(
-                f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
-            )
-        else:
-            target_mask = None
-            logger.info("Target mask: None")
-        if validation_assignment_file is not None:
-            validation_assignment = io.read_assignment(validation_assignment_file)
-        else:
-            validation_assignment = None
-        assignment = combine_assignments(
-            forward_assignment, reverse_assignment, assignment_combination_strategy
+            reverse_scores=reverse_scores,
+            normalize=normalize,
+            min_score=min_score,
+            min_score_quantile=min_score_quantile,
+            margin_thres=margin_thres,
+            margin_thres_quantile=margin_thres_quantile,
+            linear_sum=linear_sum,
+            max_only=max_only,
+            direction=assignment_direction,
         )
         if show is not None and source_mask is not None and target_mask is not None:
             show_assignment(source_mask, target_mask, assignment, n=show)
