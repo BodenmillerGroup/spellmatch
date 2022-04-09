@@ -506,16 +506,14 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 break
             current_transform = updated_transform
         if not converged:
+            message = (
+                f"Iterative algorithm did not converge after {self.max_iter} iterations"
+                f" (updated_transform={describe_transform(updated_transform)})"
+            )
             if self.require_convergence:
-                raise SpellmatchMatchingAlgorithmException(
-                    f"Iterative algorithm did not converge after {self.max_iter} "
-                    f"iterations (updated_transform={updated_transform})"
-                )
+                raise SpellmatchMatchingAlgorithmException(message)
             else:
-                logger.warning(
-                    f"Iterative algorithm did not converge after {self.max_iter} "
-                    f"iterations (updated_transform={updated_transform})"
-                )
+                logger.warning(message)
         return current_scores
 
     def _pre_iter(

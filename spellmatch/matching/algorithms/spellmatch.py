@@ -67,8 +67,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         distance_cdiff_thres: float = 5,
         cca_max_iter: int = 500,
         cca_tol: float = 1e-6,
-        opt_max_iter: int = 100,
-        opt_tol: float = 1e-6,
+        opt_max_iter: int = 200,
+        opt_tol: float = 1e-9,
         require_opt_convergence: bool = False,
         precision=np.float32,
     ) -> None:
@@ -390,16 +390,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 opt_converged = True
                 break
         if not opt_converged:
+            message = (
+                f"Optimization did not converge after {self.opt_max_iter} iterations "
+                f"(last loss: {opt_loss})"
+            )
             if self.require_opt_convergence:
-                raise SpellmatchException(
-                    f"Optimization did not converge after {self.opt_max_iter} "
-                    f"iterations (last loss: {opt_loss})"
-                )
+                raise SpellmatchException(message)
             else:
-                logger.warning(
-                    f"Optimization did not converge after {self.opt_max_iter} "
-                    f"iterations (last loss: {opt_loss})"
-                )
+                logger.warning(message)
         logger.info(f"Done after {opt_iteration + 1} iterations")
         return s[:, 0].reshape((n1, n2))
 
