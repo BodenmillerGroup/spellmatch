@@ -66,8 +66,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         distance_cdiff_thres: float = 5,
         cca_max_iter: int = 500,
         cca_tol: float = 1e-6,
-        opt_max_iter: int = 200,
-        opt_tol: float = 1e-9,
+        opt_max_iter: int = 100,
+        opt_tol: float = 1e-6,
         precision=np.float32,
     ) -> None:
         super(Spellmatch, self).__init__(
