@@ -21,7 +21,10 @@ import xarray as xr
 from simutome import Simutome
 from sklearn.model_selection import ParameterGrid
 
-from ..matching.algorithms import PointsMatchingAlgorithm
+from ..matching.algorithms import (
+    PointsMatchingAlgorithm,
+    SpellmatchMatchingAlgorithmException,
+)
 
 AssignmentFunction = Callable[[xr.DataArray], xr.DataArray]
 MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
@@ -87,7 +90,9 @@ class Benchmark:
 
     def __iter__(
         self,
-    ) -> Iterator[Tuple[dict[str, Any], xr.DataArray, list[dict[str, Any]]]]:
+    ) -> Iterator[
+        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]]
+    ]:
         for source_points_file, source_intensities_file, source_clusters_file in zip(
             self.source_points_files,
             self.source_intensities_files,
@@ -113,12 +118,12 @@ class Benchmark:
                     "source_intensities_file": (
                         Path(source_intensities_file).name
                         if source_intensities_file is not None
-                        else np.nan
+                        else None
                     ),
                     "source_clusters_file": (
                         Path(source_clusters_file).name
                         if source_clusters_file is not None
-                        else np.nan
+                        else None
                     ),
                     **info,
                 }
@@ -130,7 +135,9 @@ class Benchmark:
         source_intensities: Optional[pd.DataFrame] = None,
         source_clusters: Optional[pd.Series] = None,
     ) -> Generator[
-        Tuple[dict[str, Any], xr.DataArray, list[dict[str, Any]]], None, None
+        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
+        None,
+        None,
     ]:
         for simutome_params in self.simutome_param_grid:
             flat_simutome_params = {
@@ -205,7 +212,9 @@ class Benchmark:
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
     ) -> Generator[
-        Tuple[dict[str, Any], xr.DataArray, list[dict[str, Any]]], None, None
+        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
+        None,
+        None,
     ]:
         for algorithm_name, algorithm_config in self.algorithm_configs.items():
             for algorithm_params in algorithm_config.algorithm_param_grid:
@@ -217,19 +226,26 @@ class Benchmark:
                 algorithm = algorithm_config.algorithm_type(
                     **algorithm_config.algorithm_kwargs, **flat_algorithm_params
                 )
+                scores = None
+                error = None
                 start = timer()
-                scores = algorithm.match_points(
-                    "source",
-                    "simutome",
-                    source_points,
-                    target_points,
-                    source_intensities=source_intensities,
-                    target_intensities=target_intensities,
-                )
+                try:
+                    scores = algorithm.match_points(
+                        "source",
+                        "simutome",
+                        source_points,
+                        target_points,
+                        source_intensities=source_intensities,
+                        target_intensities=target_intensities,
+                    )
+                except SpellmatchMatchingAlgorithmException as e:
+                    error = str(e)
                 end = timer()
-                results = self._evaluate_scores(
-                    scores, assignment_true, algorithm_config.assignment_functions
-                )
+                results = None
+                if scores is not None:
+                    results = self._evaluate_scores(
+                        scores, assignment_true, algorithm_config.assignment_functions
+                    )
                 info = {
                     "algorithm_name": algorithm_name,
                     **{
@@ -237,6 +253,8 @@ class Benchmark:
                         for k, v in flat_algorithm_params.items()
                     },
                     "seconds": end - start,
+                    "success": scores is not None,
+                    "error": error,
                 }
                 yield info, scores, results
 

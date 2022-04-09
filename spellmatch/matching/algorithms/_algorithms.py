@@ -446,6 +446,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         max_iter: int,
         scores_tol: Optional[float],
         transform_tol: Optional[float],
+        require_convergence: bool,
     ) -> None:
         if isinstance(transform_type, str):
             transform_type = self.TRANSFORM_TYPES[transform_type]
@@ -463,6 +464,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         self.max_iter = max_iter
         self.scores_tol = scores_tol
         self.transform_tol = transform_tol
+        self.require_convergence = require_convergence
         self._last_scores: Optional[xr.DataArray] = None
 
     def match_points(
@@ -504,10 +506,16 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 break
             current_transform = updated_transform
         if not converged:
-            logger.warning(
-                f"Iterative algorithm did not converge after {self.max_iter} "
-                f"iterations (updated_transform={updated_transform})"
-            )
+            if self.require_convergence:
+                raise SpellmatchMatchingAlgorithmException(
+                    f"Iterative algorithm did not converge after {self.max_iter} "
+                    f"iterations (updated_transform={updated_transform})"
+                )
+            else:
+                logger.warning(
+                    f"Iterative algorithm did not converge after {self.max_iter} "
+                    f"iterations (updated_transform={updated_transform})"
+                )
         return current_scores
 
     def _pre_iter(
@@ -644,6 +652,7 @@ class IterativeGraphMatchingAlgorithm(
         max_iter: int,
         scores_tol: Optional[float],
         transform_tol: Optional[float],
+        require_convergence: bool,
         filter_outliers: bool,
         adj_radius: float,
     ) -> None:
@@ -658,6 +667,7 @@ class IterativeGraphMatchingAlgorithm(
             max_iter=max_iter,
             scores_tol=scores_tol,
             transform_tol=transform_tol,
+            require_convergence=require_convergence,
         )
         self._init_graph_matching(adj_radius=adj_radius)
 

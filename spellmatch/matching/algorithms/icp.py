@@ -39,6 +39,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         max_iter: int = 200,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
+        require_convergence: bool = False,
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
     ) -> None:
@@ -53,6 +54,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             max_iter=max_iter,
             scores_tol=scores_tol,
             transform_tol=transform_tol,
+            require_convergence=require_convergence,
         )
         self.max_dist = max_dist
         self.min_change = min_change

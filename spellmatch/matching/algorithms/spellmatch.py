@@ -48,6 +48,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         max_iter: int = 10,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
+        require_convergence: bool = False,
         filter_outliers: bool = True,
         adj_radius: float = 15,
         alpha: float = 0.8,
@@ -68,6 +69,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         cca_tol: float = 1e-6,
         opt_max_iter: int = 100,
         opt_tol: float = 1e-6,
+        require_opt_convergence: bool = False,
         precision=np.float32,
     ) -> None:
         super(Spellmatch, self).__init__(
@@ -80,6 +82,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             max_iter=max_iter,
             scores_tol=scores_tol,
             transform_tol=transform_tol,
+            require_convergence=require_convergence,
             filter_outliers=filter_outliers,
             adj_radius=adj_radius,
         )
@@ -101,6 +104,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.cca_tol = cca_tol
         self.opt_max_iter = opt_max_iter
         self.opt_tol = opt_tol
+        self.require_opt_convergence = require_opt_convergence
         self.precision = precision
         self._current_source_points: Optional[pd.DataFrame] = None
         self._current_target_points: Optional[pd.DataFrame] = None
@@ -386,10 +390,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 opt_converged = True
                 break
         if not opt_converged:
-            logger.warning(
-                f"Optimization did not converge after {self.opt_max_iter} iterations "
-                f"(last loss: {opt_loss})"
-            )
+            if self.require_opt_convergence:
+                raise SpellmatchException(
+                    f"Optimization did not converge after {self.opt_max_iter} "
+                    f"iterations (last loss: {opt_loss})"
+                )
+            else:
+                logger.warning(
+                    f"Optimization did not converge after {self.opt_max_iter} "
+                    f"iterations (last loss: {opt_loss})"
+                )
         logger.info(f"Done after {opt_iteration + 1} iterations")
         return s[:, 0].reshape((n1, n2))
 
