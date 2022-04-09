@@ -1,3 +1,3 @@
-from ._benchmark import run_benchmark
+from ._benchmark import AlgorithmConfig, Benchmark
 
-__all__ = ["run_benchmark"]
+__all__ = ["AlgorithmConfig", "Benchmark"]
