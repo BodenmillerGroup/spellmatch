@@ -25,7 +25,6 @@ def run_benchmark(
     source_clusters_files: Optional[Sequence[Union[str, PathLike]]],
     simutome_kwargs: Optional[dict[str, Any]],
     simutome_param_grid: Optional[ParameterGrid],
-    section_thicknesses: Sequence[float],
     num_sections: int,
     algorithm_dict: dict[str, AlgorithmConfig],
     metric_dict: dict[str, Callable[[np.ndarray, np.ndarray, np.ndarray], float]],
@@ -50,7 +49,6 @@ def run_benchmark(
             source_clusters,
             simutome_kwargs,
             simutome_param_grid,
-            section_thicknesses,
             num_sections,
             algorithm_dict,
             metric_dict,
@@ -79,7 +77,6 @@ def _evaluate_simutome(
     source_clusters: Optional[pd.Series],
     simutome_kwargs: Optional[dict[str, Any]],
     simutome_param_grid: Optional[ParameterGrid],
-    section_thicknesses: Sequence[float],
     num_sections: int,
     algorithm_dict: dict[str, AlgorithmConfig],
     metric_dict: dict[str, Callable[[np.ndarray, np.ndarray, np.ndarray], float]],
@@ -92,66 +89,63 @@ def _evaluate_simutome(
             cur_simutome_kwargs.update(simutome_kwargs)
         cur_simutome_kwargs.update(simutome_params)
         simutome = Simutome(**cur_simutome_kwargs, seed=seed)
-        for section_thickness in section_thicknesses:
-            section_generator = simutome.generate_sections(
-                source_points.to_numpy(),
-                section_thickness,
-                cell_intensities=(
-                    source_intensities.loc[source_points.index, :].to_numpy()
-                    if source_intensities is not None
-                    else None
-                ),
-                cell_clusters=(
-                    source_clusters.loc[source_points.index].to_numpy()
-                    if source_clusters is not None
-                    else None
-                ),
-                n=num_sections,
+        section_generator = simutome.generate_sections(
+            source_points.to_numpy(),
+            cell_intensities=(
+                source_intensities.loc[source_points.index, :].to_numpy()
+                if source_intensities is not None
+                else None
+            ),
+            cell_clusters=(
+                source_clusters.loc[source_points.index].to_numpy()
+                if source_clusters is not None
+                else None
+            ),
+            n=num_sections,
+        )
+        for (
+            section_number,
+            (source_indices, target_points, target_intensities),
+        ) in enumerate(section_generator):
+            target_points = pd.DataFrame(
+                target_points,
+                index=source_points.index[source_indices],
+                columns=source_points.columns,
             )
-            for (
-                section_number,
-                (source_indices, target_points, target_intensities),
-            ) in enumerate(section_generator):
-                target_points = pd.DataFrame(
-                    target_points,
-                    index=source_points.index[source_indices],
-                    columns=source_points.columns,
-                )
-                if target_intensities is not None:
-                    target_intensities = pd.DataFrame(
-                        target_intensities,
-                        index=source_intensities.index[source_indices],
-                        columns=source_intensities.columns,
-                    )
-                assignment_true_data = np.zeros(
-                    (len(source_points.index), len(target_points.index)), dtype=bool
-                )
-                assignment_true_data[
-                    source_indices, np.arange(assignment_true_data.shape[1])
-                ] = True
-                assignment_true = xr.DataArray(
-                    data=assignment_true_data,
-                    coords={
-                        "source": source_points.index.to_numpy(),
-                        "simutome": target_points.index.to_numpy(),
-                    },
-                )
-                for info, scores, results in _evaluate_algorithms(
-                    source_points,
-                    target_points,
-                    source_intensities,
+            if target_intensities is not None:
+                target_intensities = pd.DataFrame(
                     target_intensities,
-                    algorithm_dict,
-                    metric_dict,
-                    assignment_true,
-                ):
-                    info = {
-                        **{f"simutome_{k}": v for k, v in simutome_params.items()},
-                        "section_thickness": section_thickness,
-                        "section_number": section_number,
-                        **info,
-                    }
-                    yield info, scores, results
+                    index=source_intensities.index[source_indices],
+                    columns=source_intensities.columns,
+                )
+            assignment_true_data = np.zeros(
+                (len(source_points.index), len(target_points.index)), dtype=bool
+            )
+            assignment_true_data[
+                source_indices, np.arange(assignment_true_data.shape[1])
+            ] = True
+            assignment_true = xr.DataArray(
+                data=assignment_true_data,
+                coords={
+                    "source": source_points.index.to_numpy(),
+                    "simutome": target_points.index.to_numpy(),
+                },
+            )
+            for info, scores, results in _evaluate_algorithms(
+                source_points,
+                target_points,
+                source_intensities,
+                target_intensities,
+                algorithm_dict,
+                metric_dict,
+                assignment_true,
+            ):
+                info = {
+                    **{f"simutome_{k}": v for k, v in simutome_params.items()},
+                    "section_number": section_number,
+                    **info,
+                }
+                yield info, scores, results
 
 
 def _evaluate_algorithms(
