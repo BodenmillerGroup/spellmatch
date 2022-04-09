@@ -70,7 +70,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         opt_max_iter: int = 200,
         opt_tol: float = 1e-9,
         require_opt_convergence: bool = False,
-        precision=np.float32,
+        precision: str = "float32",
     ) -> None:
         super(Spellmatch, self).__init__(
             point_feature=point_feature,
@@ -105,7 +105,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.opt_max_iter = opt_max_iter
         self.opt_tol = opt_tol
         self.require_opt_convergence = require_opt_convergence
-        self.precision = precision
+        self.precision = np.dtype(precision).type
         self._current_source_points: Optional[pd.DataFrame] = None
         self._current_target_points: Optional[pd.DataFrame] = None
 
@@ -200,9 +200,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             assert distance_cdist.dtype == self.precision
         spatial_cdist = None
         if (
-            (self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None)
-            or self.max_spatial_cdist is not None
-        ):
+            self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None
+        ) or self.max_spatial_cdist is not None:
             if (
                 self._current_source_points is None
                 or self._current_target_points is None
@@ -323,8 +322,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
     ) -> np.ndarray:
         logger.info("Initializing")
         if intensity_cdist_shared is not None and intensity_cdist_all is not None:
-            intensity_cdist = (
-                lmd * intensity_cdist_shared + (1 - lmd) * intensity_cdist_all,
+            intensity_cdist = np.asarray(
+                self.precision(lmd) * intensity_cdist_shared
+                + self.precision(1 - lmd) * intensity_cdist_all,
+                dtype=self.precision,
             )
             assert intensity_cdist.dtype == self.precision
         elif intensity_cdist_shared is not None:
@@ -338,22 +339,33 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         if self.degree_weight > 0:
             assert degree_cdist is not None
             degree_cdist = degree_cdist.ravel()
-            w += self.degree_weight * (adj * degree_cdist[:, np.newaxis])
-            w += self.degree_weight * (adj * degree_cdist[np.newaxis, :])
+            w += adj * (
+                self.precision(self.degree_weight) * degree_cdist[:, np.newaxis]
+            )
+            w += adj * (
+                self.precision(self.degree_weight) * degree_cdist[np.newaxis, :]
+            )
             total_weight += 2 * self.degree_weight
+            assert w.dtype == self.precision
         if self.intensity_weight > 0:
             assert intensity_cdist is not None
             intensity_cdist = intensity_cdist.ravel()
-            w += self.intensity_weight * (adj * intensity_cdist[:, np.newaxis])
-            w += self.intensity_weight * (adj * intensity_cdist[np.newaxis, :])
+            w += adj * (
+                self.precision(self.intensity_weight) * intensity_cdist[:, np.newaxis]
+            )
+            w += adj * (
+                self.precision(self.intensity_weight) * intensity_cdist[np.newaxis, :]
+            )
             total_weight += 2 * self.intensity_weight
+            assert w.dtype == self.precision
         if self.distance_weight > 0:
             assert distance_cdist is not None
-            w += self.distance_weight * (adj * distance_cdist)
+            w += adj * (self.precision(self.distance_weight) * distance_cdist)
             total_weight += self.distance_weight
+            assert w.dtype == self.precision
         if total_weight > 0:
-            w /= total_weight
-        assert w.dtype == self.precision
+            w /= self.precision(total_weight)
+            assert w.dtype == self.precision
         d = np.asarray(deg.flatten(), dtype=self.precision)
         d[d != 0] = d[d != 0] ** (-0.5)
         d = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
@@ -368,7 +380,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             h = np.asarray(h / np.sum(h), dtype=self.precision)[:, np.newaxis]
         else:
             h = np.ones((n1 * n2, 1), dtype=self.precision)
-            h /= n1 * n2  # does not change data type!
+            h /= self.precision(n1 * n2)
         assert h.dtype == self.precision
         if self.max_spatial_cdist is not None:
             assert spatial_cdist is not None
@@ -376,13 +388,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             s = np.asarray(s / np.sum(s), dtype=self.precision)[:, np.newaxis]
         else:
             s = np.ones((n1 * n2, 1), dtype=self.precision)
-            s /= n1 * n2  # does not change data type!
+            s /= self.precision(n1 * n2)
         assert s.dtype == self.precision
         logger.info("Optimizing")
         opt_converged = False
         for opt_iteration in range(self.opt_max_iter):
-            s_new: np.ndarray = self.alpha * (w @ s) + (1.0 - self.alpha) * h
-            opt_loss = np.linalg.norm(s[:, 0] - s_new[:, 0])
+            s_new: np.ndarray = (
+                self.precision(self.alpha) * (w @ s)
+                + self.precision(1.0 - self.alpha) * h
+            )
+            opt_loss = float(np.linalg.norm(s[:, 0] - s_new[:, 0]))
             assert s_new.dtype == self.precision
             s = s_new
             logger.debug(f"Optimizer iteration {opt_iteration:03d}: {opt_loss:.6f}")
