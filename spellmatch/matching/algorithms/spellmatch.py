@@ -45,12 +45,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         transform_type: str = "rigid",
         transform_estim_type: str = "max_score",
         transform_estim_k_best: int = 50,
-        max_iter: int = 50,
+        max_iter: int = 10,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
         filter_outliers: bool = True,
         adj_radius: float = 15,
         alpha: float = 0.8,
+        spatial_cdist_prior_thres: Optional[float] = None,
+        max_spatial_cdist: Optional[float] = None,
         degree_weight: float = 0,
         degree_cdiff_thres: int = 3,
         intensity_weight: float = 0,
@@ -61,12 +63,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensity_all_cca_fit_k_most_certain: int = 100,
         intensity_all_cca_n_components: int = 10,
         distance_weight: float = 0,
-        distance_cdiff_thres: float = 15,
-        spatial_cdist_prior_thres: Optional[float] = None,
-        max_spatial_cdist: Optional[float] = None,
+        distance_cdiff_thres: float = 5,
         cca_max_iter: int = 500,
         cca_tol: float = 1e-6,
-        opt_max_iter: int = 100,
+        opt_max_iter: int = 200,
         opt_tol: float = 1e-9,
         precision=np.float32,
     ) -> None:
@@ -84,6 +84,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             adj_radius=adj_radius,
         )
         self.alpha = alpha
+        self.spatial_cdist_prior_thres = spatial_cdist_prior_thres
+        self.max_spatial_cdist = max_spatial_cdist
         self.degree_weight = degree_weight
         self.degree_cdiff_thres = degree_cdiff_thres
         self.intensity_weight = intensity_weight
@@ -95,8 +97,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.intensity_all_cca_n_components = intensity_all_cca_n_components
         self.distance_weight = distance_weight
         self.distance_cdiff_thres = distance_cdiff_thres
-        self.spatial_cdist_prior_thres = spatial_cdist_prior_thres
-        self.max_spatial_cdist = max_spatial_cdist
         self.cca_max_iter = cca_max_iter
         self.cca_tol = cca_tol
         self.opt_max_iter = opt_max_iter
