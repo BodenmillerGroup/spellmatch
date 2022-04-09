@@ -52,15 +52,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         adj_radius: float = 15,
         alpha: float = 0.8,
         degree_weight: float = 0,
-        intensity_weight: float = 0,
-        distance_weight: float = 0,
         degree_cdiff_thres: int = 3,
+        intensity_weight: float = 0,
         intensity_interp_lmd: Union[int, float] = 11,
         intensity_interp_cca_n_components: int = 10,
-        shared_intensity_pca_n_components: int = 5,
-        full_intensity_cca_fit_k_closest: int = 500,
-        full_intensity_cca_fit_k_most_certain: int = 100,
-        full_intensity_cca_n_components: int = 10,
+        intensity_shared_pca_n_components: int = 5,
+        intensity_all_cca_fit_k_closest: int = 500,
+        intensity_all_cca_fit_k_most_certain: int = 100,
+        intensity_all_cca_n_components: int = 10,
+        distance_weight: float = 0,
         distance_cdiff_thres: float = 15,
         spatial_cdist_prior_thres: Optional[float] = None,
         max_spatial_cdist: Optional[float] = None,
@@ -85,17 +85,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         self.alpha = alpha
         self.degree_weight = degree_weight
-        self.intensity_weight = intensity_weight
-        self.distance_weight = distance_weight
         self.degree_cdiff_thres = degree_cdiff_thres
+        self.intensity_weight = intensity_weight
         self.intensity_interp_lmd = intensity_interp_lmd
         self.intensity_interp_cca_n_components = intensity_interp_cca_n_components
-        self.shared_intensity_pca_n_components = shared_intensity_pca_n_components
-        self.full_intensity_cca_fit_k_closest = full_intensity_cca_fit_k_closest
-        self.full_intensity_cca_fit_k_most_certain = (
-            full_intensity_cca_fit_k_most_certain
-        )
-        self.full_intensity_cca_n_components = full_intensity_cca_n_components
+        self.intensity_shared_pca_n_components = intensity_shared_pca_n_components
+        self.intensity_all_cca_fit_k_closest = intensity_all_cca_fit_k_closest
+        self.intensity_all_cca_fit_k_most_certain = intensity_all_cca_fit_k_most_certain
+        self.intensity_all_cca_n_components = intensity_all_cca_n_components
+        self.distance_weight = distance_weight
         self.distance_cdiff_thres = distance_cdiff_thres
         self.spatial_cdist_prior_thres = spatial_cdist_prior_thres
         self.max_spatial_cdist = max_spatial_cdist
@@ -152,36 +150,36 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             logger.info("Computing degree cross-distance")
             degree_cdist = self._compute_degree_cross_distance(deg1, deg2)
             assert degree_cdist.dtype == self.precision
-        shared_intensity_cdist = None
-        full_intensity_cdist = None
+        intensity_cdist_shared = None
+        intensity_cdist_all = None
         if self.intensity_weight > 0:
             if source_intensities is None or target_intensities is None:
                 raise SpellmatchException(
                     "Intensities are required for computing their cross-distance"
                 )
             if self.intensity_interp_lmd != 0:
-                logger.info("Computing shared intensity cross-distance")
-                shared_intensity_cdist = self._compute_shared_intensity_cross_distance(
+                logger.info("Computing intensity cross-distance (shared markers)")
+                intensity_cdist_shared = self._compute_intensity_cross_distance_shared(
                     source_intensities, target_intensities
                 )
-                assert shared_intensity_cdist.dtype == self.precision
+                assert intensity_cdist_shared.dtype == self.precision
             if self.intensity_interp_lmd != 1:
                 if (
                     self._current_source_points is None
                     or self._current_target_points is None
                 ):
                     raise SpellmatchException(
-                        "Computing full intensity cross-distances requires running "
-                        "the Spellmatch algorithm in point set registration mode"
+                        "Computing intensity cross-distances on all markers requires "
+                        "running Spellmatch in point set registration mode"
                     )
-                logger.info("Computing full intensity cross-distance")
-                full_intensity_cdist = self._compute_full_intensity_cross_distance(
+                logger.info("Computing intensity cross-distance (all markers)")
+                intensity_cdist_all = self._compute_intensity_cross_distance_all(
                     self._current_source_points,
                     self._current_target_points,
                     source_intensities,
                     target_intensities,
                 )
-                assert full_intensity_cdist.dtype == self.precision
+                assert intensity_cdist_all.dtype == self.precision
         distance_cdist = None
         if self.distance_weight > 0:
             if source_dists is None or target_dists is None:
@@ -218,8 +216,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 dtype=self.precision,
             )
         if (
-            shared_intensity_cdist is None
-            or full_intensity_cdist is None
+            intensity_cdist_shared is None
+            or intensity_cdist_all is None
             or 0 <= self.intensity_interp_lmd <= 1
         ):
             scores_data = self._match_graphs_for_lambda(
@@ -228,8 +226,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 adj,
                 deg,
                 degree_cdist,
-                shared_intensity_cdist,
-                full_intensity_cdist,
+                intensity_cdist_shared,
+                intensity_cdist_all,
                 distance_cdist,
                 spatial_cdist,
                 self.intensity_interp_lmd,
@@ -243,18 +241,18 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             if n_components > n_source_features:
                 logger.warning(
                     f"Requested number of intensity components for lambda estimation "
-                    f"({n_components}) is larger than the "
-                    f"number of source intensity features ({n_source_features}), "
-                    f"continuing with {n_source_features} full intensity components"
+                    f"({n_components}) is larger than the number of source intensity "
+                    f"features ({n_source_features}), continuing with "
+                    f"{n_source_features} intensity components"
                 )
                 n_components = n_source_features
             n_target_features = len(target_intensities.columns)
             if n_components > n_target_features:
                 logger.warning(
                     f"Requested number of intensity components for lambda estimation "
-                    f"({n_components}) is larger than the "
-                    f"number of target intensity features ({n_target_features}), "
-                    f"continuing with {n_target_features} full intensity components"
+                    f"({n_components}) is larger than the number of target intensity "
+                    f"features ({n_target_features}), continuing with "
+                    f"{n_target_features} intensity components"
                 )
                 n_components = n_target_features
             for current_lmd in np.linspace(0, 1, self.intensity_interp_lmd):
@@ -265,8 +263,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     adj,
                     deg,
                     degree_cdist,
-                    shared_intensity_cdist,
-                    full_intensity_cdist,
+                    intensity_cdist_shared,
+                    intensity_cdist_all,
                     distance_cdist,
                     spatial_cdist,
                     current_lmd,
@@ -313,22 +311,22 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         adj: sparse.csr_array,
         deg: np.ndarray,
         degree_cdist: Optional[np.ndarray],
-        shared_intensity_cdist: Optional[np.ndarray],
-        full_intensity_cdist: Optional[np.ndarray],
+        intensity_cdist_shared: Optional[np.ndarray],
+        intensity_cdist_all: Optional[np.ndarray],
         distance_cdist: Optional[sparse.csr_array],
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
     ) -> np.ndarray:
         logger.info("Initializing")
-        if shared_intensity_cdist is not None and full_intensity_cdist is not None:
+        if intensity_cdist_shared is not None and intensity_cdist_all is not None:
             intensity_cdist = (
-                lmd * shared_intensity_cdist + (1 - lmd) * full_intensity_cdist,
+                lmd * intensity_cdist_shared + (1 - lmd) * intensity_cdist_all,
             )
             assert intensity_cdist.dtype == self.precision
-        elif shared_intensity_cdist is not None:
-            intensity_cdist = shared_intensity_cdist
-        elif full_intensity_cdist is not None:
-            intensity_cdist = full_intensity_cdist
+        elif intensity_cdist_shared is not None:
+            intensity_cdist = intensity_cdist_shared
+        elif intensity_cdist_all is not None:
+            intensity_cdist = intensity_cdist_all
         else:
             intensity_cdist = None
         w = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
@@ -402,40 +400,40 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         degree_cdist = np.clip(degree_cdiff / self.degree_cdiff_thres, 0, 1) ** 2
         return np.asarray(degree_cdist, dtype=self.precision)
 
-    def _compute_shared_intensity_cross_distance(
+    def _compute_intensity_cross_distance_shared(
         self,
         intensities1: pd.DataFrame,
         intensities2: pd.DataFrame,
     ) -> np.ndarray:
         intensities1 = (intensities1 - intensities1.mean()) / intensities1.std()
         intensities2 = (intensities2 - intensities2.mean()) / intensities2.std()
-        shared_intensities = pd.concat(
+        intensities_shared = pd.concat(
             (intensities1, intensities2), join="inner", ignore_index=True
         )
-        n_components = self.shared_intensity_pca_n_components
-        n_shared_features = len(shared_intensities.columns)
+        n_components = self.intensity_shared_pca_n_components
+        n_shared_features = len(intensities_shared.columns)
         if n_components > n_shared_features:
             logger.warning(
-                "Requested number of shared intensity components "
-                f"({n_components}) is larger than the "
-                f"number of shared intensity features ({n_shared_features}), "
-                f"continuing with {n_shared_features} shared intensity components"
+                "Requested number of intensity components for computing the intensity "
+                f"cross-distance from shared markers ({n_components}) is larger than "
+                f"the number of shared intensity features ({n_shared_features}), "
+                f"continuing with {n_shared_features} intensity components"
             )
             n_components = n_shared_features
         svd = TruncatedSVD(n_components=n_components, algorithm="arpack")
-        svd.fit(shared_intensities)
+        svd.fit(intensities_shared)
         logger.debug(
             f"SVD: explained variance={np.sum(svd.explained_variance_ratio_):.6f} "
             f"{tuple(np.around(r, decimals=6) for r in svd.explained_variance_ratio_)}"
         )
-        svd_intensities1 = svd.transform(intensities1[shared_intensities.columns])
-        svd_intensities2 = svd.transform(intensities2[shared_intensities.columns])
-        shared_intensity_cdist = 0.5 * distance.cdist(
+        svd_intensities1 = svd.transform(intensities1[intensities_shared.columns])
+        svd_intensities2 = svd.transform(intensities2[intensities_shared.columns])
+        intensity_cdist_shared = 0.5 * distance.cdist(
             svd_intensities1, svd_intensities2, metric="correlation"
         )
-        return np.asarray(shared_intensity_cdist, dtype=self.precision)
+        return np.asarray(intensity_cdist_shared, dtype=self.precision)
 
-    def _compute_full_intensity_cross_distance(
+    def _compute_intensity_cross_distance_all(
         self,
         points1: pd.DataFrame,
         points2: pd.DataFrame,
@@ -447,35 +445,35 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         nn2.fit(points2)
         nn2_dists, nn2_ind = nn2.kneighbors(points1)
         closest_ind = np.argpartition(
-            nn2_dists[:, 0], self.full_intensity_cca_fit_k_closest - 1
-        )[: self.full_intensity_cca_fit_k_closest]
+            nn2_dists[:, 0], self.intensity_all_cca_fit_k_closest - 1
+        )[: self.intensity_all_cca_fit_k_closest]
         ind1 = ind1[closest_ind]
         nn2_ind = nn2_ind[closest_ind, :]
         nn2_dists = nn2_dists[closest_ind, :]
         margins = nn2_dists[:, 1] - nn2_dists[:, 0]
         most_certain_ind = np.argpartition(
-            -margins, self.full_intensity_cca_fit_k_most_certain - 1
-        )[: self.full_intensity_cca_fit_k_most_certain]
+            -margins, self.intensity_all_cca_fit_k_most_certain - 1
+        )[: self.intensity_all_cca_fit_k_most_certain]
         ind1 = ind1[most_certain_ind]
         nn2_ind = nn2_ind[most_certain_ind, :]
         nn2_dists = nn2_dists[most_certain_ind, :]
-        n_components = self.full_intensity_cca_n_components
+        n_components = self.intensity_all_cca_n_components
         n_source_features = len(intensities1.columns)
         if n_components > n_source_features:
             logger.warning(
-                f"Requested number of full intensity components "
-                f"({n_components}) is larger than the "
+                "Requested number of intensity components for computing the intensity "
+                f"cross-distance from all markers ({n_components}) is larger than the "
                 f"number of source intensity features ({n_source_features}), "
-                f"continuing with {n_source_features} full intensity components"
+                f"continuing with {n_source_features} intensity components"
             )
             n_components = n_source_features
         n_target_features = len(intensities2.columns)
         if n_components > n_target_features:
             logger.warning(
-                f"Requested number of full intensity components "
-                f"({n_components}) is larger than the "
+                "Requested number of intensity components for computing the intensity "
+                f"cross-distance from all markers ({n_components}) is larger than the "
                 f"number of target intensity features ({n_target_features}), "
-                f"continuing with {n_target_features} full intensity components"
+                f"continuing with {n_target_features} intensity components"
             )
             n_components = n_target_features
         cca = CCA(
@@ -492,10 +490,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         logger.debug(f"CCA: canonical correlations mean={cancor_mean:.6f}")
         cca_intensities1, cca_intensities2 = cca.transform(intensities1, intensities2)
-        full_intensity_cdist = 0.5 * distance.cdist(
+        intensity_cdist_all = 0.5 * distance.cdist(
             cca_intensities1, cca_intensities2, metric="correlation"
         )
-        return np.asarray(full_intensity_cdist, dtype=self.precision)
+        return np.asarray(intensity_cdist_all, dtype=self.precision)
 
     def _compute_distance_cross_distance(
         self,
