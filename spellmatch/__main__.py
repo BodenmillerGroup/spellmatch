@@ -1,7 +1,7 @@
 import logging
+from collections.abc import Mapping
 from functools import partial, wraps
 from pathlib import Path
-from collections.abc import Mapping
 from typing import Any, Optional
 
 import click
@@ -36,7 +36,7 @@ from .registration.intensity_based import (
 )
 from .registration.intensity_based.sitk_metrics import sitk_metric_types
 from .registration.intensity_based.sitk_optimizers import sitk_optimizer_types
-from .registration.region_based import register_mask_regions
+from .registration.interactive import register_interactive
 from .utils import (
     describe_assignment,
     describe_image,
@@ -343,7 +343,7 @@ def cli_register_interactive(
         assignment = None
         if assignment_file.exists():
             assignment = io.read_assignment(assignment_file)
-        result = register_mask_regions(
+        result = register_interactive(
             source_mask,
             target_mask,
             source_img=source_img,
