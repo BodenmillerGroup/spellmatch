@@ -2,4 +2,6 @@ raw/
 source_points/
 source_intensities/
 source_clusters/
-spellmatch_psa/
+spellmatch_benchmark/
+spellmatch_psa_adjacency/
+spellmatch_psa_weighting/
