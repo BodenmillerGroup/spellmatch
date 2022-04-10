@@ -70,13 +70,19 @@ def assign(
             rev_scores[rev_scores < min_score] = 0
     if min_score_quantile is not None:
         if fwd_scores is not None:
-            min_fwd_score = np.quantile(fwd_scores[fwd_scores > 0], min_score_quantile)
-            fwd_scores[fwd_scores < min_fwd_score] = 0
-            del min_fwd_score
+            max_fwd_scores = np.amax(fwd_scores, axis=1)
+            min_max_fwd_score = np.quantile(
+                max_fwd_scores[max_fwd_scores > 0], min_score_quantile
+            )
+            fwd_scores[max_fwd_scores < min_max_fwd_score, :] = 0
+            del min_max_fwd_score
         if rev_scores is not None:
-            min_rev_score = np.quantile(rev_scores[rev_scores > 0], min_score_quantile)
-            rev_scores[rev_scores < min_rev_score] = 0
-            del min_rev_score
+            max_rev_scores = np.amax(rev_scores, axis=0)
+            min_max_rev_score = np.quantile(
+                max_rev_scores[max_rev_scores > 0], min_score_quantile
+            )
+            rev_scores[:, max_rev_scores < min_max_rev_score] = 0
+            del min_max_rev_score
     if margin_thres is not None or margin_thres_quantile is not None:
         if fwd_scores is not None:
             max2_fwd_scores = -np.partition(-fwd_scores, 1, axis=1)[:, :2]
@@ -144,7 +150,8 @@ def assign(
         raise NotImplementedError()
     del fwd_scores, rev_scores
     if as_matrix:
-        return scores.copy(data=assignment_data)
+        assignment_mat = scores.copy(data=assignment_data)
+        return assignment_mat
     source_ind, target_ind = np.where(assignment_data)
     assignment = pd.DataFrame(
         data={

@@ -166,14 +166,14 @@ class Benchmark:
                         index=source_intensities.index[source_indices],
                         columns=source_intensities.columns,
                     )
-                assignment_true_data = np.zeros(
+                assignment_mat_true_data = np.zeros(
                     (len(source_points.index), len(target_points.index)), dtype=bool
                 )
-                assignment_true_data[
-                    source_indices, np.arange(assignment_true_data.shape[1])
+                assignment_mat_true_data[
+                    source_indices, np.arange(assignment_mat_true_data.shape[1])
                 ] = True
-                assignment_true = xr.DataArray(
-                    data=assignment_true_data,
+                assignment_mat_true = xr.DataArray(
+                    data=assignment_mat_true_data,
                     coords={
                         "source": source_points.index.to_numpy(),
                         "simutome": target_points.index.to_numpy(),
@@ -182,7 +182,7 @@ class Benchmark:
                 for info, scores, results in self._evaluate_algorithms(
                     source_points,
                     target_points,
-                    assignment_true,
+                    assignment_mat_true,
                     source_intensities=source_intensities,
                     target_intensities=target_intensities,
                 ):
@@ -197,7 +197,7 @@ class Benchmark:
         self,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        assignment_true: xr.DataArray,
+        assignment_mat_true: xr.DataArray,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
     ) -> Generator[
@@ -233,7 +233,9 @@ class Benchmark:
                 results = None
                 if scores is not None:
                     results = self._evaluate_scores(
-                        scores, assignment_true, algorithm_config.assignment_functions
+                        scores,
+                        assignment_mat_true,
+                        algorithm_config.assignment_functions,
                     )
                 info = {
                     "algorithm_name": algorithm_name,
@@ -250,14 +252,15 @@ class Benchmark:
     def _evaluate_scores(
         self,
         scores: xr.DataArray,
-        assignment_true: xr.DataArray,
+        assignment_mat_true: xr.DataArray,
         assignment_functions: Mapping[str, AssignmentFunction],
     ) -> list[dict[str, Any]]:
         results = []
         scores_arr = scores.to_numpy()
-        assignment_arr_true = assignment_true.loc[scores.coords].to_numpy()
+        assignment_arr_true = assignment_mat_true.loc[scores.coords].to_numpy()
         for assignment_name, assignment_fn in assignment_functions.items():
-            assignment_arr_pred = assignment_fn(scores).loc[scores.coords].to_numpy()
+            assignment_mat_pred = assignment_fn(scores)
+            assignment_arr_pred = assignment_mat_pred.loc[scores.coords].to_numpy()
             for metric_name, metric_fn in self.metric_functions.items():
                 metric_value = metric_fn(
                     scores_arr, assignment_arr_pred, assignment_arr_true

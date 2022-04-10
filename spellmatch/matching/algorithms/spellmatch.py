@@ -349,8 +349,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
     ) -> np.ndarray:
-        logger.info("Initializing")
         if intensity_cdist_shared is not None and intensity_cdist_all is not None:
+            logger.info("Combining intensity cross-distance matrices")
             intensity_cdist = np.asarray(
                 self.precision(lmd) * intensity_cdist_shared
                 + self.precision(1 - lmd) * intensity_cdist_all,
@@ -363,6 +363,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             intensity_cdist = intensity_cdist_all
         else:
             intensity_cdist = None
+        logger.info("Initializing")
         w = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
         total_weight = 0
         if self.degree_weight > 0:
