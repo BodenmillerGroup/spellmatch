@@ -38,9 +38,9 @@ from spellmatch.io import write_scores
 from spellmatch.matching.algorithms.spellmatch import Spellmatch
 
 # %%
-source_points_dir = "source_points"
-source_intensities_dir = "source_intensities"
-source_clusters_dir = "source_clusters"
+source_points_dir = "../data/jackson_fischer_2020/source_points"
+source_intensities_dir = "../data/jackson_fischer_2020/source_intensities"
+source_clusters_dir = "../data/jackson_fischer_2020/source_clusters"
 
 simutome_kwargs = {
     # assume minor mis-alignment
