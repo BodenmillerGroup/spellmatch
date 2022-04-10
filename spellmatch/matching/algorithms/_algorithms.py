@@ -1,7 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable, MutableMapping
 from enum import Enum
-from typing import Callable, Optional, Type, Union
+from timeit import default_timer as timer
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -43,15 +45,22 @@ class _MaskMatchingMixin:
         source_img: Optional[xr.DataArray] = None,
         target_img: Optional[xr.DataArray] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
+        cache: Optional[MutableMapping[str, Any]] = None,
     ) -> xr.DataArray:
         self._pre_match_masks(
-            source_mask, target_mask, source_img, target_img, prior_transform
+            source_mask, target_mask, source_img, target_img, prior_transform, cache
         )
         scores = self._match_masks(
-            source_mask, target_mask, source_img, target_img, prior_transform
+            source_mask, target_mask, source_img, target_img, prior_transform, cache
         )
         scores = self._post_match_masks(
-            source_mask, target_mask, source_img, target_img, prior_transform, scores
+            source_mask,
+            target_mask,
+            source_img,
+            target_img,
+            prior_transform,
+            cache,
+            scores,
         )
         return scores
 
@@ -62,6 +71,7 @@ class _MaskMatchingMixin:
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> None:
         pass
 
@@ -73,6 +83,7 @@ class _MaskMatchingMixin:
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -83,6 +94,7 @@ class _MaskMatchingMixin:
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
+        cache: Optional[MutableMapping[str, Any]],
         scores: xr.DataArray,
     ) -> xr.DataArray:
         return scores
@@ -108,8 +120,6 @@ class _PointsMatchingMixin:
         self.point_feature = point_feature
         self.intensity_feature = intensity_feature
         self.intensity_transform = intensity_transform
-        self._points_have_been_transformed: Optional[bool] = False
-        self._points_have_been_filtered: Optional[bool] = False
 
     def _match_points_from_masks(
         self,
@@ -118,56 +128,66 @@ class _PointsMatchingMixin:
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
-        logger.info("Extracting points from masks")
-        source_regions = regionprops(
-            source_mask.to_numpy(),
-            intensity_image=np.moveaxis(source_img.to_numpy(), 0, -1)
-            if source_img is not None
-            else None,
-        )
-        target_regions = regionprops(
-            target_mask.to_numpy(),
-            intensity_image=np.moveaxis(target_img.to_numpy(), 0, -1)
-            if target_img is not None
-            else None,
-        )
-        source_points = compute_points(
-            source_mask, regions=source_regions, point_feature=self.point_feature
-        )
-        target_points = compute_points(
-            target_mask, regions=target_regions, point_feature=self.point_feature
-        )
-        source_bbox = create_bounding_box(source_mask)
-        target_bbox = create_bounding_box(target_mask)
-        source_intensities = None
-        if source_img is not None:
-            source_intensities = compute_intensities(
-                source_img,
-                source_mask,
-                regions=source_regions,
-                intensity_feature=self.intensity_feature,
-                intensity_transform=self.intensity_transform,
+        c = cache if cache is not None else {}
+        if any(
+            key not in c
+            for key in [
+                "source_points",
+                "target_points",
+                "source_intensities",
+                "target_intensities",
+            ]
+        ):
+            logger.info("Extracting points from masks")
+            source_regions = regionprops(
+                source_mask.to_numpy(),
+                intensity_image=np.moveaxis(source_img.to_numpy(), 0, -1)
+                if source_img is not None
+                else None,
             )
-        target_intensities = None
-        if target_img is not None:
-            target_intensities = compute_intensities(
-                target_img,
-                target_mask,
-                regions=target_regions,
-                intensity_feature=self.intensity_feature,
-                intensity_transform=self.intensity_transform,
+            target_regions = regionprops(
+                target_mask.to_numpy(),
+                intensity_image=np.moveaxis(target_img.to_numpy(), 0, -1)
+                if target_img is not None
+                else None,
             )
+            c["source_points"] = compute_points(
+                source_mask, regions=source_regions, point_feature=self.point_feature
+            )
+            c["target_points"] = compute_points(
+                target_mask, regions=target_regions, point_feature=self.point_feature
+            )
+            c["source_intensities"] = None
+            if source_img is not None:
+                c["source_intensities"] = compute_intensities(
+                    source_img,
+                    source_mask,
+                    regions=source_regions,
+                    intensity_feature=self.intensity_feature,
+                    intensity_transform=self.intensity_transform,
+                )
+            c["target_intensities"] = None
+            if target_img is not None:
+                c["target_intensities"] = compute_intensities(
+                    target_img,
+                    target_mask,
+                    regions=target_regions,
+                    intensity_feature=self.intensity_feature,
+                    intensity_transform=self.intensity_transform,
+                )
         scores = self.match_points(
             source_mask.name or "source",
             target_mask.name or "target",
-            source_points,
-            target_points,
-            source_bbox=source_bbox,
-            target_bbox=target_bbox,
-            source_intensities=source_intensities,
-            target_intensities=target_intensities,
+            c["source_points"],
+            c["target_points"],
+            source_bbox=create_bounding_box(source_mask),
+            target_bbox=create_bounding_box(target_mask),
+            source_intensities=c["source_intensities"],
+            target_intensities=c["target_intensities"],
             prior_transform=prior_transform,
+            cache=cache,
         )
         return scores
 
@@ -182,75 +202,88 @@ class _PointsMatchingMixin:
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
+        cache: Optional[MutableMapping[str, Any]] = None,
     ) -> xr.DataArray:
-        self._points_have_been_transformed = False
-        transformed_source_points = source_points
-        transformed_source_bbox = source_bbox
-        if prior_transform is not None:
-            transformed_source_points = transform_points(source_points, prior_transform)
-            if source_bbox is not None:
-                transformed_source_bbox = transform_bounding_box(
-                    source_bbox, prior_transform
+        c = cache if cache is not None else {}
+        if "transformed_source_points" not in c:
+            c["transformed_source_points"] = source_points
+            if prior_transform is not None:
+                logger.info("Transforming source points")
+                c["transformed_source_points"] = transform_points(
+                    source_points, prior_transform
                 )
-            self._points_have_been_transformed = True
-        self._points_have_been_filtered = False
-        filtered_transformed_source_points = transformed_source_points
-        filtered_target_points = target_points
-        filtered_source_intensities = source_intensities
-        filtered_target_intensities = target_intensities
-        if self.outlier_dist is not None:
-            if target_bbox is not None:
-                filtered_transformed_source_points = filter_outlier_points(
-                    transformed_source_points, target_bbox, self.outlier_dist
+        if any(
+            key not in c
+            for key in [
+                "filtered_transformed_source_points",
+                "filtered_target_points",
+                "filtered_source_intensities",
+                "filtered_target_intensities",
+            ]
+        ):
+            c["filtered_transformed_source_points"] = c["transformed_source_points"]
+            c["filtered_target_points"] = target_points
+            c["filtered_source_intensities"] = source_intensities
+            c["filtered_target_intensities"] = target_intensities
+            if self.outlier_dist is not None:
+                if source_bbox is None or target_bbox is None:
+                    raise SpellmatchMatchingAlgorithmException(
+                        "Outlier filtering requires bounding box information"
+                    )
+                c["filtered_transformed_source_points"] = filter_outlier_points(
+                    c["transformed_source_points"], target_bbox, self.outlier_dist
                 )
                 if source_intensities is not None:
-                    filtered_source_intensities = source_intensities.loc[
-                        filtered_transformed_source_points.index, :
+                    c["filtered_source_intensities"] = source_intensities.loc[
+                        c["filtered_transformed_source_points"].index, :
                     ]
-                self._points_have_been_filtered = True
-            if transformed_source_bbox is not None:
-                filtered_target_points = filter_outlier_points(
+                transformed_source_bbox = source_bbox
+                if source_bbox is not None:
+                    transformed_source_bbox = transform_bounding_box(
+                        source_bbox, prior_transform
+                    )
+                c["filtered_target_points"] = filter_outlier_points(
                     target_points, transformed_source_bbox, self.outlier_dist
                 )
                 if target_intensities is not None:
-                    filtered_target_intensities = target_intensities.loc[
-                        filtered_target_points.index, :
+                    c["filtered_target_intensities"] = target_intensities.loc[
+                        c["filtered_target_points"].index, :
                     ]
-                self._points_have_been_filtered = True
         self._pre_match_points(
             source_name,
             target_name,
-            filtered_transformed_source_points,
-            filtered_target_points,
-            filtered_source_intensities,
-            filtered_target_intensities,
+            c["filtered_transformed_source_points"],
+            c["filtered_target_points"],
+            c["filtered_source_intensities"],
+            c["filtered_target_intensities"],
+            cache,
         )
         filtered_scores = self._match_points(
             source_name,
             target_name,
-            filtered_transformed_source_points,
-            filtered_target_points,
-            filtered_source_intensities,
-            filtered_target_intensities,
+            c["filtered_transformed_source_points"],
+            c["filtered_target_points"],
+            c["filtered_source_intensities"],
+            c["filtered_target_intensities"],
+            cache,
         )
         filtered_scores = self._post_match_points(
             source_name,
             target_name,
-            filtered_transformed_source_points,
-            filtered_target_points,
-            filtered_source_intensities,
-            filtered_target_intensities,
+            c["filtered_transformed_source_points"],
+            c["filtered_target_points"],
+            c["filtered_source_intensities"],
+            c["filtered_target_intensities"],
+            cache,
             filtered_scores,
         )
         scores = filtered_scores
-        if self._points_have_been_filtered:
+        if self.outlier_dist is not None:
             scores = restore_outlier_scores(
                 source_points.index.to_numpy(),
                 target_points.index.to_numpy(),
                 filtered_scores,
             )
-        self._points_have_been_transformed = None
-        self._points_have_been_filtered = None
         return scores
 
     def _pre_match_points(
@@ -261,6 +294,7 @@ class _PointsMatchingMixin:
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> None:
         pass
 
@@ -273,6 +307,7 @@ class _PointsMatchingMixin:
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -284,6 +319,7 @@ class _PointsMatchingMixin:
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
         scores: xr.DataArray,
     ) -> xr.DataArray:
         return scores
@@ -301,21 +337,28 @@ class _GraphMatchingMixin:
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
-        logger.info("Constructing graphs from points")
-        source_adj, source_dists = create_graph(
-            source_name, source_points, self.adj_radius, "a", "b"
-        )
-        target_adj, target_dists = create_graph(
-            target_name, target_points, self.adj_radius, "x", "y"
-        )
+        c = cache if cache is not None else {}
+        if any(
+            key not in c
+            for key in ["source_adj", "target_adj", "source_dists", "target_dists"]
+        ):
+            logger.info("Constructing graphs from points")
+            c["source_adj"], c["source_dists"] = create_graph(
+                source_name, source_points, self.adj_radius, "a", "b"
+            )
+            c["target_adj"], c["target_dists"] = create_graph(
+                target_name, target_points, self.adj_radius, "x", "y"
+            )
         scores = self.match_graphs(
-            source_adj,
-            target_adj,
-            source_dists=source_dists,
-            target_dists=target_dists,
+            c["source_adj"],
+            c["target_adj"],
+            source_dists=c["source_dists"],
+            target_dists=c["target_dists"],
             source_intensities=source_intensities,
             target_intensities=target_intensities,
+            cache=cache,
         )
         return scores
 
@@ -327,6 +370,7 @@ class _GraphMatchingMixin:
         target_dists: Optional[xr.DataArray] = None,
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
+        cache: Optional[MutableMapping[str, Any]] = None,
     ) -> xr.DataArray:
         self._pre_match_graphs(
             source_adj,
@@ -335,6 +379,7 @@ class _GraphMatchingMixin:
             target_dists,
             source_intensities,
             target_intensities,
+            cache,
         )
         scores = self._match_graphs(
             source_adj,
@@ -343,6 +388,7 @@ class _GraphMatchingMixin:
             target_dists,
             source_intensities,
             target_intensities,
+            cache,
         )
         scores = self._post_match_graphs(
             source_adj,
@@ -351,6 +397,7 @@ class _GraphMatchingMixin:
             target_dists,
             source_intensities,
             target_intensities,
+            cache,
             scores,
         )
         return scores
@@ -363,6 +410,7 @@ class _GraphMatchingMixin:
         target_dists: Optional[xr.DataArray],
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> None:
         pass
 
@@ -375,6 +423,7 @@ class _GraphMatchingMixin:
         target_dists: Optional[xr.DataArray],
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         raise NotImplementedError()
 
@@ -386,6 +435,7 @@ class _GraphMatchingMixin:
         target_dists: Optional[xr.DataArray],
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
         scores: xr.DataArray,
     ) -> xr.DataArray:
         return scores
@@ -425,14 +475,20 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         source_img: Optional[xr.DataArray],
         target_img: Optional[xr.DataArray],
         prior_transform: Optional[ProjectiveTransform],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         return self._match_points_from_masks(
-            source_mask, target_mask, source_img, target_img, prior_transform
+            source_mask,
+            target_mask,
+            source_img,
+            target_img,
+            prior_transform,
+            cache,
         )
 
 
 class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
-    TRANSFORM_TYPES: dict[str, Type[ProjectiveTransform]] = {
+    TRANSFORM_TYPES: dict[str, type[ProjectiveTransform]] = {
         "rigid": EuclideanTransform,
         "similarity": SimilarityTransform,
         "affine": AffineTransform,
@@ -449,7 +505,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         point_feature: str,
         intensity_feature: str,
         intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        transform_type: Union[str, Type[ProjectiveTransform]],
+        transform_type: Union[str, type[ProjectiveTransform]],
         transform_estim_type: Union[str, TransformEstimationType],
         transform_estim_k_best: Optional[int],
         max_iter: int,
@@ -486,12 +542,18 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
+        cache: Optional[MutableMapping[str, Any]] = None,
     ) -> xr.DataArray:
+        seconds = 0
         converged = False
         last_scores = None
         current_transform = prior_transform
+        iteration_cache = dict(cache) if cache is not None else {}
+        logger.info(f"Initial transform: {describe_transform(current_transform)}")
         for iteration in range(self.max_iter):
+            start = timer()
             logger.info(f"Iterative algorithm iteration {iteration + 1}")
+            self._prepare_iteration_cache(iteration, iteration_cache)
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
                 source_name,
                 target_name,
@@ -502,26 +564,52 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 source_intensities=source_intensities,
                 target_intensities=target_intensities,
                 prior_transform=current_transform,
+                cache=iteration_cache,
             )
             updated_transform = self._update_transform(
                 source_points, target_points, current_scores
             )
+            if updated_transform is None:
+                logger.warning("Failed to fit updated transform")
+                break
             logger.info(f"Updated transform: {describe_transform(updated_transform)}")
-            converged = self._check_convergence(
+            stop = timer()
+            seconds += stop - start
+            if self._check_convergence(
                 last_scores, current_scores, current_transform, updated_transform
-            )
-            logger.info(f"Converged: {converged}")
-            if updated_transform is None or converged:
+            ):
+                converged = True
+                logger.info(
+                    f"Converged after {iteration + 1} iterations "
+                    f"({seconds:.3f} seconds)"
+                )
                 break
             last_scores = current_scores
             current_transform = updated_transform
         if not converged:
-            message = f"Iterative algorithm did not converge after {self.max_iter} "
+            message = (
+                f"Iterative algorithm did not converge after {self.max_iter} "
+                f"iterations ({seconds:.3f} seconds)"
+            )
             if self.require_convergence:
                 raise SpellmatchMatchingAlgorithmException(message)
             else:
                 logger.warning(message)
         return current_scores
+
+    def _prepare_iteration_cache(
+        self, iteration: int, iteration_cache: dict[str, Any]
+    ) -> None:
+        if iteration > 0:
+            # transform has been updated --> cached point transform/filtering is invalid
+            for key in [
+                "transformed_source_points",
+                "filtered_transformed_source_points",
+                "filtered_target_points",
+                "filtered_source_intensities",
+                "filtered_target_intensities",
+            ]:
+                iteration_cache.pop(key, None)
 
     def _update_transform(
         self,
@@ -581,7 +669,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             scores_loss = np.linalg.norm(current_scores - last_scores)
             if self.scores_tol is not None and scores_loss < self.scores_tol:
                 converged = True
-        logger.info(f"Scores loss: {scores_loss:.6f}")
+        logger.info(f"Scores loss: {scores_loss:.9f}")
         transform_loss = float("inf")
         if current_transform is not None and updated_transform is not None:
             transform_loss = np.linalg.norm(
@@ -589,7 +677,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             )
             if self.transform_tol is not None and transform_loss < self.transform_tol:
                 converged = True
-        logger.info(f"Transform loss: {transform_loss:.6f}")
+        logger.info(f"Transform loss: {transform_loss:.9f}")
         return converged
 
 
@@ -619,6 +707,7 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         return self._match_graphs_from_points(
             source_name,
@@ -627,6 +716,7 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
             target_points,
             source_intensities,
             target_intensities,
+            cache,
         )
 
 
@@ -639,7 +729,7 @@ class IterativeGraphMatchingAlgorithm(
         point_feature: str,
         intensity_feature: str,
         intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        transform_type: Union[str, Type[ProjectiveTransform]],
+        transform_type: Union[str, type[ProjectiveTransform]],
         transform_estim_type: Union[
             str, IterativePointsMatchingAlgorithm.TransformEstimationType
         ],
@@ -666,6 +756,17 @@ class IterativeGraphMatchingAlgorithm(
         )
         self._init_graph_matching(adj_radius=adj_radius)
 
+    def _prepare_iteration_cache(
+        self, iteration: int, iteration_cache: dict[str, Any]
+    ) -> None:
+        super(IterativeGraphMatchingAlgorithm, self)._prepare_iteration_cache(
+            iteration, iteration_cache
+        )
+        if iteration > 0 and self.outlier_dist is not None:
+            # point filtering has been updated --> cached graph is invalid
+            for key in ["source_adj", "target_adj", "source_dists", "target_dists"]:
+                iteration_cache.pop(key, None)
+
     def _match_points(
         self,
         source_name: str,
@@ -674,6 +775,7 @@ class IterativeGraphMatchingAlgorithm(
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         return self._match_graphs_from_points(
             source_name,
@@ -682,6 +784,7 @@ class IterativeGraphMatchingAlgorithm(
             target_points,
             source_intensities,
             target_intensities,
+            cache,
         )
 
 

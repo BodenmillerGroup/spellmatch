@@ -1,5 +1,6 @@
 import logging
-from typing import Callable, Optional, Type, Union
+from collections.abc import Callable, MutableMapping
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
     name: Optional[str],
-) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
-    algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
+) -> Union[Optional[type["MaskMatchingAlgorithm"]], list[str]]:
+    algorithms = {
         "icp": IterativeClosestPoints,
     }
     if name is not None:
@@ -35,7 +36,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         intensity_transform: Union[
             str, Callable[[np.ndarray], np.ndarray], None
         ] = None,
-        transform_type: Union[str, Type[ProjectiveTransform]] = EuclideanTransform,
+        transform_type: Union[str, type[ProjectiveTransform]] = EuclideanTransform,
         max_iter: int = 200,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
@@ -74,6 +75,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
+        cache: Optional[MutableMapping[str, Any]] = None,
     ) -> xr.DataArray:
         self._last_dists_mean = None
         self._last_dists_std = None
@@ -82,11 +84,12 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             target_name,
             source_points,
             target_points,
-            source_bbox,
-            target_bbox,
-            source_intensities,
-            target_intensities,
-            prior_transform,
+            source_bbox=source_bbox,
+            target_bbox=target_bbox,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            prior_transform=prior_transform,
+            cache=cache,
         )
         self._current_dists_mean = None
         self._current_dists_std = None
@@ -100,6 +103,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         nn = NearestNeighbors(n_neighbors=1)
         nn.fit(target_points)
@@ -144,7 +148,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
                 (self._current_dists_std - self._last_dists_std) / self._last_dists_std
             )
         logger.info(
-            f"Distance change: mean={dists_mean_change:.6f}, SD={dists_std_change:.6f}"
+            f"Distance change: mean={dists_mean_change:.9f}, SD={dists_std_change:.9f}"
         )
         if (
             self.min_change is not None

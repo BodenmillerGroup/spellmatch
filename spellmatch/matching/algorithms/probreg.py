@@ -1,6 +1,7 @@
 import logging
 from abc import abstractmethod
-from typing import Callable, Optional, Type, Union
+from collections.abc import Callable, MutableMapping
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -23,8 +24,8 @@ logger = logging.getLogger(__name__)
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
     name: Optional[str],
-) -> Union[Optional[Type["MaskMatchingAlgorithm"]], list[str]]:
-    algorithms: dict[str, Type[MaskMatchingAlgorithm]] = {
+) -> Union[Optional[type["MaskMatchingAlgorithm"]], list[str]]:
+    algorithms = {
         "rigid_cpd": RigidCoherentPointDrift,
         "affine_cpd": AffineCoherentPointDrift,
         "nonrigid_cpd": NonRigidCoherentPointDrift,
@@ -69,6 +70,7 @@ class _Probreg(PointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
+        cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         self._current_iteration = 0
         transform = self._register_points(
