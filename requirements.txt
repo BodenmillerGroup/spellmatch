@@ -1,0 +1,5 @@
+-e .
+jupyter-lab
+jupytext
+matplotlib
+seaborn
