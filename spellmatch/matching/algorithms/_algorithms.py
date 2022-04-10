@@ -108,6 +108,8 @@ class _PointsMatchingMixin:
         self.point_feature = point_feature
         self.intensity_feature = intensity_feature
         self.intensity_transform = intensity_transform
+        self._points_have_been_transformed: Optional[bool] = False
+        self._points_have_been_filtered: Optional[bool] = False
 
     def _match_points_from_masks(
         self,
@@ -181,6 +183,7 @@ class _PointsMatchingMixin:
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
+        self._points_have_been_transformed = False
         transformed_source_points = source_points
         transformed_source_bbox = source_bbox
         if prior_transform is not None:
@@ -189,6 +192,8 @@ class _PointsMatchingMixin:
                 transformed_source_bbox = transform_bounding_box(
                     source_bbox, prior_transform
                 )
+            self._points_have_been_transformed = True
+        self._points_have_been_filtered = False
         filtered_transformed_source_points = transformed_source_points
         filtered_target_points = target_points
         filtered_source_intensities = source_intensities
@@ -202,6 +207,7 @@ class _PointsMatchingMixin:
                     filtered_source_intensities = source_intensities.loc[
                         filtered_transformed_source_points.index, :
                     ]
+                self._points_have_been_filtered = True
             if transformed_source_bbox is not None:
                 filtered_target_points = filter_outlier_points(
                     target_points, transformed_source_bbox, self.outlier_dist
@@ -210,6 +216,7 @@ class _PointsMatchingMixin:
                     filtered_target_intensities = target_intensities.loc[
                         filtered_target_points.index, :
                     ]
+                self._points_have_been_filtered = True
         self._pre_match_points(
             source_name,
             target_name,
@@ -236,12 +243,14 @@ class _PointsMatchingMixin:
             filtered_scores,
         )
         scores = filtered_scores
-        if self.outlier_dist is not None:
+        if self._points_have_been_filtered:
             scores = restore_outlier_scores(
                 source_points.index.to_numpy(),
                 target_points.index.to_numpy(),
                 filtered_scores,
             )
+        self._points_have_been_transformed = None
+        self._points_have_been_filtered = None
         return scores
 
     def _pre_match_points(
@@ -465,7 +474,6 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         self.scores_tol = scores_tol
         self.transform_tol = transform_tol
         self.require_convergence = require_convergence
-        self._last_scores: Optional[xr.DataArray] = None
 
     def match_points(
         self,
@@ -479,12 +487,11 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
     ) -> xr.DataArray:
-        self._last_scores = None
-        current_transform = prior_transform
-        updated_transform = None
         converged = False
+        last_scores = None
+        current_transform = prior_transform
         for iteration in range(self.max_iter):
-            self._pre_iter(iteration, current_transform)
+            logger.info(f"Iterative algorithm iteration {iteration + 1}")
             current_scores = super(IterativePointsMatchingAlgorithm, self).match_points(
                 source_name,
                 target_name,
@@ -499,27 +506,22 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             updated_transform = self._update_transform(
                 source_points, target_points, current_scores
             )
-            converged = self._post_iter(
-                iteration, current_transform, current_scores, updated_transform
+            logger.info(f"Updated transform: {describe_transform(updated_transform)}")
+            converged = self._check_convergence(
+                last_scores, current_scores, current_transform, updated_transform
             )
+            logger.info(f"Converged: {converged}")
             if updated_transform is None or converged:
                 break
+            last_scores = current_scores
             current_transform = updated_transform
         if not converged:
-            message = (
-                f"Iterative algorithm did not converge after {self.max_iter} iterations"
-                f" (updated_transform={describe_transform(updated_transform)})"
-            )
+            message = f"Iterative algorithm did not converge after {self.max_iter} "
             if self.require_convergence:
                 raise SpellmatchMatchingAlgorithmException(message)
             else:
                 logger.warning(message)
         return current_scores
-
-    def _pre_iter(
-        self, iteration: int, current_transform: Optional[ProjectiveTransform]
-    ) -> None:
-        logger.info(f"Iterative algorithm iteration {iteration + 1}")
 
     def _update_transform(
         self,
@@ -566,33 +568,28 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             return updated_transform
         return None
 
-    def _post_iter(
+    def _check_convergence(
         self,
-        iteration: int,
-        current_transform: Optional[ProjectiveTransform],
+        last_scores: Optional[xr.DataArray],
         current_scores: xr.DataArray,
+        current_transform: Optional[ProjectiveTransform],
         updated_transform: Optional[ProjectiveTransform],
-        converged: bool = False,
     ) -> bool:
+        converged = False
         scores_loss = float("inf")
-        if self._last_scores is not None:
-            scores_loss = np.linalg.norm(current_scores - self._last_scores)
-        if self.scores_tol is not None and scores_loss < self.scores_tol:
-            converged = True
+        if last_scores is not None:
+            scores_loss = np.linalg.norm(current_scores - last_scores)
+            if self.scores_tol is not None and scores_loss < self.scores_tol:
+                converged = True
+        logger.info(f"Scores loss: {scores_loss:.6f}")
         transform_loss = float("inf")
         if current_transform is not None and updated_transform is not None:
             transform_loss = np.linalg.norm(
                 updated_transform.params - current_transform.params
             )
-        if self.transform_tol is not None and transform_loss < self.transform_tol:
-            converged = True
-        logger.info(
-            f"scores_loss={scores_loss:.6f}, "
-            f"transform_loss={transform_loss:.6f} "
-            f"({describe_transform(updated_transform)}), "
-            f"converged={converged}"
-        )
-        self._last_scores = current_scores
+            if self.transform_tol is not None and transform_loss < self.transform_tol:
+                converged = True
+        logger.info(f"Transform loss: {transform_loss:.6f}")
         return converged
 
 

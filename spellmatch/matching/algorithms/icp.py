@@ -123,42 +123,35 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         )
         return scores
 
-    def _post_iter(
+    def _check_convergence(
         self,
-        iteration: int,
-        current_transform: Optional[ProjectiveTransform],
+        last_scores: Optional[xr.DataArray],
         current_scores: xr.DataArray,
+        current_transform: Optional[ProjectiveTransform],
         updated_transform: Optional[ProjectiveTransform],
-        converged: bool = False,
     ) -> bool:
+        converged = super(IterativeClosestPoints, self)._check_convergence(
+            last_scores, current_scores, current_transform, updated_transform
+        )
         dists_mean_change = float("inf")
-        if self._last_dists_mean is not None:
+        dists_std_change = float("inf")
+        if self._last_dists_mean is not None and self._last_dists_std is not None:
             dists_mean_change = np.abs(
                 (self._current_dists_mean - self._last_dists_mean)
                 / self._last_dists_mean
             )
-        dists_std_change = float("inf")
-        if self._last_dists_std is not None:
             dists_std_change = np.abs(
                 (self._current_dists_std - self._last_dists_std) / self._last_dists_std
             )
+        logger.info(
+            f"Distance change: mean={dists_mean_change:.6f}, SD={dists_std_change:.6f}"
+        )
         if (
             self.min_change is not None
             and dists_mean_change < self.min_change
             and dists_std_change < self.min_change
         ):
             converged = True
-        logger.info(
-            f"dists_mean_change={dists_mean_change:.6f}, "
-            f"dists_std_change={dists_std_change:.6f}, "
-            f"converged={converged}"
-        )
         self._last_dists_mean = self._current_dists_mean
         self._last_dists_std = self._current_dists_std
-        return super(IterativeClosestPoints, self)._post_iter(
-            iteration,
-            current_transform,
-            current_scores,
-            updated_transform,
-            converged=converged,
-        )
+        return converged
