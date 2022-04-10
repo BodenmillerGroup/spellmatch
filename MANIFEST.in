@@ -1,0 +1,8 @@
+recursive-exclude notebooks *
+recursive-exclude docs *
+recursive-exclude data *
+recursive-exclude .github *
+
+exclude requirements*.txt
+exclude mkdocs.yml
+exclude .gitignore
