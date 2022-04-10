@@ -1,6 +1,5 @@
 from abc import ABC
 from enum import Enum
-from typing import Type
 
 import SimpleITK as sitk
 from pydantic import BaseModel
@@ -71,7 +70,7 @@ class MeanSquaresSITKMetric(SITKMetric):
         r.SetMetricAsMeanSquares()
 
 
-sitk_metric_types: dict[str, Type[SITKMetric]] = {
+sitk_metric_types: dict[str, type[SITKMetric]] = {
     "ants_neighborhood_correlation": ANTSNeighborhoodCorrelationSITKMetric,
     "correlation": CorrelationSITKMetric,
     "demons": DemonsSITKMetric,

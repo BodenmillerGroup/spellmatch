@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from enum import Enum
 from typing import Any, Optional
 
@@ -50,7 +51,7 @@ def register_image_features(
     cv2_feature: cv2.Feature2D,
     cv2_matcher_type: CV2MatcherType = CV2MatcherType.BRUTEFORCE,
     keep_matches_frac: Optional[float] = None,
-    ransac_kwargs: Optional[dict[str, Any]] = None,
+    ransac_kwargs: Optional[Mapping[str, Any]] = None,
     show: bool = False,
 ) -> ProjectiveTransform:
     source_img = source_img.to_numpy()

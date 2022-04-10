@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Type, Union
+from typing import Optional, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -29,7 +29,7 @@ def register_image_intensities(
     target_img: xr.DataArray,
     sitk_metric: SITKMetric,
     sitk_optimizer: SITKOptimizer,
-    sitk_transform_type: Type[SITKProjectiveTransform] = sitk.AffineTransform,
+    sitk_transform_type: type[SITKProjectiveTransform] = sitk.AffineTransform,
     initial_transform: Optional[ProjectiveTransform] = None,
     show: bool = False,
     hold: bool = False,
@@ -115,7 +115,7 @@ def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     optimizer_position = method.GetOptimizerPosition()
     metric_value = method.GetMetricValue()
     logger.info(
-        f"Iteration {optimizer_iteration:03d}: {metric_value:.6f} {optimizer_position}"
+        f"Iteration {optimizer_iteration:03d}: {metric_value:.9f} {optimizer_position}"
     )
 
 

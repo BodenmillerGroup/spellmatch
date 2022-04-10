@@ -1,19 +1,8 @@
+from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 from os import PathLike
 from pathlib import Path
 from timeit import default_timer as timer
-from typing import (
-    Any,
-    Callable,
-    Generator,
-    Iterator,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Type,
-    Union,
-)
+from typing import Any, NamedTuple, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -31,7 +20,7 @@ MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
 
 
 class AlgorithmConfig(NamedTuple):
-    algorithm_type: Type[PointsMatchingAlgorithm]
+    algorithm_type: type[PointsMatchingAlgorithm]
     algorithm_kwargs: Mapping[str, Any] = {}
     algorithm_param_grid: ParameterGrid = ParameterGrid({})
     assignment_functions: Mapping[str, AssignmentFunction] = {}
@@ -91,7 +80,7 @@ class Benchmark:
     def __iter__(
         self,
     ) -> Iterator[
-        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]]
+        tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]]
     ]:
         for source_points_file, source_intensities_file, source_clusters_file in zip(
             self.source_points_files,
@@ -135,7 +124,7 @@ class Benchmark:
         source_intensities: Optional[pd.DataFrame] = None,
         source_clusters: Optional[pd.Series] = None,
     ) -> Generator[
-        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
+        tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
         None,
         None,
     ]:
@@ -212,7 +201,7 @@ class Benchmark:
         source_intensities: Optional[pd.DataFrame] = None,
         target_intensities: Optional[pd.DataFrame] = None,
     ) -> Generator[
-        Tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
+        tuple[dict[str, Any], Optional[xr.DataArray], Optional[list[dict[str, Any]]]],
         None,
         None,
     ]:

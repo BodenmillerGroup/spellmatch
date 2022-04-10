@@ -1,7 +1,8 @@
 import logging
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Optional, Type
+from collections.abc import Mapping
+from typing import Any, Optional
 
 import click
 import click_log
@@ -66,7 +67,7 @@ mask_matching_algorithm_names = [
     for mask_matching_algorithm_name in sublist
 ]
 
-transform_types: dict[str, Type[ProjectiveTransform]] = {
+transform_types: dict[str, type[ProjectiveTransform]] = {
     "rigid": EuclideanTransform,
     "similarity": SimilarityTransform,
     "affine": AffineTransform,
@@ -512,10 +513,10 @@ def cli_register_features(
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     cv2_feature_type_name: str,
-    cv2_feature_kwargs: dict[str, Any],
+    cv2_feature_kwargs: Mapping[str, Any],
     cv2_matcher_type_name: str,
     keep_matches_frac: float,
-    ransac_kwargs: dict[str, Any],
+    ransac_kwargs: Mapping[str, Any],
     show: bool,
     transform_path: Path,
 ) -> None:
@@ -812,9 +813,9 @@ def cli_register_intensities(
     source_gaussian_filter_sigma: Optional[float],
     target_gaussian_filter_sigma: Optional[float],
     sitk_metric_type_name: str,
-    sitk_metric_kwargs: dict[str, Any],
+    sitk_metric_kwargs: Mapping[str, Any],
     sitk_optimizer_type_name: str,
-    sitk_optimizer_kwargs: dict[str, Any],
+    sitk_optimizer_kwargs: Mapping[str, Any],
     sitk_transform_type_name: str,
     initial_transform_path: Optional[Path],
     show: bool,
@@ -1088,7 +1089,7 @@ def cli_match(
     source_mask_path: Path,
     target_mask_path: Path,
     mask_matching_algorithm_name: str,
-    mask_matching_algorithm_kwargs: dict[str, Any],
+    mask_matching_algorithm_kwargs: Mapping[str, Any],
     source_img_path: Optional[Path],
     target_img_path: Optional[Path],
     source_panel_file: Path,
@@ -1106,7 +1107,7 @@ def cli_match(
     scores_path: Path,
 ) -> None:
     mask_matching_algorithm_types: list[
-        Type[MaskMatchingAlgorithm]
+        type[MaskMatchingAlgorithm]
     ] = pm.hook.spellmatch_get_mask_matching_algorithm(
         name=mask_matching_algorithm_name
     )

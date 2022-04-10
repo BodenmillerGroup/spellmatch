@@ -1,6 +1,7 @@
 import builtins
 import importlib
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -176,7 +177,7 @@ def restore_outlier_scores(
 
 def create_graph(
     name: str, points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
-) -> Tuple[xr.DataArray, xr.DataArray]:
+) -> tuple[xr.DataArray, xr.DataArray]:
     dists_data = distance.squareform(distance.pdist(points.to_numpy()))
     dists = xr.DataArray(
         data=dists_data,
@@ -191,7 +192,7 @@ def create_graph(
 
 def show_image(
     img: Optional[np.ndarray], window_title: Optional[str] = None
-) -> Tuple["pg.ImageView", "QEventLoop"]:
+) -> tuple["pg.ImageView", "QEventLoop"]:
     import pyqtgraph as pg
     from qtpy.QtCore import QEventLoop, Qt
 

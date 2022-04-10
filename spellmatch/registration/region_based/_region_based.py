@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Type, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -18,9 +18,9 @@ def register_mask_regions(
     target_mask: xr.DataArray,
     source_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
     target_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
-    transform_type: Type[ProjectiveTransform] = AffineTransform,
+    transform_type: type[ProjectiveTransform] = AffineTransform,
     assignment: Optional[pd.DataFrame] = None,
-) -> Optional[Tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
+) -> Optional[tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
     if source_img is not None and source_img.shape[-2:] != source_mask.shape:
         raise SpellmatchRegionBasedRegistrationException(
             f"Source image has shape {source_img.shape}, "
@@ -94,7 +94,7 @@ def register_mask_regions(
 
 def _create_viewer(
     title: str, mask: xr.DataArray, img: Optional[xr.DataArray] = None
-) -> Tuple[Viewer, Labels, Optional[list[Image]]]:
+) -> tuple[Viewer, Labels, Optional[list[Image]]]:
     if img is not None and img.name is not None:
         title += f": {img.name}"
     viewer = Viewer(title=title, axis_labels=("y", "x"), show=False)

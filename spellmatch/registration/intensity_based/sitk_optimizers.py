@@ -1,6 +1,7 @@
 from abc import ABC
+from collections.abc import Sequence
 from enum import Enum
-from typing import Optional, Sequence, Type, Union
+from typing import Optional, Union
 
 import SimpleITK as sitk
 from pydantic import BaseModel
@@ -263,7 +264,7 @@ class RegularStepGradientDescentSITKOptimizer(SITKOptimizer):
         )
 
 
-sitk_optimizer_types: dict[str, Type[SITKOptimizer]] = {
+sitk_optimizer_types: dict[str, type[SITKOptimizer]] = {
     "amoeba": AmoebaSITKOptimizer,
     "conjugate_gradient_line_search": ConjugateGradientLineSearchSITKOptimizer,
     "exhaustive": ExhaustiveSITKOptimizer,

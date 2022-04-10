@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Type
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -24,8 +24,8 @@ class QInteractiveRegistrationDialog(QDialog):
         self,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        transform_type: Type[ProjectiveTransform] = AffineTransform,
-        label_pairs_columns: Tuple[str, str] = ("Source", "Target"),
+        transform_type: type[ProjectiveTransform] = AffineTransform,
+        label_pairs_columns: tuple[str, str] = ("Source", "Target"),
         parent: Optional[QWidget] = None,
     ) -> None:
         super(QInteractiveRegistrationDialog, self).__init__(parent=parent)
