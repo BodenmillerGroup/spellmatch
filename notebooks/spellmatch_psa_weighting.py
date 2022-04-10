@@ -23,6 +23,7 @@
 #     - Varying similarity/prior weights
 
 # %%
+import logging
 from functools import partial
 from pathlib import Path
 
@@ -31,6 +32,7 @@ import pandas as pd
 from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
+from spellmatch import logger
 from spellmatch.assignment import assign
 from spellmatch.benchmark import AlgorithmConfig, Benchmark
 from spellmatch.benchmark.metrics import default_metrics
@@ -174,18 +176,23 @@ benchmark_dir = Path("spellmatch_psa_weighting")
 scores_dir = benchmark_dir / "scores"
 scores_dir.mkdir(exist_ok=True, parents=True)
 
+logger.setLevel(logging.INFO)
+logger_handler = logging.FileHandler(benchmark_dir / "spellmatch.log", mode="w")
+logger_handler.setFormatter(logging.Formatter(fmt="%(asctime)s %(levelname)s %(name)s - %(message)s"))
+logger.addHandler(logger_handler)
+
 infos = []
 all_results = []
+save_interval = 10
 for i, (info, scores, results) in enumerate(tqdm(benchmark)):
     infos.append(info)
     if scores is not None:
-        scores_file_name = f"scores{i:06d}.nc"
-        write_scores(scores_dir / scores_file_name, scores)
+        info["scores_file"] = f"scores{i:06d}.nc"
+        write_scores(scores_dir / info["scores_file"], scores)
     if results is not None:
-        for i, result in enumerate(results):
-            results[i] = {**info, **results}
+        for j, result in enumerate(results):
+            results[j] = {**info, **result}
         all_results += results
-infos = pd.DataFrame(data=infos)
-infos.to_csv(benchmark_dir / "infos.csv", index=False)
-all_results = pd.DataFrame(data=all_results)
-all_results.to_csv(benchmark_dir / "results.csv", index=False)
+    if (i + 1) % save_interval == 0 or (i + 1) >= len(benchmark):
+        pd.DataFrame(data=infos).to_csv(benchmark_dir / "infos.csv", index=False)
+        pd.DataFrame(data=all_results).to_csv(benchmark_dir / "results.csv", index=False)
