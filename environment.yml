@@ -1,0 +1,15 @@
+name: spellmatch
+channels:
+  - SimpleITK
+  - conda-forge
+  - defaults
+dependencies:
+  - jupyterlab
+  - jupytext
+  - pip
+  - python=3.9
+  - SimpleITK
+  - pip:
+    - -e .
+    - matplotlib
+    - seaborn
