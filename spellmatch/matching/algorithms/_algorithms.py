@@ -549,7 +549,10 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         last_scores = None
         current_transform = prior_transform
         iteration_cache = dict(cache) if cache is not None else {}
-        logger.info(f"Initial transform: {describe_transform(current_transform)}")
+        if prior_transform is not None:
+            logger.info(f"Initial transform: {describe_transform(prior_transform)}")
+        else:
+            logger.info("Initial transform: None")
         for iteration in range(self.max_iter):
             start = timer()
             logger.info(f"Iterative algorithm iteration {iteration + 1}")
