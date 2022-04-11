@@ -123,7 +123,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             iteration_cache.pop("degree_cdist", None)
             iteration_cache.pop("intensity_cdist_shared", None)
             iteration_cache.pop("intensity_cdist_all", None)
-            iteration_cache.pop("distance_cdist", None)
+            iteration_cache.pop("distance_cdist_csr", None)
             iteration_cache.pop("spatial_cdist", None)
 
     def _match_graphs_from_points(
@@ -166,10 +166,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         n2 = len(target_adj)
         adj1 = source_adj.to_numpy().astype(np.bool8)
         adj2 = target_adj.to_numpy().astype(np.bool8)
+        adj_csr = sparse.csr_array(sparse.kron(adj1, adj2, format="csr"))
         deg1 = np.sum(adj1, axis=1, dtype=np.uint8)
         deg2 = np.sum(adj2, axis=1, dtype=np.uint8)
-        adj = sparse.csr_array(sparse.kron(adj1, adj2, format="csr"), dtype=np.bool8)
-        deg = np.asarray(deg1[:, np.newaxis] * deg2[np.newaxis, :], dtype=np.uint16)
+        deg = np.asarray(deg1[:, np.newaxis] * deg2[np.newaxis, :])
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
             if self.degree_weight > 0.0:
@@ -211,21 +211,21 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     target_intensities,
                 )
                 assert c["intensity_cdist_all"].dtype == self.precision
-        if "distance_cdist" not in c:
-            c["distance_cdist"] = None
+        if "distance_cdist_csr" not in c:
+            c["distance_cdist_csr"] = None
             if self.distance_weight > 0:
                 if source_dists is None or target_dists is None:
                     raise SpellmatchException(
                         "Distances are required for computing their cross-distance"
                     )
                 logger.info("Computing distance cross-distance")
-                c["distance_cdist"] = self._compute_distance_cdist(
+                c["distance_cdist_csr"] = self._compute_distance_cdist(
                     adj1,
                     adj2,
                     source_dists.to_numpy().astype(self.precision),
                     target_dists.to_numpy().astype(self.precision),
                 )
-                assert c["distance_cdist"].dtype == self.precision
+                assert c["distance_cdist_csr"].dtype == self.precision
         if "spatial_cdist" not in c:
             c["spatial_cdist"] = None
             if (
@@ -255,12 +255,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
-                adj,
+                adj_csr,
                 deg,
                 c["degree_cdist"],
                 c["intensity_cdist_shared"],
                 c["intensity_cdist_all"],
-                c["distance_cdist"],
+                c["distance_cdist_csr"],
                 c["spatial_cdist"],
                 self.intensity_interp_lmd,
             )
@@ -292,12 +292,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 current_scores_data = self._match_graphs_for_lambda(
                     n1,
                     n2,
-                    adj,
+                    adj_csr,
                     deg,
                     c["degree_cdist"],
                     c["intensity_cdist_shared"],
                     c["intensity_cdist_all"],
-                    c["distance_cdist"],
+                    c["distance_cdist_csr"],
                     c["spatial_cdist"],
                     current_lmd,
                 )
@@ -340,12 +340,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         n1: int,
         n2: int,
-        adj: sparse.csr_array,
+        adj_csr: sparse.csr_array,
         deg: np.ndarray,
         degree_cdist: Optional[np.ndarray],
         intensity_cdist_shared: Optional[np.ndarray],
         intensity_cdist_all: Optional[np.ndarray],
-        distance_cdist: Optional[sparse.csr_array],
+        distance_cdist_csr: Optional[sparse.csr_array],
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
     ) -> np.ndarray:
@@ -364,48 +364,50 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             intensity_cdist = None
         logger.info("Initializing")
-        w = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
+        w_csr = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
         total_weight = 0
         if self.degree_weight > 0:
             assert degree_cdist is not None
             degree_cdist = degree_cdist.ravel()
-            w += adj * (
+            w_csr += adj_csr * (
                 self.precision(self.degree_weight) * degree_cdist[:, np.newaxis]
             )
-            w += adj * (
+            w_csr += adj_csr * (
                 self.precision(self.degree_weight) * degree_cdist[np.newaxis, :]
             )
             total_weight += 2 * self.degree_weight
-            assert w.dtype == self.precision
+            assert w_csr.dtype == self.precision
         if self.intensity_weight > 0:
             assert intensity_cdist is not None
             intensity_cdist = intensity_cdist.ravel()
-            w += adj * (
+            w_csr += adj_csr * (
                 self.precision(self.intensity_weight) * intensity_cdist[:, np.newaxis]
             )
-            w += adj * (
+            w_csr += adj_csr * (
                 self.precision(self.intensity_weight) * intensity_cdist[np.newaxis, :]
             )
             total_weight += 2 * self.intensity_weight
-            assert w.dtype == self.precision
+            assert w_csr.dtype == self.precision
         if self.distance_weight > 0:
-            assert distance_cdist is not None
-            w += adj * (self.precision(self.distance_weight) * distance_cdist)
+            assert distance_cdist_csr is not None
+            w_csr += adj_csr * (
+                self.precision(self.distance_weight) * distance_cdist_csr
+            )
             total_weight += self.distance_weight
-            assert w.dtype == self.precision
+            assert w_csr.dtype == self.precision
         if total_weight > 0:
-            w /= self.precision(total_weight)
-            assert w.dtype == self.precision
+            w_csr /= self.precision(total_weight)
+            assert w_csr.dtype == self.precision
         d = np.asarray(deg.flatten(), dtype=self.precision)
         d[d != 0] = d[d != 0] ** (-0.5)
-        d = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
-        w: sparse.csr_array = d @ (adj - w) @ d
-        assert w.dtype == self.precision
-        del d
+        d_dia = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
+        w_csr: sparse.csr_array = d_dia @ (adj_csr - w_csr) @ d_dia
+        assert w_csr.dtype == self.precision
+        del d, d_dia
         if self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None:
             assert spatial_cdist is not None
             h = np.ravel(
-                1 - np.clip(spatial_cdist / self.spatial_cdist_prior_thres, 0, 1) ** 2
+                1 - np.clip((spatial_cdist / self.spatial_cdist_prior_thres) ** 2, 0, 1)
             )
             h = np.asarray(h / np.sum(h), dtype=self.precision)[:, np.newaxis]
         else:
@@ -426,7 +428,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         for opt_iteration in range(self.opt_max_iter):
             start = timer()
             s_new: np.ndarray = (
-                self.precision(self.alpha) * (w @ s)
+                self.precision(self.alpha) * (w_csr @ s)
                 + self.precision(1.0 - self.alpha) * h
             )
             opt_loss = float(np.linalg.norm(s[:, 0] - s_new[:, 0]))
@@ -457,14 +459,18 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
 
     def _compute_degree_cdist(self, deg1: np.ndarray, deg2: np.ndarray) -> np.ndarray:
         degree_cdiff = abs(deg1[:, np.newaxis] - deg2[np.newaxis, :])
-        degree_cdist = np.clip(degree_cdiff / self.degree_cdiff_thres, 0, 1) ** 2
-        return np.asarray(degree_cdist, dtype=self.precision)
+        degree_cdist = (self.precision(degree_cdiff) / self.degree_cdiff_thres) ** 2
+        np.clip(degree_cdist, 0, 1, out=degree_cdist)
+        assert degree_cdist.dtype == self.precision
+        return degree_cdist
 
     def _compute_intensity_cdist_shared(
         self,
         intensities1: pd.DataFrame,
         intensities2: pd.DataFrame,
     ) -> np.ndarray:
+        intensities1 = intensities1.astype(self.precision)
+        intensities2 = intensities2.astype(self.precision)
         intensities1 = (intensities1 - intensities1.mean()) / intensities1.std()
         intensities2 = (intensities2 - intensities2.mean()) / intensities2.std()
         intensities_shared = pd.concat(
@@ -488,8 +494,9 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         svd_intensities1 = svd.transform(intensities1[intensities_shared.columns])
         svd_intensities2 = svd.transform(intensities2[intensities_shared.columns])
-        intensity_cdist_shared = 0.5 * distance.cdist(
-            svd_intensities1, svd_intensities2, metric="correlation"
+        intensity_cdist_shared = 0.5 * np.asarray(
+            distance.cdist(svd_intensities1, svd_intensities2, metric="correlation"),
+            dtype=self.precision,
         )
         return np.asarray(intensity_cdist_shared, dtype=self.precision)
 
@@ -500,6 +507,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensities1: pd.DataFrame,
         intensities2: pd.DataFrame,
     ) -> np.ndarray:
+        intensities1 = intensities1.astype(self.precision)
+        intensities2 = intensities2.astype(self.precision)
         ind1 = np.arange(len(points1.index))
         nn2 = NearestNeighbors(n_neighbors=2)
         nn2.fit(points2)
@@ -542,6 +551,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         cca_intensities1, cca_intensities2 = cca.fit_transform(
             intensities1.iloc[ind1, :], intensities2.iloc[nn2_ind[:, 0], :]
         )
+        cca_intensities1 = cca_intensities1.astype(self.precision)
+        cca_intensities2 = cca_intensities2.astype(self.precision)
         cancor_mean = np.mean(
             np.diagonal(
                 np.corrcoef(cca_intensities1, cca_intensities2, rowvar=False),
@@ -550,10 +561,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         logger.debug(f"CCA: canonical correlations mean={cancor_mean:.6f}")
         cca_intensities1, cca_intensities2 = cca.transform(intensities1, intensities2)
-        intensity_cdist_all = 0.5 * distance.cdist(
-            cca_intensities1, cca_intensities2, metric="correlation"
+        cca_intensities1 = cca_intensities1.astype(self.precision)
+        cca_intensities2 = cca_intensities2.astype(self.precision)
+        intensity_cdist_all = 0.5 * np.asarray(
+            distance.cdist(cca_intensities1, cca_intensities2, metric="correlation"),
+            dtype=self.precision,
         )
-        return np.asarray(intensity_cdist_all, dtype=self.precision)
+        return intensity_cdist_all
 
     def _compute_distance_cdist(
         self,
@@ -562,24 +576,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         dists1: np.ndarray,
         dists2: np.ndarray,
     ) -> sparse.csr_array:
-        m: sparse.csr_array = abs(
-            sparse.csr_array(
-                sparse.kron(adj1 * dists1, adj2, format="csr"), dtype=self.precision
-            )
-            - sparse.csr_array(
-                sparse.kron(adj1, adj2 * dists2, format="csr"), dtype=self.precision
+        m_csr = sparse.csr_array(
+            abs(
+                sparse.kron(adj1 * dists1, adj2, format="csr")  # CSR for subtraction
+                - sparse.kron(adj1, adj2 * dists2, format="csr")  # CSR for subtraction
             )
         )
-        np.clip(
-            m.data / self.distance_cdiff_thres,
-            0,
-            1,
-            out=m.data,
-            dtype=m.dtype,
-        )
-        m **= 2
-        assert m.dtype == self.precision
-        return m
+        m_csr.data = (m_csr.data / self.precision(self.distance_cdiff_thres)) ** 2
+        np.clip(m_csr.data, 0, 1, out=m_csr.data)
+        assert m_csr.dtype == self.precision
+        return m_csr
 
 
 class SpellmatchException(SpellmatchMatchingAlgorithmException):
