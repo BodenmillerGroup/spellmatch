@@ -46,12 +46,12 @@ simutome_kwargs = {
     # assume minor mis-alignment
     "image_rotation": 2.0 * np.pi / 180,
     "image_translation": (1.0, 3.0),
-    # see ../kuett_catena_2022/parameters.ipynb
+    # see simutome_parameters.ipynb
     "exclude_cells": True,
     "section_thickness": 2.0,
     "cell_diameter_mean": 7.931,
     "cell_diameter_std": 1.768,
-    # see ../kuett_catena_2022/parameters.ipynb
+    # see simutome_parameters.ipynb
     "displace_cells": True,
     "cell_displacement_mean": 0.067,
     "cell_displacement_var": 1.010,
