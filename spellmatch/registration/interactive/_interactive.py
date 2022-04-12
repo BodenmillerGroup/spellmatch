@@ -46,7 +46,7 @@ def register_interactive(
         label_pairs_columns=(
             assignment.columns.tolist()
             if assignment is not None
-            else ("Source", "Target")
+            else (source_mask.name or "source", target_mask.name or "target")
         ),
     )
     if assignment is not None:
