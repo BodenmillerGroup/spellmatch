@@ -100,7 +100,7 @@ algorithm_configs = {
             "max_only_intersect": partial(assign, max_only=True, direction="intersect", as_matrix=True),
             "linear_sum_forward": partial(assign, linear_sum=True, direction="forward", as_matrix=True),
         }
-    )
+    ),
 }
 
 metric_functions = default_metrics
