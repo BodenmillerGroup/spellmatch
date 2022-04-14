@@ -48,6 +48,17 @@ except ImportError:
     in_ipython = False
 
 # %%
+n_batches = 1
+batch_index = 0
+if not in_ipython:
+    parser = ArgumentParser()
+    parser.add_argument("n_batches", type=int)
+    parser.add_argument("batch_index", type=int)
+    args = parser.parse_args()
+    n_batches = args.n_batches
+    batch_index = args.batch_index
+
+# %%
 source_points_dir = "../data/jackson_fischer_2020/source_points"
 source_intensities_dir = "../data/jackson_fischer_2020/source_intensities"
 source_clusters_dir = "../data/jackson_fischer_2020/source_clusters"
@@ -137,7 +148,9 @@ assignment_functions = {
 metric_functions = default_metrics
 
 # %%
-benchmark = SemisyntheticBenchmark(benchmark_config, "spellmatch_psa_adjacency")
+benchmark = SemisyntheticBenchmark(
+    benchmark_config, f"spellmatch_psa_adjacency_{batch_index:03d}"
+)
 benchmark.save()
 
 # %%
@@ -151,16 +164,6 @@ logger_file_handler.setFormatter(
 logger.addHandler(logger_file_handler)
 
 # %%
-n_batches = 1
-batch_index = 0
-if not in_ipython:
-    parser = ArgumentParser()
-    parser.add_argument("n_batches", type=int)
-    parser.add_argument("batch_index", type=int)
-    args = parser.parse_args()
-    n_batches = args.n_batches
-    batch_index = args.batch_index
-
 for info, scores in tqdm(
     benchmark.run(
         source_points_dir,
