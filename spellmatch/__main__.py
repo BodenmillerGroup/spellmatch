@@ -7,7 +7,6 @@ from typing import Any, Optional
 import click
 import click_log
 import numpy as np
-import pluggy
 import yaml
 from skimage.transform import (
     AffineTransform,
@@ -16,7 +15,7 @@ from skimage.transform import (
     SimilarityTransform,
 )
 
-from . import hookspecs, io
+from . import io
 from ._spellmatch import SpellmatchException, logger
 from .assignment import (
     AssignmentDirection,
@@ -24,7 +23,8 @@ from .assignment import (
     show_assignment,
     validate_assignment,
 )
-from .matching.algorithms import MaskMatchingAlgorithm, icp, probreg, spellmatch
+from .matching.algorithms import MaskMatchingAlgorithm
+from .plugins import get_plugin_manager
 from .registration.feature_based import (
     cv2_feature_types,
     cv2_matcher_types,
@@ -54,13 +54,7 @@ logger_handler.formatter = logging.Formatter(
 logger.handlers = [logger_handler]
 logger.propagate = False
 
-pm = pluggy.PluginManager("spellmatch")
-pm.add_hookspecs(hookspecs)
-pm.load_setuptools_entrypoints("spellmatch")
-pm.register(icp, name="spellmatch-icp")
-pm.register(probreg, name="spellmatch-probreg")
-pm.register(spellmatch, name="spellmatch-spellmatch")
-
+pm = get_plugin_manager()
 mask_matching_algorithm_names = [
     mask_matching_algorithm_name
     for sublist in pm.hook.spellmatch_get_mask_matching_algorithm(name=None)
