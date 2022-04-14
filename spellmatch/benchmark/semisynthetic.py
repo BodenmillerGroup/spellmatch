@@ -76,19 +76,21 @@ class SemisyntheticBenchmark:
         )
         infos = []
         n_runs_per_batch = self.get_run_length(n_batches)
+        batch_start = batch_index * n_runs_per_batch
+        batch_stop = min((batch_index + 1) * n_runs_per_batch, self.n_runs)
         for i, (info, scores) in enumerate(
             self._run_for_batch(
                 source_points_dir,
                 source_intensities_dir,
                 source_clusters_dir,
                 simutome_seeds,
-                batch_index * n_runs_per_batch,
-                min((batch_index + 1) * n_runs_per_batch, self.n_runs),
+                batch_start,
+                batch_stop,
             )
         ):
             infos.append(info)
             if scores is not None:
-                info["scores_file"] = f"scores{i:06d}.csv"
+                info["scores_file"] = f"scores{batch_start + i:06d}.csv"
                 write_scores(scores_dir / info["scores_file"], scores)
             yield info, scores
             if (i + 1) % save_interval == 0 or (i + 1) == n_runs_per_batch:
