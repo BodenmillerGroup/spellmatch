@@ -158,8 +158,8 @@ if not in_ipython:
     parser.add_argument("n_batches", type=int)
     parser.add_argument("batch_index", type=int)
     args = parser.parse_args()
-    n_batches = args["n_batches"]
-    batch_index = args["batch_index"]
+    n_batches = args.n_batches
+    batch_index = args.batch_index
 
 for info, scores in tqdm(
     benchmark.run(
