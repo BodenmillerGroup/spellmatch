@@ -3,7 +3,6 @@ import sys
 from functools import cached_property
 from os import PathLike
 from pathlib import Path
-from timeit import default_timer as timer
 from typing import Any, Callable, Generator, Mapping, Optional, Union
 
 import numpy as np
@@ -14,24 +13,16 @@ from pydantic import BaseModel
 from simutome import Simutome
 from sklearn.model_selection import ParameterGrid
 
-from ..io import read_scores, write_scores
-from ..matching.algorithms import (
-    PointsMatchingAlgorithm,
-    SpellmatchMatchingAlgorithmException,
-)
-from ..plugins import get_plugin_manager
-
-AssignmentFunction = Callable[[xr.DataArray], xr.DataArray]
-MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
-
-
-class AlgorithmConfig(BaseModel):
-    algorithm_name: str
-    algorithm_kwargs: dict[str, Any]
-    algorithm_param_grid: dict[str, list[dict[str, Any]]]
+from ..io import read_scores
+from ._benchmark import RunConfig, run_parallel, run_sequential
 
 
 class SemisyntheticBenchmarkConfig(BaseModel):
+    class AlgorithmConfig(BaseModel):
+        algorithm_name: str
+        algorithm_kwargs: dict[str, Any]
+        algorithm_param_grid: dict[str, list[dict[str, Any]]]
+
     source_points_file_names: list[str]
     source_intensities_file_names: Optional[list[str]]
     source_clusters_file_names: Optional[list[str]]
@@ -43,59 +34,97 @@ class SemisyntheticBenchmarkConfig(BaseModel):
 
 
 class SemisyntheticBenchmark:
+    AssignmentFunction = Callable[[xr.DataArray], xr.DataArray]
+    MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
+
     def __init__(
-        self, config: SemisyntheticBenchmarkConfig, benchmark_dir: Union[str, PathLike]
+        self, benchmark_dir: Union[str, PathLike], config: SemisyntheticBenchmarkConfig
     ) -> None:
-        self.config = config
         self.benchmark_dir = Path(benchmark_dir)
         self.benchmark_dir.mkdir(exist_ok=True, parents=True)
+        self.config = config
 
     def get_run_length(self, n_batches: int) -> int:
         return math.ceil(self.n_runs / n_batches)
 
-    def run(
+    def run_sequential(
         self,
         source_points_dir: Union[str, PathLike],
         source_intensities_dir: Union[str, PathLike, None] = None,
         source_clusters_dir: Union[str, PathLike, None] = None,
         batch_index: int = 0,
         n_batches: int = 1,
-        save_interval: int = 1,
-    ) -> Generator[tuple[dict[str, Any], Optional[xr.DataArray]], None, None]:
-        if batch_index >= n_batches:
-            raise ValueError("batch_index")
+    ) -> Generator[tuple[dict[str, Any], xr.DataArray], None, pd.DataFrame]:
+        run_config_generator = self.generate_run_configs(
+            source_points_dir,
+            source_intensities_dir=source_intensities_dir,
+            source_clusters_dir=source_clusters_dir,
+            batch_index=batch_index,
+            n_batches=n_batches,
+        )
+        self.scores_info: pd.DataFrame = yield from run_sequential(
+            run_config_generator, self.scores_dir
+        )
+        self.scores_info.to_csv(self.scores_info_file, index=False)
+        return self.scores_info
+
+    def run_parallel(
+        self,
+        source_points_dir: Union[str, PathLike],
+        source_intensities_dir: Union[str, PathLike, None] = None,
+        source_clusters_dir: Union[str, PathLike, None] = None,
+        batch_index: int = 0,
+        n_batches: int = 1,
+        n_processes: Optional[int] = None,
+        queue_size: int = None,
+    ) -> Generator[RunConfig, None, pd.DataFrame]:
+        run_config_generator = self.generate_run_configs(
+            source_points_dir,
+            source_intensities_dir=source_intensities_dir,
+            source_clusters_dir=source_clusters_dir,
+            batch_index=batch_index,
+            n_batches=n_batches,
+        )
+        self.scores_info: pd.DataFrame = yield from run_parallel(
+            run_config_generator,
+            self.scores_dir,
+            n_processes=n_processes,
+            queue_size=queue_size,
+        )
+        self.scores_info.to_csv(self.scores_info_file, index=False)
+        return self.scores_info
+
+    def generate_run_configs(
+        self,
+        source_points_dir: Union[str, PathLike],
+        source_intensities_dir: Union[str, PathLike, None] = None,
+        source_clusters_dir: Union[str, PathLike, None] = None,
+        batch_index: int = 0,
+        n_batches: int = 1,
+    ) -> Generator[RunConfig, None, None]:
         source_points_dir = Path(source_points_dir)
         if source_intensities_dir is not None:
             source_intensities_dir = Path(source_intensities_dir)
         if source_clusters_dir is not None:
             source_clusters_dir = Path(source_clusters_dir)
-        scores_dir = self.benchmark_dir / "scores"
-        scores_dir.mkdir(exist_ok=True)
         simutome_seeds = np.random.default_rng(seed=self.config.seed).integers(
             sys.maxsize, size=self.n_file_sets * self.n_simutome_params
         )
-        infos = []
         n_runs_per_batch = self.get_run_length(n_batches)
-        batch_start = batch_index * n_runs_per_batch
-        batch_stop = min((batch_index + 1) * n_runs_per_batch, self.n_runs)
-        for i, (info, scores) in enumerate(
-            self._run_for_batch(
-                source_points_dir,
-                source_intensities_dir,
-                source_clusters_dir,
-                simutome_seeds,
-                batch_start,
-                batch_stop,
-            )
+        for run_config in self._generate_run_configs_for_batch(
+            source_points_dir,
+            source_intensities_dir,
+            source_clusters_dir,
+            simutome_seeds,
+            batch_index * n_runs_per_batch,
+            min((batch_index + 1) * n_runs_per_batch, self.n_runs),
         ):
-            infos.append(info)
-            if scores is not None:
-                info["scores_file"] = f"scores{batch_start + i:06d}.csv"
-                write_scores(scores_dir / info["scores_file"], scores)
-            yield info, scores
-            if (i + 1) % save_interval == 0 or (i + 1) == n_runs_per_batch:
-                self.scores_info = pd.DataFrame(data=infos)
-                self.scores_info.to_csv(self.scores_info_file, index=False)
+            yield RunConfig(
+                info={"batch": batch_index, **run_config.info},
+                algorithm_name=run_config.algorithm_name,
+                algorithm_kwargs=run_config.algorithm_kwargs,
+                match_points_kwargs=run_config.match_points_kwargs,
+            )
 
     def get_evaluation_length(
         self,
@@ -112,13 +141,8 @@ class SemisyntheticBenchmark:
         self,
         assignment_functions: Mapping[str, AssignmentFunction],
         metric_functions: Mapping[str, MetricFunction],
-        save_interval: int = 1,
-    ) -> Generator[dict[str, Any], None, None]:
-        i = 0
+    ) -> Generator[dict[str, Any], None, pd.DataFrame]:
         results = []
-        n_evaluations = self.get_evaluation_length(
-            assignment_functions, metric_functions
-        )
         scores_info = self.scores_info.loc[self.scores_info["scores_file"].notna(), :]
         for _, scores_info_row in scores_info.iterrows():
             scores = read_scores(
@@ -151,10 +175,9 @@ class SemisyntheticBenchmark:
                     }
                     results.append(result)
                     yield result
-                    if (i + 1) % save_interval == 0 or (i + 1) == n_evaluations:
-                        self.results_info = pd.DataFrame(data=results)
-                        self.results_info.to_csv(self.benchmark_dir / "results.csv")
-                    i += 1
+        self.results_info = pd.DataFrame(data=results)
+        self.results_info.to_csv(self.results_info_file, index=False)
+        return self.results_info
 
     def save(self) -> None:
         config_dict = self.config.dict()
@@ -169,7 +192,7 @@ class SemisyntheticBenchmark:
         config = SemisyntheticBenchmarkConfig.parse_obj(config_dict)
         return SemisyntheticBenchmark(config, benchmark_dir)
 
-    def _run_for_batch(
+    def _generate_run_configs_for_batch(
         self,
         source_points_dir: Path,
         source_intensities_dir: Optional[Path],
@@ -177,7 +200,7 @@ class SemisyntheticBenchmark:
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
-    ) -> Generator[tuple[dict[str, Any], Optional[xr.DataArray]], None, None]:
+    ) -> Generator[RunConfig, None, None]:
         offset = 0
         file_set_start = math.floor((start - offset) / self.n_runs_per_file_set)
         file_set_stop = math.ceil((stop - offset) / self.n_runs_per_file_set)
@@ -214,7 +237,7 @@ class SemisyntheticBenchmark:
                 source_clusters = pd.read_csv(
                     source_clusters_dir / source_clusters_file_name, index_col="cell"
                 ).iloc[:, 0]
-            for scores_info, scores in self._run_for_file_set(
+            for run_config in self._generate_run_configs_for_file_set(
                 file_set_index,
                 source_points,
                 source_intensities,
@@ -223,15 +246,24 @@ class SemisyntheticBenchmark:
                 max(start, offset + file_set_index * self.n_runs_per_file_set),
                 min(stop, offset + (file_set_index + 1) * self.n_runs_per_file_set),
             ):
-                scores_info = {
-                    "source_points_file_name": source_points_file_name,
-                    "source_intensities_file_name": source_intensities_file_name,
-                    "source_clusters_file_name": source_clusters_file_name,
-                    **scores_info,
-                }
-                yield scores_info, scores
+                yield RunConfig(
+                    info={
+                        "source_points_file_name": source_points_file_name,
+                        "source_intensities_file_name": source_intensities_file_name,
+                        "source_clusters_file_name": source_clusters_file_name,
+                        **run_config.info,
+                    },
+                    algorithm_name=run_config.algorithm_name,
+                    algorithm_kwargs=run_config.algorithm_kwargs,
+                    match_points_kwargs={
+                        "source_name": "source",
+                        "source_points": source_points,
+                        "source_intensities": source_intensities,
+                        **run_config.match_points_kwargs,
+                    },
+                )
 
-    def _run_for_file_set(
+    def _generate_run_configs_for_file_set(
         self,
         file_set_index: int,
         source_points: pd.DataFrame,
@@ -240,7 +272,7 @@ class SemisyntheticBenchmark:
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
-    ) -> Generator[tuple[dict[str, Any], Optional[xr.DataArray]], None, None]:
+    ) -> Generator[RunConfig, None, None]:
         offset = file_set_index * self.n_runs_per_file_set
         simutome_params_start = math.floor(
             (start - offset) / self.n_runs_per_simutome_params
@@ -268,7 +300,7 @@ class SemisyntheticBenchmark:
                     file_set_index * self.n_simutome_params + simutome_params_index
                 ],
             )
-            for scores_info, scores in self._run_for_simutome_params(
+            for run_config in self._generate_run_configs_for_simutome_params(
                 file_set_index,
                 simutome_params_index,
                 source_points,
@@ -285,13 +317,20 @@ class SemisyntheticBenchmark:
                     + (simutome_params_index + 1) * self.n_runs_per_simutome_params,
                 ),
             ):
-                scores_info = {
-                    **{f"simutome_{k}": v for k, v in varying_simutome_kwargs.items()},
-                    **scores_info,
-                }
-                yield scores_info, scores
+                yield RunConfig(
+                    info={
+                        **{
+                            f"simutome_{k}": v
+                            for k, v in varying_simutome_kwargs.items()
+                        },
+                        **run_config.info,
+                    },
+                    algorithm_name=run_config.algorithm_name,
+                    algorithm_kwargs=run_config.algorithm_kwargs,
+                    match_points_kwargs=run_config.match_points_kwargs,
+                )
 
-    def _run_for_simutome_params(
+    def _generate_run_configs_for_simutome_params(
         self,
         file_set_index: int,
         simutome_params_index: int,
@@ -301,7 +340,7 @@ class SemisyntheticBenchmark:
         simutome: Simutome,
         start: int,
         stop: int,
-    ) -> Generator[tuple[dict[str, Any], Optional[xr.DataArray]], None, None]:
+    ) -> Generator[RunConfig, None, None]:
         offset = (
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params
@@ -345,14 +384,10 @@ class SemisyntheticBenchmark:
                     index=source_intensities.index[source_indices],
                     columns=source_intensities.columns,
                 )
-            for scores_info, scores in self._run_for_simutome_section(
+            for run_config in self._generate_run_configs_for_simutome_section(
                 file_set_index,
                 simutome_params_index,
                 simutome_section_index,
-                source_points,
-                source_intensities,
-                target_points,
-                target_intensities,
                 max(
                     start,
                     offset + simutome_section_index * self.n_runs_per_simutome_section,
@@ -363,22 +398,26 @@ class SemisyntheticBenchmark:
                     + (simutome_section_index + 1) * self.n_runs_per_simutome_section,
                 ),
             ):
-                scores_info = {"section_number": simutome_section_index, **scores_info}
-                yield scores_info, scores
+                yield RunConfig(
+                    info={"section_number": simutome_section_index, **run_config.info},
+                    algorithm_name=run_config.algorithm_name,
+                    algorithm_kwargs=run_config.algorithm_kwargs,
+                    match_points_kwargs={
+                        "target_name": "simutome",
+                        "target_points": target_points,
+                        "target_intensities": target_intensities,
+                        **run_config.match_points_kwargs,
+                    },
+                )
 
-    def _run_for_simutome_section(
+    def _generate_run_configs_for_simutome_section(
         self,
         file_set_index: int,
         simutome_params_index: int,
         simutome_section_index: int,
-        source_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_points: pd.DataFrame,
-        target_intensities: Optional[pd.DataFrame],
         start: int,
         stop: int,
-    ) -> Generator[tuple[dict[str, Any], Optional[xr.DataArray]], None, None]:
-        pm = get_plugin_manager()
+    ) -> Generator[RunConfig, None, None]:
         offset = (
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params
@@ -389,13 +428,6 @@ class SemisyntheticBenchmark:
             algorithm_config_name,
             algorithm_config,
         ) in self.config.algorithm_configs.items():
-            algorithm_types: list[
-                type[PointsMatchingAlgorithm]
-            ] = pm.hook.spellmatch_get_mask_matching_algorithm(
-                name=algorithm_config.algorithm_name
-            )
-            assert len(algorithm_types) == 1
-            algorithm_type = algorithm_types[0]
             algorithm_param_grid = ParameterGrid(algorithm_config.algorithm_param_grid)
             for algorithm_params in algorithm_param_grid:
                 algorithm_params: dict[str, dict[str, Any]]
@@ -405,35 +437,46 @@ class SemisyntheticBenchmark:
                         for algorithm_param_group in algorithm_params.values()
                         for k, v in algorithm_param_group.items()
                     }
-                    algorithm = algorithm_type(
-                        **algorithm_config.algorithm_kwargs, **varying_algorithm_kwargs
-                    )
-                    scores = None
-                    error = None
-                    t_start = timer()
-                    try:
-                        scores = algorithm.match_points(
-                            "source",
-                            "simutome",
-                            source_points,
-                            target_points,
-                            source_intensities=source_intensities,
-                            target_intensities=target_intensities,
-                        )
-                    except SpellmatchMatchingAlgorithmException as e:
-                        error = str(e)
-                    t_end = timer()
-                    scores_info = {
-                        "algorithm_config_name": algorithm_config_name,
-                        **{
-                            f"{algorithm_config.algorithm_name}_{k}": v
-                            for k, v in varying_algorithm_kwargs.items()
+                    yield RunConfig(
+                        info={
+                            "algorithm_config_name": algorithm_config_name,
+                            **{
+                                f"{algorithm_config.algorithm_name}_{k}": v
+                                for k, v in varying_algorithm_kwargs.items()
+                            },
                         },
-                        "seconds": t_end - t_start,
-                        "error": error,
-                    }
-                    yield scores_info, scores
+                        algorithm_name=algorithm_config.algorithm_name,
+                        algorithm_kwargs={
+                            **algorithm_config.algorithm_kwargs,
+                            **varying_algorithm_kwargs,
+                        },
+                        match_points_kwargs={},
+                    )
                 i += 1
+
+    @property
+    def config_file(self) -> Path:
+        return self.benchmark_dir / "config.yaml"
+
+    @property
+    def scores_dir(self) -> Path:
+        return self.benchmark_dir / "scores"
+
+    @property
+    def scores_info_file(self) -> Path:
+        return self.benchmark_dir / "scores.csv"
+
+    @cached_property
+    def scores_info(self) -> pd.DataFrame:
+        return pd.read_csv(self.scores_info_file)
+
+    @property
+    def results_info_file(self) -> Path:
+        return self.benchmark_dir / "results.csv"
+
+    @cached_property
+    def results_info(self) -> pd.DataFrame:
+        return pd.read_csv(self.results_info_file)
 
     @property
     def n_file_sets(self) -> int:
@@ -478,23 +521,3 @@ class SemisyntheticBenchmark:
     @property
     def n_runs_per_simutome_section(self) -> int:
         return self.n_algorithm_configs_param_grids
-
-    @property
-    def config_file(self) -> Path:
-        return self.benchmark_dir / "config.yaml"
-
-    @property
-    def scores_info_file(self) -> Path:
-        return self.benchmark_dir / "scores.csv"
-
-    @property
-    def results_info_file(self) -> Path:
-        return self.benchmark_dir / "results.csv"
-
-    @cached_property
-    def scores_info(self) -> pd.DataFrame:
-        return pd.read_csv(self.scores_info_file)
-
-    @cached_property
-    def results_info(self) -> pd.DataFrame:
-        return pd.read_csv(self.results_info_file)

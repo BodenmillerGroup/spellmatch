@@ -35,28 +35,9 @@ from spellmatch import logger
 from spellmatch.assignment import assign
 from spellmatch.benchmark.metrics import default_metrics
 from spellmatch.benchmark.semisynthetic import (
-    AlgorithmConfig,
     SemisyntheticBenchmark,
     SemisyntheticBenchmarkConfig,
 )
-
-try:
-    from IPython.core.getipython import get_ipython
-    in_ipython = get_ipython() is not None
-except ImportError:
-    get_ipython = None
-    in_ipython = False
-
-# %%
-n_batches = 1
-batch_index = 0
-if not in_ipython:
-    parser = ArgumentParser()
-    parser.add_argument("n_batches", type=int)
-    parser.add_argument("batch_index", type=int)
-    args = parser.parse_args()
-    n_batches = args.n_batches
-    batch_index = args.batch_index
 
 # %%
 source_points_dir = "../data/jackson_fischer_2020/source_points"
@@ -90,7 +71,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
     simutome_param_grid={},
     n_simutome_sections=1,
     algorithm_configs={
-        "spellmatch": AlgorithmConfig(
+        "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
             algorithm_kwargs={
 
@@ -148,13 +129,11 @@ assignment_functions = {
 metric_functions = default_metrics
 
 # %%
-benchmark = SemisyntheticBenchmark(
-    benchmark_config, f"spellmatch_psa_adjacency_{batch_index:03d}"
-)
+benchmark = SemisyntheticBenchmark("spellmatch_psa_adjacency", benchmark_config)
 benchmark.save()
 
 # %%
-logger.setLevel(logging.INFO)
+logger.handlers.clear()
 logger_file_handler = logging.FileHandler(
     benchmark.benchmark_dir / "spellmatch.log", mode="w"
 )
@@ -162,17 +141,25 @@ logger_file_handler.setFormatter(
     logging.Formatter(fmt="%(asctime)s %(levelname)s %(name)s - %(message)s")
 )
 logger.addHandler(logger_file_handler)
+logger.setLevel(logging.INFO)
 
 # %%
-for info, scores in tqdm(
-    benchmark.run(
+parser = ArgumentParser()
+parser.add_argument("--batch", type=int, default=0)
+parser.add_argument("--nbatch", type=int, default=1)
+parser.add_argument("--nproc", type=int, default=None)
+benchmark_args, _ = parser.parse_known_args()
+
+for run_config in tqdm(
+    benchmark.run_parallel(
         source_points_dir,
         source_intensities_dir=source_intensities_dir,
         source_clusters_dir=source_clusters_dir,
-        batch_index=batch_index,
-        n_batches=n_batches,
+        batch_index=benchmark_args.batch,
+        n_batches=benchmark_args.nbatch,
+        n_processes=benchmark_args.nproc,
     ),
-    total=benchmark.get_run_length(n_batches),
+    total=benchmark.get_run_length(benchmark_args.nbatch),
 ):
     pass
 

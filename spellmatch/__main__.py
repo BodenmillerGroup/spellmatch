@@ -24,7 +24,7 @@ from .assignment import (
     validate_assignment,
 )
 from .matching.algorithms import MaskMatchingAlgorithm
-from .plugins import get_plugin_manager
+from .plugins import plugin_manager
 from .registration.feature_based import (
     cv2_feature_types,
     cv2_matcher_types,
@@ -54,10 +54,9 @@ logger_handler.formatter = logging.Formatter(
 logger.handlers = [logger_handler]
 logger.propagate = False
 
-pm = get_plugin_manager()
 mask_matching_algorithm_names = [
     mask_matching_algorithm_name
-    for sublist in pm.hook.spellmatch_get_mask_matching_algorithm(name=None)
+    for sublist in plugin_manager.hook.spellmatch_get_mask_matching_algorithm(name=None)
     for mask_matching_algorithm_name in sublist
 ]
 
@@ -1102,7 +1101,7 @@ def cli_match(
 ) -> None:
     mask_matching_algorithm_types: list[
         type[MaskMatchingAlgorithm]
-    ] = pm.hook.spellmatch_get_mask_matching_algorithm(
+    ] = plugin_manager.hook.spellmatch_get_mask_matching_algorithm(
         name=mask_matching_algorithm_name
     )
     if len(mask_matching_algorithm_types) > 1:
