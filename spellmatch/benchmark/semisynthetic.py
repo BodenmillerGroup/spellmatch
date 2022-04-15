@@ -119,7 +119,8 @@ class SemisyntheticBenchmark:
         n_evaluations = self.get_evaluation_length(
             assignment_functions, metric_functions
         )
-        for _, scores_info_row in self.scores_info.iterrows():
+        scores_info = self.scores_info.loc[self.scores_info["scores_file"].notna(), :]
+        for _, scores_info_row in scores_info.iterrows():
             scores = read_scores(
                 self.benchmark_dir / "scores" / scores_info_row["scores_file"]
             )
