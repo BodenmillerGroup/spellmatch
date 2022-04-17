@@ -88,7 +88,7 @@ def run_parallel(
             self.exit = False
 
         def run(self) -> None:
-            while not self.exit or len(self.run_config_queue) > 0:
+            while not self.exit or self.run_config_queue.qsize() > 0:
                 try:
                     i: int
                     run_config: RunConfig
