@@ -31,7 +31,6 @@ from pathlib import Path
 import numpy as np
 from tqdm.auto import tqdm
 
-from spellmatch import logger
 from spellmatch.assignment import assign
 from spellmatch.benchmark.metrics import default_metrics
 from spellmatch.benchmark.semisynthetic import (
@@ -129,27 +128,29 @@ assignment_functions = {
 metric_functions = default_metrics
 
 # %%
-benchmark = SemisyntheticBenchmark("spellmatch_psa_adjacency", benchmark_config)
-benchmark.save()
-
-# %%
-logger.handlers.clear()
-logger_file_handler = logging.FileHandler(
-    benchmark.benchmark_dir / "spellmatch.log", mode="w"
-)
-logger_file_handler.setFormatter(
-    logging.Formatter(fmt="%(asctime)s %(levelname)s %(name)s - %(message)s")
-)
-logger.addHandler(logger_file_handler)
-logger.setLevel(logging.INFO)
-
-# %%
 parser = ArgumentParser()
+parser.add_argument("--path", type=str, default="spellmatch_psa_adjacency")
 parser.add_argument("--batch", type=int, default=0)
 parser.add_argument("--nbatch", type=int, default=1)
 parser.add_argument("--nproc", type=int, default=None)
 benchmark_args, _ = parser.parse_known_args()
 
+# %%
+benchmark_dir = Path(benchmark_args.path)
+benchmark_dir.mkdir(exist_ok=True)
+logging.basicConfig(
+    filename=benchmark_dir / "benchmark.log",
+    filemode="w",
+    format="[%(processName)-4s] %(asctime)s %(levelname)s %(name)s - %(message)s",
+    level=logging.INFO,
+    force=True,
+)
+
+# %%
+benchmark = SemisyntheticBenchmark(benchmark_dir, benchmark_config)
+benchmark.save()
+
+# %%
 for run_config in tqdm(
     benchmark.run_parallel(
         source_points_dir,
