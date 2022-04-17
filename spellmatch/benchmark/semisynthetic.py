@@ -132,7 +132,7 @@ class SemisyntheticBenchmark:
         metric_functions: Optional[Mapping[str, MetricFunction]],
     ) -> int:
         return (
-            len(self.scores_info.index)
+            np.sum(self.scores_info["scores_file"].notna())
             * len(assignment_functions)
             * len(metric_functions)
         )
