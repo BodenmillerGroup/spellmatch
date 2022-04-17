@@ -1,3 +1,4 @@
+import queue
 from collections.abc import Iterable
 from multiprocessing import Process, Queue
 from os import PathLike, cpu_count
@@ -96,7 +97,7 @@ def run_parallel(
                     scores_file = self.scores_dir / f"scores{i:06d}.nc"
                     scores_info = run(run_config, scores_file)
                     self.scores_info_queue.put(scores_info)
-                except self.run_config_queue.Empty:
+                except queue.Empty:
                     pass
 
     scores_dir = Path(scores_dir)
