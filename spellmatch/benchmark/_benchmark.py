@@ -73,15 +73,16 @@ def run_parallel(
     n_processes: Optional[int] = None,
     queue_size: int = None,
 ) -> Generator[RunConfig, None, pd.DataFrame]:
-    class AlgorithmProcess(Process):
+    class WorkerProcess(Process):
         def __init__(
             self,
             run_config_queue: Queue,
             scores_info_queue: Queue,
             scores_dir: Path,
             timeout: int = 5,
+            **kwargs: Any,
         ) -> None:
-            super(AlgorithmProcess, self).__init__(daemon=True)
+            super(WorkerProcess, self).__init__(**kwargs)
             self.run_config_queue = run_config_queue
             self.scores_info_queue = scores_info_queue
             self.scores_dir = scores_dir
@@ -109,8 +110,14 @@ def run_parallel(
     run_config_queue = Queue(maxsize=queue_size)
     scores_info_queue = Queue()
     workers = [
-        AlgorithmProcess(run_config_queue, scores_info_queue, scores_dir)
-        for _ in range(n_processes)
+        WorkerProcess(
+            run_config_queue,
+            scores_info_queue,
+            scores_dir,
+            daemon=True,
+            name=f"W{worker_number:03d}",
+        )
+        for worker_number in range(n_processes)
     ]
     for worker in workers:
         worker.start()
