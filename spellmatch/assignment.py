@@ -31,7 +31,7 @@ def assign(
     margin_thres: Optional[float] = None,
     margin_thres_quantile: Optional[float] = None,
     linear_sum: bool = False,
-    max_only: bool = False,
+    max: bool = False,
     direction: Union[str, AssignmentDirection] = AssignmentDirection.FORWARD,
     as_matrix: bool = False,
 ) -> Union[pd.DataFrame, xr.DataArray]:
@@ -71,16 +71,12 @@ def assign(
     if min_score_quantile is not None:
         if fwd_scores is not None:
             max_fwd_scores = np.amax(fwd_scores, axis=1)
-            min_max_fwd_score = np.quantile(
-                max_fwd_scores[max_fwd_scores > 0], min_score_quantile
-            )
+            min_max_fwd_score = np.quantile(max_fwd_scores, min_score_quantile)
             fwd_scores[max_fwd_scores < min_max_fwd_score, :] = 0
             del min_max_fwd_score
         if rev_scores is not None:
             max_rev_scores = np.amax(rev_scores, axis=0)
-            min_max_rev_score = np.quantile(
-                max_rev_scores[max_rev_scores > 0], min_score_quantile
-            )
+            min_max_rev_score = np.quantile(max_rev_scores, min_score_quantile)
             rev_scores[:, max_rev_scores < min_max_rev_score] = 0
             del min_max_rev_score
     if margin_thres is not None or margin_thres_quantile is not None:
@@ -99,15 +95,11 @@ def assign(
                 rev_scores[:, rev_margins <= margin_thres] = 0
         if margin_thres_quantile is not None:
             if fwd_scores is not None:
-                fwd_margin_thres = np.quantile(
-                    fwd_margins[fwd_margins > 0], margin_thres_quantile
-                )
+                fwd_margin_thres = np.quantile(fwd_margins, margin_thres_quantile)
                 fwd_scores[fwd_margins <= fwd_margin_thres, :] = 0
                 del fwd_margin_thres
             if rev_scores is not None:
-                rev_margin_thres = np.quantile(
-                    rev_margins[rev_margins > 0], margin_thres_quantile
-                )
+                rev_margin_thres = np.quantile(rev_margins, margin_thres_quantile)
                 rev_scores[:, rev_margins <= rev_margin_thres] = 0
                 del rev_margin_thres
     if linear_sum:
@@ -123,7 +115,7 @@ def assign(
             new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
             rev_scores = new_rev_scores
             del new_rev_scores, row_ind, col_ind
-    if max_only:
+    if max:
         if fwd_scores is not None:
             row_ind = np.arange(fwd_scores.shape[0])
             col_ind = np.argmax(fwd_scores, axis=1)

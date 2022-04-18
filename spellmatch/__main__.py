@@ -1309,8 +1309,8 @@ def cli_match(
     show_default=True,
 )
 @click.option(
-    "--max-only/--no-max-only",
-    "max_only",
+    "--max/--no-max",
+    "max",
     default=False,
     show_default=True,
 )
@@ -1372,7 +1372,7 @@ def cli_assign(
     margin_thres: Optional[float],
     margin_thres_quantile: Optional[float],
     linear_sum: bool,
-    max_only: bool,
+    max: bool,
     assignment_direction: str,
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
@@ -1495,7 +1495,7 @@ def cli_assign(
             margin_thres=margin_thres,
             margin_thres_quantile=margin_thres_quantile,
             linear_sum=linear_sum,
-            max_only=max_only,
+            max=max,
             direction=assignment_direction,
         )
         if show is not None and source_mask is not None and target_mask is not None:
