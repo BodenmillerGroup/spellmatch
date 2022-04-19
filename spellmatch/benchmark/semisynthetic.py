@@ -77,6 +77,7 @@ class SemisyntheticBenchmark:
         n_batches: int = 1,
         n_processes: Optional[int] = None,
         queue_size: int = None,
+        worker_timeout: int = 1,
     ) -> Generator[RunConfig, None, pd.DataFrame]:
         run_config_generator = self.generate_run_configs(
             points_dir,
@@ -90,6 +91,7 @@ class SemisyntheticBenchmark:
             self.scores_dir,
             n_processes=n_processes,
             queue_size=queue_size,
+            worker_timeout=worker_timeout,
         )
         self.scores_info.to_csv(self.scores_info_file, index=False)
         return self.scores_info
