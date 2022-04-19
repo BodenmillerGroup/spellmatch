@@ -23,9 +23,9 @@ class SemisyntheticBenchmarkConfig(BaseModel):
         algorithm_kwargs: dict[str, Any]
         algorithm_param_grid: dict[str, list[dict[str, Any]]]
 
-    source_points_file_names: list[str]
-    source_intensities_file_names: Optional[list[str]]
-    source_clusters_file_names: Optional[list[str]]
+    points_file_names: list[str]
+    intensities_file_names: Optional[list[str]]
+    clusters_file_names: Optional[list[str]]
     simutome_kwargs: dict[str, Any]
     simutome_param_grid: dict[str, list[dict[str, Any]]]
     n_simutome_sections: int
@@ -49,16 +49,16 @@ class SemisyntheticBenchmark:
 
     def run_sequential(
         self,
-        source_points_dir: Union[str, PathLike],
-        source_intensities_dir: Union[str, PathLike, None] = None,
-        source_clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: Union[str, PathLike],
+        intensities_dir: Union[str, PathLike, None] = None,
+        clusters_dir: Union[str, PathLike, None] = None,
         batch_index: int = 0,
         n_batches: int = 1,
     ) -> Generator[tuple[dict[str, Any], xr.DataArray], None, pd.DataFrame]:
         run_config_generator = self.generate_run_configs(
-            source_points_dir,
-            source_intensities_dir=source_intensities_dir,
-            source_clusters_dir=source_clusters_dir,
+            points_dir,
+            intensities_dir=intensities_dir,
+            clusters_dir=clusters_dir,
             batch_index=batch_index,
             n_batches=n_batches,
         )
@@ -70,18 +70,18 @@ class SemisyntheticBenchmark:
 
     def run_parallel(
         self,
-        source_points_dir: Union[str, PathLike],
-        source_intensities_dir: Union[str, PathLike, None] = None,
-        source_clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: Union[str, PathLike],
+        intensities_dir: Union[str, PathLike, None] = None,
+        clusters_dir: Union[str, PathLike, None] = None,
         batch_index: int = 0,
         n_batches: int = 1,
         n_processes: Optional[int] = None,
         queue_size: int = None,
     ) -> Generator[RunConfig, None, pd.DataFrame]:
         run_config_generator = self.generate_run_configs(
-            source_points_dir,
-            source_intensities_dir=source_intensities_dir,
-            source_clusters_dir=source_clusters_dir,
+            points_dir,
+            intensities_dir=intensities_dir,
+            clusters_dir=clusters_dir,
             batch_index=batch_index,
             n_batches=n_batches,
         )
@@ -96,25 +96,25 @@ class SemisyntheticBenchmark:
 
     def generate_run_configs(
         self,
-        source_points_dir: Union[str, PathLike],
-        source_intensities_dir: Union[str, PathLike, None] = None,
-        source_clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: Union[str, PathLike],
+        intensities_dir: Union[str, PathLike, None] = None,
+        clusters_dir: Union[str, PathLike, None] = None,
         batch_index: int = 0,
         n_batches: int = 1,
     ) -> Generator[RunConfig, None, None]:
-        source_points_dir = Path(source_points_dir)
-        if source_intensities_dir is not None:
-            source_intensities_dir = Path(source_intensities_dir)
-        if source_clusters_dir is not None:
-            source_clusters_dir = Path(source_clusters_dir)
+        points_dir = Path(points_dir)
+        if intensities_dir is not None:
+            intensities_dir = Path(intensities_dir)
+        if clusters_dir is not None:
+            clusters_dir = Path(clusters_dir)
         simutome_seeds = np.random.default_rng(seed=self.config.seed).integers(
             sys.maxsize, size=self.n_file_sets * self.n_simutome_params
         )
         n_runs_per_batch = self.get_run_length(n_batches)
         for run_config in self._generate_run_configs_for_batch(
-            source_points_dir,
-            source_intensities_dir,
-            source_clusters_dir,
+            points_dir,
+            intensities_dir,
+            clusters_dir,
             simutome_seeds,
             batch_index * n_runs_per_batch,
             min((batch_index + 1) * n_runs_per_batch, self.n_runs),
@@ -194,9 +194,9 @@ class SemisyntheticBenchmark:
 
     def _generate_run_configs_for_batch(
         self,
-        source_points_dir: Path,
-        source_intensities_dir: Optional[Path],
-        source_clusters_dir: Optional[Path],
+        points_dir: Path,
+        intensities_dir: Optional[Path],
+        clusters_dir: Optional[Path],
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
@@ -206,69 +206,54 @@ class SemisyntheticBenchmark:
         file_set_stop = math.ceil((stop - offset) / self.n_runs_per_file_set)
         assert 0 <= file_set_start < file_set_stop <= self.n_file_sets
         for file_set_index in range(file_set_start, file_set_stop):
-            source_points_file_name = self.config.source_points_file_names[
-                file_set_index
-            ]
-            source_points = pd.read_csv(
-                source_points_dir / source_points_file_name, index_col="cell"
-            )
-            source_intensities_file_name = None
-            source_intensities = None
+            points_file_name = self.config.points_file_names[file_set_index]
+            points = pd.read_csv(points_dir / points_file_name, index_col="cell")
+            intensities_file_name = None
+            intensities = None
             if (
-                source_intensities_dir is not None
-                and self.config.source_intensities_file_names is not None
+                intensities_dir is not None
+                and self.config.intensities_file_names is not None
             ):
-                source_intensities_file_name = (
-                    self.config.source_intensities_file_names[file_set_index]
-                )
-                source_intensities = pd.read_csv(
-                    source_intensities_dir / source_intensities_file_name,
-                    index_col="cell",
-                )
-            source_clusters_file_name = None
-            source_clusters = None
-            if (
-                source_clusters_dir is not None
-                and self.config.source_clusters_file_names is not None
-            ):
-                source_clusters_file_name = self.config.source_clusters_file_names[
+                intensities_file_name = self.config.intensities_file_names[
                     file_set_index
                 ]
-                source_clusters = pd.read_csv(
-                    source_clusters_dir / source_clusters_file_name, index_col="cell"
+                intensities = pd.read_csv(
+                    intensities_dir / intensities_file_name, index_col="cell"
+                )
+            clusters_file_name = None
+            clusters = None
+            if clusters_dir is not None and self.config.clusters_file_names is not None:
+                clusters_file_name = self.config.clusters_file_names[file_set_index]
+                clusters = pd.read_csv(
+                    clusters_dir / clusters_file_name, index_col="cell"
                 ).iloc[:, 0]
             for run_config in self._generate_run_configs_for_file_set(
                 file_set_index,
-                source_points,
-                source_intensities,
-                source_clusters,
+                points,
+                intensities,
+                clusters,
                 simutome_seeds,
                 max(start, offset + file_set_index * self.n_runs_per_file_set),
                 min(stop, offset + (file_set_index + 1) * self.n_runs_per_file_set),
             ):
                 yield RunConfig(
                     info={
-                        "source_points_file_name": source_points_file_name,
-                        "source_intensities_file_name": source_intensities_file_name,
-                        "source_clusters_file_name": source_clusters_file_name,
+                        "points_file_name": points_file_name,
+                        "intensities_file_name": intensities_file_name,
+                        "clusters_file_name": clusters_file_name,
                         **run_config.info,
                     },
                     algorithm_name=run_config.algorithm_name,
                     algorithm_kwargs=run_config.algorithm_kwargs,
-                    match_points_kwargs={
-                        "source_name": "source",
-                        "source_points": source_points,
-                        "source_intensities": source_intensities,
-                        **run_config.match_points_kwargs,
-                    },
+                    match_points_kwargs=run_config.match_points_kwargs,
                 )
 
     def _generate_run_configs_for_file_set(
         self,
         file_set_index: int,
-        source_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        source_clusters: Optional[pd.Series],
+        points: pd.DataFrame,
+        intensities: Optional[pd.DataFrame],
+        clusters: Optional[pd.Series],
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
@@ -303,9 +288,9 @@ class SemisyntheticBenchmark:
             for run_config in self._generate_run_configs_for_simutome_params(
                 file_set_index,
                 simutome_params_index,
-                source_points,
-                source_intensities,
-                source_clusters,
+                points,
+                intensities,
+                clusters,
                 simutome,
                 max(
                     start,
@@ -334,9 +319,9 @@ class SemisyntheticBenchmark:
         self,
         file_set_index: int,
         simutome_params_index: int,
-        source_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        source_clusters: Optional[pd.Series],
+        points: pd.DataFrame,
+        intensities: Optional[pd.DataFrame],
+        clusters: Optional[pd.Series],
         simutome: Simutome,
         start: int,
         stop: int,
@@ -345,83 +330,101 @@ class SemisyntheticBenchmark:
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params
         )
-        simutome_section_start = math.floor(
-            (start - offset) / self.n_runs_per_simutome_section
+        simutome_sections_start = math.floor(
+            (start - offset) / self.n_runs_per_simutome_sections
         )
-        simutome_section_stop = math.ceil(
-            (stop - offset) / self.n_runs_per_simutome_section
+        simutome_sections_stop = math.ceil(
+            (stop - offset) / self.n_runs_per_simutome_sections
         )
         assert (
             0
-            <= simutome_section_start
-            < simutome_section_stop
+            <= simutome_sections_start
+            < simutome_sections_stop
             <= self.n_simutome_sections
         )
-        simutome.skip_sections(simutome_section_start)
-        simutome_section_generator = simutome.generate_sections(
-            source_points.to_numpy(),
-            cell_intensities=source_intensities.loc[source_points.index, :].to_numpy()
-            if source_intensities is not None
-            else None,
-            cell_clusters=source_clusters.loc[source_points.index].to_numpy()
-            if source_clusters is not None
-            else None,
-            n=simutome_section_stop - simutome_section_start,
+        cell_points = points.to_numpy()
+        cell_intensities = None
+        if intensities is not None:
+            cell_intensities = intensities.loc[points.index, :].to_numpy()
+        cell_clusters = None
+        if clusters is not None:
+            cell_clusters = clusters.loc[points.index].to_numpy()
+        n = simutome_sections_stop - simutome_sections_start
+        simutome.skip_section_pairs(simutome_sections_start)
+        section_pair_generator = simutome.generate_section_pairs(
+            cell_points,
+            cell_intensities=cell_intensities,
+            cell_clusters=cell_clusters,
+            n=n,
         )
-        for simutome_section_index, (
-            source_indices,
-            target_points,
-            target_intensities,
-        ) in enumerate(simutome_section_generator, start=simutome_section_start):
+        for simutome_sections_index, (
+            (source_indices, source_points, source_intensities),
+            (target_indices, target_points, target_intensities),
+        ) in enumerate(section_pair_generator, start=simutome_sections_start):
+            source_points = pd.DataFrame(
+                source_points,
+                index=points.index[source_indices],
+                columns=points.columns,
+            )
+            if source_intensities is not None:
+                source_intensities = pd.DataFrame(
+                    source_intensities,
+                    index=intensities.index[source_indices],
+                    columns=intensities.columns,
+                )
             target_points = pd.DataFrame(
                 target_points,
-                index=source_points.index[source_indices],
-                columns=source_points.columns,
+                index=points.index[target_indices],
+                columns=points.columns,
             )
             if target_intensities is not None:
                 target_intensities = pd.DataFrame(
                     target_intensities,
-                    index=source_intensities.index[source_indices],
-                    columns=source_intensities.columns,
+                    index=intensities.index[target_indices],
+                    columns=intensities.columns,
                 )
-            for run_config in self._generate_run_configs_for_simutome_section(
+            for run_config in self._generate_run_configs_for_simutome_sections(
                 file_set_index,
                 simutome_params_index,
-                simutome_section_index,
+                simutome_sections_index,
                 max(
                     start,
-                    offset + simutome_section_index * self.n_runs_per_simutome_section,
+                    offset
+                    + simutome_sections_index * self.n_runs_per_simutome_sections,
                 ),
                 min(
                     stop,
                     offset
-                    + (simutome_section_index + 1) * self.n_runs_per_simutome_section,
+                    + (simutome_sections_index + 1) * self.n_runs_per_simutome_sections,
                 ),
             ):
                 yield RunConfig(
-                    info={"section_number": simutome_section_index, **run_config.info},
+                    info={"section_number": simutome_sections_index, **run_config.info},
                     algorithm_name=run_config.algorithm_name,
                     algorithm_kwargs=run_config.algorithm_kwargs,
                     match_points_kwargs={
-                        "target_name": "simutome",
+                        "source_name": "source",
+                        "source_points": source_points,
+                        "source_intensities": source_intensities,
+                        "target_name": "target",
                         "target_points": target_points,
                         "target_intensities": target_intensities,
                         **run_config.match_points_kwargs,
                     },
                 )
 
-    def _generate_run_configs_for_simutome_section(
+    def _generate_run_configs_for_simutome_sections(
         self,
         file_set_index: int,
         simutome_params_index: int,
-        simutome_section_index: int,
+        simutome_sections_index: int,
         start: int,
         stop: int,
     ) -> Generator[RunConfig, None, None]:
         offset = (
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params
-            + simutome_section_index * self.n_runs_per_simutome_section
+            + simutome_sections_index * self.n_runs_per_simutome_sections
         )
         i = 0
         for (
@@ -480,7 +483,7 @@ class SemisyntheticBenchmark:
 
     @property
     def n_file_sets(self) -> int:
-        return len(self.config.source_points_file_names)
+        return len(self.config.points_file_names)
 
     @property
     def n_simutome_params(self) -> int:
@@ -519,5 +522,5 @@ class SemisyntheticBenchmark:
         return self.n_simutome_sections * self.n_algorithm_configs_param_grids
 
     @property
-    def n_runs_per_simutome_section(self) -> int:
+    def n_runs_per_simutome_sections(self) -> int:
         return self.n_algorithm_configs_param_grids

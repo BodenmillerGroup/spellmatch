@@ -39,19 +39,19 @@ from spellmatch.benchmark.semisynthetic import (
 )
 
 # %%
-source_points_dir = "../data/jackson_fischer_2020/source_points"
-source_intensities_dir = "../data/jackson_fischer_2020/source_intensities"
-source_clusters_dir = "../data/jackson_fischer_2020/source_clusters"
+points_dir = "../data/jackson_fischer_2020/points"
+intensities_dir = "../data/jackson_fischer_2020/intensities"
+clusters_dir = "../data/jackson_fischer_2020/clusters"
 
 benchmark_config = SemisyntheticBenchmarkConfig(
-    source_points_file_names=[
-        f.name for f in sorted(Path(source_points_dir).glob("*.csv"))
+    points_file_names=[
+        f.name for f in sorted(Path(points_dir).glob("*.csv"))
     ],
-    source_intensities_file_names=[
-        f.name for f in sorted(Path(source_intensities_dir).glob("*.csv"))
+    intensities_file_names=[
+        f.name for f in sorted(Path(intensities_dir).glob("*.csv"))
     ],
-    source_clusters_file_names=[
-        f.name for f in sorted(Path(source_clusters_dir).glob("*.csv"))
+    clusters_file_names=[
+        f.name for f in sorted(Path(clusters_dir).glob("*.csv"))
     ],
     simutome_kwargs={
         # assume minor mis-alignment
@@ -161,20 +161,20 @@ benchmark_config = SemisyntheticBenchmarkConfig(
 )
 
 assignment_functions = {
-    "min_score_q25_intersect": partial(
+    "linear_sum": partial(
+        assign, linear_sum=True, as_matrix=True
+    ),
+    "max_intersect": partial(
+        assign, max=True, direction="intersect", as_matrix=True
+    ),
+    "max_union": partial(
+        assign, max=True, direction="union", as_matrix=True
+    ),
+    "thresQ1_intersect": partial(
         assign, min_score_quantile=0.25, direction="intersect", as_matrix=True
     ),
-    "min_score_q25_union": partial(
+    "thresQ1_union": partial(
         assign, min_score_quantile=0.25, direction="union", as_matrix=True
-    ),
-    "max_only_intersect": partial(
-        assign, max_only=True, direction="intersect", as_matrix=True
-    ),
-    "max_only_union": partial(
-        assign, max_only=True, direction="union", as_matrix=True
-    ),
-    "linear_sum_forward": partial(
-        assign, linear_sum=True, direction="forward", as_matrix=True
     ),
 }
 metric_functions = default_metrics
@@ -205,9 +205,9 @@ benchmark.save()
 # %%
 for run_config in tqdm(
     benchmark.run_parallel(
-        source_points_dir,
-        source_intensities_dir=source_intensities_dir,
-        source_clusters_dir=source_clusters_dir,
+        points_dir,
+        intensities_dir=intensities_dir,
+        clusters_dir=clusters_dir,
         batch_index=benchmark_args.batch,
         n_batches=benchmark_args.nbatch,
         n_processes=benchmark_args.nproc,
