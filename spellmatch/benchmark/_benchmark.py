@@ -96,7 +96,7 @@ def run_parallel(
                     run_config: RunConfig
                     i, run_config = self.run_config_queue.get(timeout=self.timeout)
                     scores_file = self.scores_dir / f"scores{i:06d}.nc"
-                    scores_info = run(run_config, scores_file)
+                    scores_info, scores = run(run_config, scores_file)
                     self.scores_info_queue.put(scores_info)
                     self.run_config_queue.task_done()
                 except queue.Empty:
