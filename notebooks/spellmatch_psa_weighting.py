@@ -84,15 +84,15 @@ benchmark_config = SemisyntheticBenchmarkConfig(
             algorithm_param_grid={
                 "prior": [
                     {
+                        "alpha": 0.8,
+                        "spatial_cdist_prior_thres": 25.0,
+                    },
+                    {
                         "alpha": 0.7,
                         "spatial_cdist_prior_thres": 25.0,
                     },
                     {
-                        "alpha": 0.6,
-                        "spatial_cdist_prior_thres": 25.0,
-                    },
-                    {
-                        "alpha": 0.8,
+                        "alpha": 0.9,
                         "spatial_cdist_prior_thres": 25.0,
                     },
                     {
