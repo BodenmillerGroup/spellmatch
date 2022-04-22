@@ -54,12 +54,14 @@ def run(
 
 
 def run_sequential(
-    run_configs: Iterable[RunConfig], scores_dir: Union[str, PathLike]
+    run_configs: Iterable[RunConfig],
+    scores_dir: Union[str, PathLike],
+    offset: int = 0,
 ) -> Generator[tuple[dict[str, Any], xr.DataArray], None, pd.DataFrame]:
     scores_dir = Path(scores_dir)
     scores_dir.mkdir(exist_ok=True)
     scores_infos = []
-    for i, run_config in enumerate(run_configs):
+    for i, run_config in enumerate(run_configs, start=offset):
         scores_info, scores = run(run_config, scores_dir / f"scores{i:06d}.nc")
         scores_infos.append(scores_info)
         yield scores_info, scores
@@ -69,6 +71,7 @@ def run_sequential(
 def run_parallel(
     run_configs: Iterable[RunConfig],
     scores_dir: Union[str, PathLike],
+    offset: int = 0,
     n_processes: Optional[int] = None,
     queue_size: int = None,
     worker_timeout: int = 1,
@@ -124,7 +127,7 @@ def run_parallel(
     for worker in workers:
         worker.start()
     n = 0
-    for i, run_config in enumerate(run_configs):
+    for i, run_config in enumerate(run_configs, start=offset):
         run_config_queue.put((i, run_config))
         yield run_config
         n += 1

@@ -63,7 +63,9 @@ class SemisyntheticBenchmark:
             n_batches=n_batches,
         )
         self.scores_info: pd.DataFrame = yield from run_sequential(
-            run_config_generator, self.scores_dir
+            run_config_generator,
+            self.scores_dir,
+            offset=batch_index * self.get_run_length(n_batches),
         )
         self.scores_info.to_csv(self.scores_info_file, index=False)
         return self.scores_info
@@ -89,6 +91,7 @@ class SemisyntheticBenchmark:
         self.scores_info: pd.DataFrame = yield from run_parallel(
             run_config_generator,
             self.scores_dir,
+            offset=batch_index * self.get_run_length(n_batches),
             n_processes=n_processes,
             queue_size=queue_size,
             worker_timeout=worker_timeout,
