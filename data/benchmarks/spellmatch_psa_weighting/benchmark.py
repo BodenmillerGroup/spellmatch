@@ -39,9 +39,9 @@ from spellmatch.benchmark.semisynthetic import (
 )
 
 # %%
-points_dir = "../data/jackson_fischer_2020/points"
-intensities_dir = "../data/jackson_fischer_2020/intensities"
-clusters_dir = "../data/jackson_fischer_2020/clusters"
+points_dir = "../datasets/jackson_fischer_2020/points"
+intensities_dir = "../datasets/jackson_fischer_2020/intensities"
+clusters_dir = "../datasets/jackson_fischer_2020/clusters"
 
 benchmark_config = SemisyntheticBenchmarkConfig(
     points_file_names=[
@@ -181,17 +181,19 @@ metric_functions = default_metrics
 
 # %%
 parser = ArgumentParser()
-parser.add_argument("--path", type=str, default="spellmatch_psa_weighting")
 parser.add_argument("--batch", type=int, default=0)
 parser.add_argument("--nbatch", type=int, default=1)
 parser.add_argument("--nproc", type=int, default=None)
-benchmark_args, _ = parser.parse_known_args()
+args, _ = parser.parse_known_args()
 
 # %%
-benchmark_dir = Path(benchmark_args.path)
-benchmark_dir.mkdir(exist_ok=True)
+results_dir = Path("results")
+results_dir.mkdir()
+if args.nbatch > 1:
+    results_dir /= f"batch{args.batch:03d}"
+    results_dir.mkdir()
 logging.basicConfig(
-    filename=benchmark_dir / "benchmark.log",
+    filename=results_dir / "benchmark.log",
     filemode="w",
     format="[%(processName)-4s] %(asctime)s %(levelname)s %(name)s - %(message)s",
     level=logging.INFO,
@@ -199,7 +201,7 @@ logging.basicConfig(
 )
 
 # %%
-benchmark = SemisyntheticBenchmark(benchmark_dir, benchmark_config)
+benchmark = SemisyntheticBenchmark(results_dir, benchmark_config)
 benchmark.save()
 
 # %%
@@ -208,11 +210,11 @@ for run_config in tqdm(
         points_dir,
         intensities_dir=intensities_dir,
         clusters_dir=clusters_dir,
-        batch_index=benchmark_args.batch,
-        n_batches=benchmark_args.nbatch,
-        n_processes=benchmark_args.nproc,
+        batch_index=args.batch,
+        n_batches=args.nbatch,
+        n_processes=args.nproc,
     ),
-    total=benchmark.get_run_length(benchmark_args.nbatch),
+    total=benchmark.get_run_length(args.nbatch),
 ):
     pass
 

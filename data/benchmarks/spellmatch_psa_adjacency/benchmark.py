@@ -14,13 +14,13 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch benchmark
+# # Semi-synthetic Spellmatch adjacency parameter sensitivity analysis
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Varying simutome parameters, 1 section per image
-# - Many algorithms, including Spellmatch
+# - Fixed simutome parameters, 1 section per image
+# - Spellmatch only
 #     - Fixed similarity/prior weights
-#     - Fixed adjacency radii
+#     - Varying adjancy radii
 
 # %%
 import logging
@@ -39,9 +39,9 @@ from spellmatch.benchmark.semisynthetic import (
 )
 
 # %%
-points_dir = "../data/jackson_fischer_2020/points"
-intensities_dir = "../data/jackson_fischer_2020/intensities"
-clusters_dir = "../data/jackson_fischer_2020/clusters"
+points_dir = "../datasets/jackson_fischer_2020/points"
+intensities_dir = "../datasets/jackson_fischer_2020/intensities"
+clusters_dir = "../datasets/jackson_fischer_2020/clusters"
 
 benchmark_config = SemisyntheticBenchmarkConfig(
     points_file_names=[
@@ -53,24 +53,56 @@ benchmark_config = SemisyntheticBenchmarkConfig(
     clusters_file_names=[
         f.name for f in sorted(Path(clusters_dir).glob("*.csv"))
     ],
-    simutome_kwargs={},  # TODO
-    simutome_param_grid={},  # TODO
+    simutome_kwargs={
+        # assume minor mis-alignment
+        "image_rotation": 2.0 * np.pi / 180,
+        "image_translation": (1.0, 3.0),
+        # see simutome_parameters.ipynb
+        "exclude_cells": True,
+        "section_thickness": 2.0,
+        "cell_diameter_mean": 7.931,
+        "cell_diameter_std": 1.768,
+        # see simutome_parameters.ipynb
+        "displace_cells": True,
+        "cell_displacement_mean": 0.067,
+        "cell_displacement_var": 1.010,
+    },
+    simutome_param_grid={},
     n_simutome_sections=1,
     algorithm_configs={
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
-            algorithm_kwargs={},  # TODO
-            algorithm_param_grid={},  # TODO
-        ),
-        "icp": SemisyntheticBenchmarkConfig.AlgorithmConfig(
-            algorithm_name="icp",
-            algorithm_kwargs={},  # TODO
-            algorithm_param_grid={},  # TODO
-        ),
-        "rigid_cpd": SemisyntheticBenchmarkConfig.AlgorithmConfig(
-            algorithm_name="rigid_cpd",
-            algorithm_kwargs={},  # TODO
-            algorithm_param_grid={},  # TODO
+            algorithm_kwargs={
+
+                "filter_outliers": False,
+                "intensity_transform": "numpy.arcsinh",
+                "alpha": 0.7,  # TODO
+                "spatial_cdist_prior_thres": 25.0,  # TODO
+                "max_spatial_cdist": 50.0,
+                "degree_weight": 1.0,  # TODO
+                "degree_cdiff_thres": 3,  # TODO
+                "intensity_weight": 1.0,  # TODO
+                "intensity_interp_lmd": 1.0,  # TODO
+                "intensity_shared_pca_n_components": 15,  # TODO
+                "distance_weight": 1.0,  # TODO
+                "distance_cdiff_thres": 5.0,  # TODO
+                "scores_tol": 1e-6,
+                "require_convergence": True,
+                "require_opt_convergence": True,
+            },
+            algorithm_param_grid={
+                "graph": [
+                    {
+                        "adj_radius": 12,
+                    },
+                    {
+                        "adj_radius": 15,
+                    },
+                    {
+                        "adj_radius": 18,
+                    },
+                ],
+            },
         ),
     },
     seed=123,
@@ -97,17 +129,19 @@ metric_functions = default_metrics
 
 # %%
 parser = ArgumentParser()
-parser.add_argument("--path", type=str, default="spellmatch_benchmark")
 parser.add_argument("--batch", type=int, default=0)
 parser.add_argument("--nbatch", type=int, default=1)
 parser.add_argument("--nproc", type=int, default=None)
-benchmark_args, _ = parser.parse_known_args()
+args, _ = parser.parse_known_args()
 
 # %%
-benchmark_dir = Path(benchmark_args.path)
-benchmark_dir.mkdir(exist_ok=True)
+results_dir = Path("results")
+results_dir.mkdir()
+if args.nbatch > 1:
+    results_dir /= f"batch{args.batch:03d}"
+    results_dir.mkdir()
 logging.basicConfig(
-    filename=benchmark_dir / "benchmark.log",
+    filename=results_dir / "benchmark.log",
     filemode="w",
     format="[%(processName)-4s] %(asctime)s %(levelname)s %(name)s - %(message)s",
     level=logging.INFO,
@@ -115,7 +149,7 @@ logging.basicConfig(
 )
 
 # %%
-benchmark = SemisyntheticBenchmark(benchmark_dir, benchmark_config)
+benchmark = SemisyntheticBenchmark(results_dir, benchmark_config)
 benchmark.save()
 
 # %%
@@ -124,11 +158,11 @@ for run_config in tqdm(
         points_dir,
         intensities_dir=intensities_dir,
         clusters_dir=clusters_dir,
-        batch_index=benchmark_args.batch,
-        n_batches=benchmark_args.nbatch,
-        n_processes=benchmark_args.nproc,
+        batch_index=args.batch,
+        n_batches=args.nbatch,
+        n_processes=args.nproc,
     ),
-    total=benchmark.get_run_length(benchmark_args.nbatch),
+    total=benchmark.get_run_length(args.nbatch),
 ):
     pass
 
