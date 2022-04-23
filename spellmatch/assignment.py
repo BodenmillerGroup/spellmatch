@@ -39,7 +39,7 @@ def assign(
         direction = AssignmentDirection(direction)
     fwd_scores = None
     if direction != AssignmentDirection.REVERSE:
-        fwd_scores = scores.to_numpy()
+        fwd_scores = scores.to_numpy().copy()
     rev_scores = None
     if direction != AssignmentDirection.FORWARD:
         if reverse_scores is not None:
@@ -47,9 +47,9 @@ def assign(
                 raise SpellmatchAssignmentException(
                     "Reverse scores shape does not match (forward) scores shape"
                 )
-            rev_scores = reverse_scores.to_numpy()
+            rev_scores = reverse_scores.to_numpy().copy()
         else:
-            rev_scores = scores.to_numpy()
+            rev_scores = scores.to_numpy().copy()
     if normalize:
         if fwd_scores is not None:
             max_fwd_scores = np.amax(fwd_scores, axis=1)
@@ -168,11 +168,11 @@ def show_assignment(
     assignment: pd.DataFrame,
     n: int,
 ) -> None:
-    filtered_source_mask = source_mask.to_numpy()
+    filtered_source_mask = source_mask.to_numpy().copy()
     filtered_source_mask[
         ~np.isin(filtered_source_mask, assignment.iloc[:, 0].to_numpy())
     ] = 0
-    filtered_target_mask = target_mask.to_numpy()
+    filtered_target_mask = target_mask.to_numpy().copy()
     filtered_target_mask[
         ~np.isin(filtered_target_mask, assignment.iloc[:, 1].to_numpy())
     ] = 0
