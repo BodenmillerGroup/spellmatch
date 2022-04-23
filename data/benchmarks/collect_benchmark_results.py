@@ -30,8 +30,9 @@ assert args.path, "path argument"
 # %%
 results_dir = Path(args.path)
 batch_dirs = sorted(results_dir.glob("batch*"))
-config_dir = results_dir / "configs"
-config_dir.mkdir()
+
+scores_dir = results_dir / "scores"
+scores_dir.mkdir()
 log_dir = results_dir / "logs"
 log_dir.mkdir()
 
@@ -39,7 +40,10 @@ scores_infos = []
 results_infos = []
 for batch_dir in tqdm(batch_dirs):
     config_file = batch_dir / "config.yaml"
-    shutil.copy2(config_file, config_dir / f"{batch_dir.name}.yaml")
+    shutil.copy2(config_file, results_dir)
+    for scores_file in sorted((batch_dir / "scores").glob("*.nc")):
+        assert not (scores_dir / scores_file.name).exists()
+        shutil.copy2(scores_file, scores_dir / scores_file.name)
     log_file = batch_dir / "benchmark.log"
     shutil.copy2(log_file, log_dir / f"{batch_dir.name}.log")
     scores_info = pd.read_csv(batch_dir / "scores.csv")
@@ -48,3 +52,5 @@ for batch_dir in tqdm(batch_dirs):
     results_infos.append(results_info)
 pd.concat(scores_infos).to_csv(results_dir / "scores.csv", index=False)
 pd.concat(results_infos).to_csv(results_dir / "results.csv", index=False)
+
+# %%
