@@ -39,9 +39,9 @@ from spellmatch.benchmark.semisynthetic import (
 )
 
 # %%
-points_dir = "../datasets/jackson_fischer_2020/points"
-intensities_dir = "../datasets/jackson_fischer_2020/intensities"
-clusters_dir = "../datasets/jackson_fischer_2020/clusters"
+points_dir = "../../datasets/jackson_fischer_2020/points"
+intensities_dir = "../../datasets/jackson_fischer_2020/intensities"
+clusters_dir = "../../datasets/jackson_fischer_2020/clusters"
 
 benchmark_config = SemisyntheticBenchmarkConfig(
     points_file_names=[
@@ -54,18 +54,28 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         f.name for f in sorted(Path(clusters_dir).glob("*.csv"))
     ],
     simutome_kwargs={
-        # assume minor mis-alignment
+        # do not occlude images (assume images to be co-registered & cropped)
+        "image_occlusion": 0.0,
+        # simulate minor mis-alignment (assume small rotation & translation)
+        "image_scale": (1.0, 1.0),
         "image_rotation": 2.0 * np.pi / 180,
+        "image_shear": 0.0,
         "image_translation": (1.0, 3.0),
-        # see simutome_parameters.ipynb
+        # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
         "section_thickness": 2.0,
         "cell_diameter_mean": 7.931,
         "cell_diameter_std": 1.768,
-        # see simutome_parameters.ipynb
+        # displace cells according to parameter estimates from Kuett et al.
         "displace_cells": True,
         "cell_displacement_mean": 0.067,
         "cell_displacement_var": 1.010,
+        # do not split cells (assume perfect segmentation)
+        "cell_division_probab": 0.0,
+        "cell_division_dist_mean": None,
+        "cell_division_dist_std": None,
+        # do not swap cells (checked in separate benchmark)
+        "cell_swapping_probab": 0.0,
     },
     simutome_param_grid={},
     n_simutome_sections=1,
@@ -162,20 +172,18 @@ benchmark_config = SemisyntheticBenchmarkConfig(
 
 assignment_functions = {
     "linear_sum": partial(
-        assign, linear_sum=True, as_matrix=True
+        assign, linear_sum_assignment=True, as_matrix=True
     ),
     "max_intersect": partial(
-        assign, max=True, direction="intersect", as_matrix=True
+        assign, max_assignment=True, direction="intersect", as_matrix=True
     ),
-    "max_union": partial(
-        assign, max=True, direction="union", as_matrix=True
-    ),
-    "thresQ1_intersect": partial(
-        assign, min_score_quantile=0.25, direction="intersect", as_matrix=True
-    ),
-    "thresQ1_union": partial(
-        assign, min_score_quantile=0.25, direction="union", as_matrix=True
-    ),
+    "max_union_thresQ1": partial(
+        assign,
+        max_assignment=True,
+        direction="union",
+        min_post_assignment_score_quantile=0.25,
+        as_matrix=True,
+    )
 }
 metric_functions = default_metrics
 

@@ -1303,16 +1303,26 @@ def cli_match(
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
-    "--linear-sum/--no-linear-sum",
-    "linear_sum",
+    "--max/--no-max",
+    "max_assignment",
     default=False,
     show_default=True,
 )
 @click.option(
-    "--max/--no-max",
-    "max",
+    "--linear-sum/--no-linear-sum",
+    "linear_sum_assignment",
     default=False,
     show_default=True,
+)
+@click.option(
+    "--min-post-score",
+    "min_post_assignment_score",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--min-post-scoreQ",
+    "min_post_assignment_score_quantile",
+    type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
 )
 @click.option(
     "--direction",
@@ -1371,8 +1381,10 @@ def cli_assign(
     min_score_quantile: Optional[float],
     margin_thres: Optional[float],
     margin_thres_quantile: Optional[float],
-    linear_sum: bool,
-    max: bool,
+    max_assignment: bool,
+    linear_sum_assignment: bool,
+    min_post_assignment_score: Optional[float],
+    min_post_assignment_score_quantile: Optional[float],
     assignment_direction: str,
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
@@ -1494,9 +1506,11 @@ def cli_assign(
             min_score_quantile=min_score_quantile,
             margin_thres=margin_thres,
             margin_thres_quantile=margin_thres_quantile,
-            linear_sum=linear_sum,
-            max=max,
-            direction=assignment_direction,
+            max_assignment=max_assignment,
+            linear_sum_assignment=linear_sum_assignment,
+            min_post_assignment_score=min_post_assignment_score,
+            min_post_assignment_score_quantile=min_post_assignment_score_quantile,
+            assignment_direction=assignment_direction,
         )
         if show is not None and source_mask is not None and target_mask is not None:
             show_assignment(source_mask, target_mask, assignment, n=show)

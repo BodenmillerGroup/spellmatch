@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import xarray as xr
-from scipy.optimize import linear_sum_assignment
+from scipy import optimize
 from skimage.color import label2rgb
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
@@ -30,18 +30,20 @@ def assign(
     min_score_quantile: Optional[float] = None,
     margin_thres: Optional[float] = None,
     margin_thres_quantile: Optional[float] = None,
-    linear_sum: bool = False,
-    max: bool = False,
-    direction: Union[str, AssignmentDirection] = AssignmentDirection.FORWARD,
+    max_assignment: bool = False,
+    linear_sum_assignment: bool = False,
+    min_post_assignment_score: Optional[float] = None,
+    min_post_assignment_score_quantile: Optional[float] = None,
+    assignment_direction: Union[str, AssignmentDirection] = AssignmentDirection.FORWARD,
     as_matrix: bool = False,
 ) -> Union[pd.DataFrame, xr.DataArray]:
-    if isinstance(direction, str):
-        direction = AssignmentDirection(direction)
+    if isinstance(assignment_direction, str):
+        assignment_direction = AssignmentDirection(assignment_direction)
     fwd_scores = None
-    if direction != AssignmentDirection.REVERSE:
+    if assignment_direction != AssignmentDirection.REVERSE:
         fwd_scores = scores.to_numpy().copy()
     rev_scores = None
-    if direction != AssignmentDirection.FORWARD:
+    if assignment_direction != AssignmentDirection.FORWARD:
         if reverse_scores is not None:
             if reverse_scores.shape != scores.shape:
                 raise SpellmatchAssignmentException(
@@ -73,12 +75,12 @@ def assign(
             max_fwd_scores = np.amax(fwd_scores, axis=1)
             min_max_fwd_score = np.quantile(max_fwd_scores, min_score_quantile)
             fwd_scores[max_fwd_scores < min_max_fwd_score, :] = 0
-            del min_max_fwd_score
+            del max_fwd_scores, min_max_fwd_score
         if rev_scores is not None:
             max_rev_scores = np.amax(rev_scores, axis=0)
             min_max_rev_score = np.quantile(max_rev_scores, min_score_quantile)
             rev_scores[:, max_rev_scores < min_max_rev_score] = 0
-            del min_max_rev_score
+            del max_rev_scores, min_max_rev_score
     if margin_thres is not None or margin_thres_quantile is not None:
         if fwd_scores is not None:
             max2_fwd_scores = -np.partition(-fwd_scores, 1, axis=1)[:, :2]
@@ -102,20 +104,7 @@ def assign(
                 rev_margin_thres = np.quantile(rev_margins, margin_thres_quantile)
                 rev_scores[:, rev_margins <= rev_margin_thres] = 0
                 del rev_margin_thres
-    if linear_sum:
-        if fwd_scores is not None:
-            row_ind, col_ind = linear_sum_assignment(fwd_scores, maximize=True)
-            new_fwd_scores = np.zeros_like(fwd_scores)
-            new_fwd_scores[row_ind, col_ind] = fwd_scores[row_ind, col_ind]
-            fwd_scores = new_fwd_scores
-            del new_fwd_scores, row_ind, col_ind
-        if rev_scores is not None:
-            row_ind, col_ind = linear_sum_assignment(rev_scores, maximize=True)
-            new_rev_scores = np.zeros_like(rev_scores)
-            new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
-            rev_scores = new_rev_scores
-            del new_rev_scores, row_ind, col_ind
-    if max:
+    if max_assignment:
         if fwd_scores is not None:
             row_ind = np.arange(fwd_scores.shape[0])
             col_ind = np.argmax(fwd_scores, axis=1)
@@ -130,13 +119,44 @@ def assign(
             new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
             rev_scores = new_rev_scores
             del new_rev_scores, row_ind, col_ind
-    if direction == AssignmentDirection.FORWARD:
+    if linear_sum_assignment:
+        if fwd_scores is not None:
+            row_ind, col_ind = optimize.linear_sum_assignment(fwd_scores, maximize=True)
+            new_fwd_scores = np.zeros_like(fwd_scores)
+            new_fwd_scores[row_ind, col_ind] = fwd_scores[row_ind, col_ind]
+            fwd_scores = new_fwd_scores
+            del new_fwd_scores, row_ind, col_ind
+        if rev_scores is not None:
+            row_ind, col_ind = optimize.linear_sum_assignment(rev_scores, maximize=True)
+            new_rev_scores = np.zeros_like(rev_scores)
+            new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
+            rev_scores = new_rev_scores
+            del new_rev_scores, row_ind, col_ind
+    if min_post_assignment_score is not None:
+        if fwd_scores is not None:
+            fwd_scores[fwd_scores < min_post_assignment_score] = 0
+        if rev_scores is not None:
+            rev_scores[rev_scores < min_post_assignment_score] = 0
+    if min_post_assignment_score_quantile is not None:
+        if fwd_scores is not None:
+            min_fwd_score = np.quantile(
+                fwd_scores[fwd_scores > 0], min_post_assignment_score_quantile
+            )
+            fwd_scores[fwd_scores < min_fwd_score] = 0
+            del min_fwd_score
+        if rev_scores is not None:
+            min_rev_score = np.quantile(
+                rev_scores[rev_scores > 0], min_post_assignment_score_quantile
+            )
+            rev_scores[rev_scores < min_rev_score] = 0
+            del min_rev_score
+    if assignment_direction == AssignmentDirection.FORWARD:
         assignment_data = fwd_scores > 0
-    elif direction == AssignmentDirection.REVERSE:
+    elif assignment_direction == AssignmentDirection.REVERSE:
         assignment_data = rev_scores > 0
-    elif direction == AssignmentDirection.INTERSECT:
+    elif assignment_direction == AssignmentDirection.INTERSECT:
         assignment_data = (fwd_scores > 0) & (rev_scores > 0)
-    elif direction == AssignmentDirection.UNION:
+    elif assignment_direction == AssignmentDirection.UNION:
         assignment_data = (fwd_scores > 0) | (rev_scores > 0)
     else:
         raise NotImplementedError()
