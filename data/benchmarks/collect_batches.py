@@ -52,5 +52,3 @@ for batch_dir in tqdm(batch_dirs):
     results_infos.append(results_info)
 pd.concat(scores_infos).to_csv(results_dir / "scores.csv", index=False)
 pd.concat(results_infos).to_csv(results_dir / "results.csv", index=False)
-
-# %%

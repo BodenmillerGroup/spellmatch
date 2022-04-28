@@ -14,11 +14,11 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch weighting parameter sensitivity analysis
+# # Semi-synthetic Spellmatch parameter sensitivity analysis
 #
 # - Hand-picked images from Jackson & Fischer et al.
 # - Fixed simutome parameters, 1 section per image
-# - Spellmatch only
+# - Spellmatch algorithm only
 #     - Fixed adjancy radius of $15 \mu m$
 #     - Varying similarity/prior weights
 
@@ -172,18 +172,43 @@ benchmark_config = SemisyntheticBenchmarkConfig(
 
 assignment_functions = {
     "linear_sum": partial(
-        assign, linear_sum_assignment=True, as_matrix=True
+        assign,
+        linear_sum_assignment=True,
+        as_matrix=True,
     ),
     "max_intersect": partial(
-        assign, max_assignment=True, direction="intersect", as_matrix=True
-    ),
-    "max_union_thresQ1": partial(
         assign,
         max_assignment=True,
-        direction="union",
+        assignment_direction="intersect",
+        as_matrix=True,
+    ),
+    "max_union": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        as_matrix=True,
+    ),
+    "max_union_thresQ05": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        min_post_assignment_score_quantile=0.05,
+        as_matrix=True,
+    ),
+    "max_union_thresQ15": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        min_post_assignment_score_quantile=0.15,
+        as_matrix=True,
+    ),
+    "max_union_thresQ25": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
         min_post_assignment_score_quantile=0.25,
         as_matrix=True,
-    )
+    ),
 }
 metric_functions = default_metrics
 
@@ -196,10 +221,9 @@ args, _ = parser.parse_known_args()
 
 # %%
 results_dir = Path("results")
-results_dir.mkdir()
 if args.nbatch > 1:
     results_dir /= f"batch{args.batch:03d}"
-    results_dir.mkdir()
+results_dir.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=results_dir / "benchmark.log",
     filemode="w",
