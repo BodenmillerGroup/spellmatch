@@ -54,6 +54,8 @@ def register_image_features(
     ransac_kwargs: Optional[Mapping[str, Any]] = None,
     show: bool = False,
 ) -> ProjectiveTransform:
+    if source_img.ndim != 2 or target_img.ndim != 2:
+        raise NotImplementedError("3D/multi-channel registration is not supported")
     source_img = source_img.to_numpy()
     target_img = target_img.to_numpy()
     img_min = min(np.amin(source_img), np.amin(target_img))

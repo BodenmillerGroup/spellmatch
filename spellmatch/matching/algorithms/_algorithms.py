@@ -143,13 +143,17 @@ class _PointsMatchingMixin:
             logger.info("Extracting points from masks")
             source_regions = regionprops(
                 source_mask.to_numpy(),
-                intensity_image=np.moveaxis(source_img.to_numpy(), 0, -1)
+                intensity_image=np.moveaxis(
+                    source_img.to_numpy(), 1 if source_img.ndim == 4 else 0, -1
+                )
                 if source_img is not None
                 else None,
             )
             target_regions = regionprops(
                 target_mask.to_numpy(),
-                intensity_image=np.moveaxis(target_img.to_numpy(), 0, -1)
+                intensity_image=np.moveaxis(
+                    target_img.to_numpy(), 1 if target_img.ndim == 4 else 0, -1
+                )
                 if target_img is not None
                 else None,
             )
@@ -177,13 +181,20 @@ class _PointsMatchingMixin:
                     intensity_feature=self.intensity_feature,
                     intensity_transform=self.intensity_transform,
                 )
+        # TODO add support for 3D bounding boxes
+        source_bbox = None
+        if source_mask.ndim == 2:
+            source_bbox = create_bounding_box(source_mask)
+        target_bbox = None
+        if target_mask.ndim == 2:
+            target_bbox = create_bounding_box(target_mask)
         scores = self.match_points(
             source_mask.name or "source",
             target_mask.name or "target",
             c["source_points"],
             c["target_points"],
-            source_bbox=create_bounding_box(source_mask),
-            target_bbox=create_bounding_box(target_mask),
+            source_bbox=source_bbox,
+            target_bbox=target_bbox,
             source_intensities=c["source_intensities"],
             target_intensities=c["target_intensities"],
             prior_transform=prior_transform,

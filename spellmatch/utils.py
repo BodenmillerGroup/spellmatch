@@ -18,11 +18,20 @@ if TYPE_CHECKING:
 
 
 def describe_image(img: xr.DataArray) -> str:
-    return f"{np.dtype(img.dtype).name} {img.shape[1:]}, {img.shape[0]} channels"
+    dtype_name = np.dtype(img.dtype).name
+    if img.ndim == 2:
+        return f"{dtype_name} {img.shape}, 1 channel"
+    if img.ndim == 3:
+        return f"{dtype_name} {img.shape[1:]}, {img.shape[0]} channels"
+    if img.ndim == 4:
+        shape = tuple(x for i, x in enumerate(img.shape) if i != 1)
+        return f"{dtype_name} {shape}, {img.shape[1]} channels"
+    raise ValueError(f"Unsupported number of dimensions: {img.name}")
 
 
 def describe_mask(mask: xr.DataArray) -> str:
-    return f"{np.dtype(mask.dtype).name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
+    dtype_name = np.dtype(mask.dtype).name
+    return f"{dtype_name} {mask.shape}, {len(np.unique(mask)) - 1} cells"
 
 
 def describe_transform(transform: ProjectiveTransform) -> str:
@@ -36,9 +45,9 @@ def describe_transform(transform: ProjectiveTransform) -> str:
             transform_infos.append(
                 f"scale: sx={transform.scale[0]:.3f} sy={transform.scale[1]:.3f}"
             )
-    if hasattr(transform, "rotation"):
+    if hasattr(transform, "rotation") and transform.dimensionality == 2:
         transform_infos.append(f"ccw rotation: {180 * transform.rotation / np.pi:.3f}°")
-    if hasattr(transform, "shear"):
+    if hasattr(transform, "shear") and transform.dimensionality == 2:
         transform_infos.append(f"ccw shear: {180 * transform.shear / np.pi:.3f}°")
     if hasattr(transform, "translation"):
         transform_infos.append(
@@ -96,11 +105,11 @@ def compute_points(
         + 0.5
     )[:, ::-1]
     if "scale" in mask.attrs:
-        points *= mask.attrs["scale"]
+        points *= np.expand_dims(mask.attrs["scale"], 0)
     return pd.DataFrame(
         data=points,
         index=pd.Index(data=[r["label"] for r in regions], name="cell"),
-        columns=["x", "y"],
+        columns=["x", "y"] if mask.ndim == 2 else ["x", "y", "z"],
     )
 
 
@@ -112,7 +121,7 @@ def compute_intensities(
     intensity_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
 ) -> pd.DataFrame:
     if regions is None:
-        intensity_image = np.moveaxis(img.to_numpy(), 0, -1)
+        intensity_image = np.moveaxis(img.to_numpy(), 1 if img.ndim == 4 else 0, -1)
         regions = regionprops(mask.to_numpy(), intensity_image=intensity_image)
     intensities_data = np.array([r[intensity_feature] for r in regions])
     if intensity_transform is not None:
@@ -125,6 +134,9 @@ def compute_intensities(
 
 
 def create_bounding_box(mask: xr.DataArray) -> Polygon:
+    if mask.ndim != 2:
+        # TODO add support for 3D bounding boxes
+        raise NotImplementedError("3D bounding boxes are not supported")
     bbox_shell = np.array(
         [
             [0.5 * mask.shape[-1], -0.5 * mask.shape[-2]],
@@ -134,7 +146,7 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
         ]
     )
     if "scale" in mask.attrs:
-        bbox_shell *= mask.attrs["scale"]
+        bbox_shell *= np.expand_dims(mask.attrs["scale"], 0)
     return Polygon(shell=bbox_shell)
 
 

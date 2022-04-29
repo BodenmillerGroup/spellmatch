@@ -177,10 +177,20 @@ def cli_register() -> None:
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
+    "--source-zscale",
+    "source_zscale",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
     "--target-scale",
     "target_scale",
     default=1,
     show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-zscale",
+    "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -210,7 +220,9 @@ def cli_register_interactive(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
+    source_zscale: Optional[float],
     target_scale: float,
+    target_zscale: Optional[float],
     transform_type_name: str,
     assignment_path: Path,
     transform_path: Path,
@@ -305,17 +317,24 @@ def cli_register_interactive(
     ):
         if len(source_mask_files) > 1:
             logger.info(f"MASK PAIR {i + 1}/{len(source_mask_files)}")
-        source_mask = io.read_mask(source_mask_file, scale=source_scale)
+        source_mask = io.read_mask(
+            source_mask_file, scale=source_scale, zscale=source_zscale
+        )
         logger.info(
             f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
         )
-        target_mask = io.read_mask(target_mask_file, scale=target_scale)
+        target_mask = io.read_mask(
+            target_mask_file, scale=target_scale, zscale=target_zscale
+        )
         logger.info(
             f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
         )
         if source_img_file is not None:
             source_img = io.read_image(
-                source_img_file, panel=source_panel, scale=source_scale
+                source_img_file,
+                panel=source_panel,
+                scale=source_scale,
+                zscale=source_zscale,
             )
             logger.info(
                 f"Source image: {source_img_file.name} ({describe_image(source_img)})"
@@ -325,7 +344,10 @@ def cli_register_interactive(
             logger.info("Source image: None")
         if target_img_file is not None:
             target_img = io.read_image(
-                target_img_file, panel=target_panel, scale=target_scale
+                target_img_file,
+                panel=target_panel,
+                scale=target_scale,
+                zscale=target_zscale,
             )
             logger.info(
                 f"Target image: {target_img_file.name} ({describe_image(target_img)})"
@@ -396,10 +418,20 @@ def cli_register_interactive(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
+    "--source-zscale",
+    "source_zscale",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
     "--target-scale",
     "target_scale",
     default=1,
     show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-zscale",
+    "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -496,7 +528,9 @@ def cli_register_features(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
+    source_zscale: Optional[float],
     target_scale: float,
+    target_zscale: Optional[float],
     source_channel: Optional[str],
     target_channel: Optional[str],
     source_median_filter_size: Optional[int],
@@ -558,12 +592,15 @@ def cli_register_features(
         if len(source_img_files) > 1:
             logger.info(f"IMAGE PAIR {i + 1}/{len(source_img_files)}")
         source_img = io.read_image(
-            source_img_file, panel=source_panel, scale=source_scale
+            source_img_file,
+            panel=source_panel,
+            scale=source_scale,
+            zscale=source_zscale,
         )
         logger.info(
             f"Source image: {source_img_file.name} ({describe_image(source_img)})"
         )
-        if source_img.ndim == 3:
+        if source_img.ndim in (3, 4):
             if source_channel is not None:
                 if (
                     "c" in source_img.coords
@@ -591,12 +628,15 @@ def cli_register_features(
             inplace=True,
         )
         target_img = io.read_image(
-            target_img_file, panel=target_panel, scale=target_scale
+            target_img_file,
+            panel=target_panel,
+            scale=target_scale,
+            zscale=target_zscale,
         )
         logger.info(
             f"Target image: {target_img_file.name} ({describe_image(target_img)})"
         )
-        if target_img.ndim == 3:
+        if target_img.ndim in (3, 4):
             if target_channel is not None:
                 if (
                     "c" in target_img.coords
@@ -676,10 +716,20 @@ def cli_register_features(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
+    "--source-zscale",
+    "source_zscale",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
     "--target-scale",
     "target_scale",
     default=1,
     show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-zscale",
+    "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -796,7 +846,9 @@ def cli_register_intensities(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
+    source_zscale: Optional[float],
     target_scale: float,
+    target_zscale: Optional[float],
     source_channel: Optional[str],
     target_channel: Optional[str],
     source_median_filter_size: Optional[int],
@@ -875,12 +927,15 @@ def cli_register_intensities(
         if len(source_img_files) > 1:
             logger.info(f"IMAGE PAIR {i + 1}/{len(source_img_files)}")
         source_img = io.read_image(
-            source_img_file, panel=source_panel, scale=source_scale
+            source_img_file,
+            panel=source_panel,
+            scale=source_scale,
+            zscale=source_zscale,
         )
         logger.info(
             f"Source image: {source_img_file.name} ({describe_image(source_img)})"
         )
-        if source_img.ndim == 3:
+        if source_img.ndim in (3, 4):
             if source_channel is not None:
                 if (
                     "c" in source_img.coords
@@ -908,12 +963,15 @@ def cli_register_intensities(
             inplace=True,
         )
         target_img = io.read_image(
-            target_img_file, panel=target_panel, scale=target_scale
+            target_img_file,
+            panel=target_panel,
+            scale=target_scale,
+            zscale=target_zscale,
         )
         logger.info(
             f"Target image: {target_img_file.name} ({describe_image(target_img)})"
         )
-        if target_img.ndim == 3:
+        if target_img.ndim in (3, 4):
             if target_channel is not None:
                 if (
                     "c" in target_img.coords
@@ -1023,10 +1081,20 @@ def cli_register_intensities(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
+    "--source-zscale",
+    "source_zscale",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
     "--target-scale",
     "target_scale",
     default=1,
     show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-zscale",
+    "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -1088,7 +1156,9 @@ def cli_match(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
+    source_zscale: Optional[float],
     target_scale: float,
+    target_zscale: Optional[float],
     source_median_filter_size: Optional[int],
     target_median_filter_size: Optional[int],
     source_clipping_quantile: Optional[float],
@@ -1195,17 +1265,24 @@ def cli_match(
     ):
         if len(source_mask_files) > 1:
             logger.info(f"MASK PAIR {i + 1}/{len(source_mask_files)}")
-        source_mask = io.read_mask(source_mask_file, scale=source_scale)
+        source_mask = io.read_mask(
+            source_mask_file, scale=source_scale, zscale=source_zscale
+        )
         logger.info(
             f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
         )
-        target_mask = io.read_mask(target_mask_file, scale=target_scale)
+        target_mask = io.read_mask(
+            target_mask_file, scale=target_scale, zscale=target_zscale
+        )
         logger.info(
             f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
         )
         if source_img_file is not None:
             source_img = io.read_image(
-                source_img_file, panel=source_panel, scale=source_scale
+                source_img_file,
+                panel=source_panel,
+                scale=source_scale,
+                zscale=source_zscale,
             )
             preprocess_image(
                 source_img,
@@ -1222,7 +1299,10 @@ def cli_match(
             logger.info("Source image: None")
         if target_img_file is not None:
             target_img = io.read_image(
-                target_img_file, panel=target_panel, scale=target_scale
+                target_img_file,
+                panel=target_panel,
+                scale=target_scale,
+                zscale=target_zscale,
             )
             preprocess_image(
                 target_img,
@@ -1350,10 +1430,20 @@ def cli_match(
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
+    "--source-zscale",
+    "source_zscale",
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
     "--target-scale",
     "target_scale",
     default=1,
     show_default=True,
+    type=click.FloatRange(min=0, min_open=True),
+)
+@click.option(
+    "--target-zscale",
+    "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
 )
 @click.option(
@@ -1389,7 +1479,9 @@ def cli_assign(
     source_mask_path: Optional[Path],
     target_mask_path: Optional[Path],
     source_scale: float,
+    source_zscale: Optional[float],
     target_scale: float,
+    target_zscale: Optional[float],
     show: Optional[int],
     validation_assignment_path: Optional[Path],
     assignment_path: Path,
@@ -1479,7 +1571,9 @@ def cli_assign(
             reverse_scores = None
             logger.info("Reverse scores: None")
         if source_mask_file is not None:
-            source_mask = io.read_mask(source_mask_file, scale=source_scale)
+            source_mask = io.read_mask(
+                source_mask_file, scale=source_scale, zscale=source_zscale
+            )
             logger.info(
                 f"Source mask: {source_mask_file.name} ({describe_mask(source_mask)})"
             )
@@ -1487,7 +1581,9 @@ def cli_assign(
             source_mask = None
             logger.info("Source mask: None")
         if target_mask_file is not None:
-            target_mask = io.read_mask(target_mask_file, scale=target_scale)
+            target_mask = io.read_mask(
+                target_mask_file, scale=target_scale, zscale=target_zscale
+            )
             logger.info(
                 f"Target mask: {target_mask_file.name} ({describe_mask(target_mask)})"
             )

@@ -34,6 +34,8 @@ def register_image_intensities(
     show: bool = False,
     hold: bool = False,
 ) -> ProjectiveTransform:
+    if source_img.ndim != 2 or target_img.ndim != 2:
+        raise NotImplementedError("3D/multi-channel registration is not supported")
     moving_img = sitk.GetImageFromArray(source_img.astype(float))
     moving_origin = (
         -0.5 * source_img.shape[-1] + 0.5,

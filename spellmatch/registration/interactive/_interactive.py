@@ -21,6 +21,8 @@ def register_interactive(
     transform_type: type[ProjectiveTransform] = AffineTransform,
     assignment: Optional[pd.DataFrame] = None,
 ) -> Optional[tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
+    if source_mask.ndim != 2 or target_mask.ndim != 2:
+        raise NotImplementedError("3D registration is not supported")
     if source_img is not None and source_img.shape[-2:] != source_mask.shape:
         raise SpellmatchInteractiveRegistrationException(
             f"Source image has shape {source_img.shape}, "
@@ -108,26 +110,20 @@ def _create_viewer(
             if "c" in img.coords:
                 img_name = img.coords["c"].to_numpy()[::-1]
             img_channel_axis = img.dims.index("c")
-        img_scale = None
-        if "scale" in img.attrs:
-            img_scale = (img.attrs["scale"], img.attrs["scale"])
         img_layers = viewer.add_image(
             data=img_data,
             channel_axis=img_channel_axis,
             rgb=False,
             colormap="gray",
             name=img_name,
-            scale=img_scale,
+            scale=img.attrs["scale"],
             translate=-0.5 * np.array(img.shape[1:]),
             visible=False,
         )
-    mask_scale = None
-    if "scale" in mask.attrs:
-        mask_scale = (mask.attrs["scale"], mask.attrs["scale"])
     mask_layer = viewer.add_labels(
         data=mask,
         name=mask.name,
-        scale=mask_scale,
+        scale=mask.attrs["scale"],
         translate=-0.5 * np.array(mask.shape),
     )
     mask_layer.contour = 1
