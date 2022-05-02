@@ -1,6 +1,6 @@
 import queue
 from collections.abc import Iterable
-from multiprocessing import Event, JoinableQueue, Process, Queue
+from multiprocessing import Event, Process, Queue
 from os import PathLike, cpu_count
 from pathlib import Path
 from timeit import default_timer as timer
@@ -79,7 +79,7 @@ def run_parallel(
     class WorkerProcess(Process):
         def __init__(
             self,
-            run_config_queue: JoinableQueue,
+            run_config_queue: Queue,
             scores_info_queue: Queue,
             scores_dir: Path,
             timeout: int,
@@ -93,15 +93,13 @@ def run_parallel(
             self.stop_event = Event()
 
         def run(self) -> None:
-            while not self.stop_event.is_set():
+            while not self.stop_event.is_set() or not self.run_config_queue.empty():
                 try:
-                    i: int
-                    run_config: RunConfig
                     i, run_config = self.run_config_queue.get(timeout=self.timeout)
-                    scores_file = self.scores_dir / f"scores{i:06d}.nc"
-                    scores_info, scores = run(run_config, scores_file)
+                    scores_info, scores = run(
+                        run_config, self.scores_dir / f"scores{i:06d}.nc"
+                    )
                     self.scores_info_queue.put(scores_info)
-                    self.run_config_queue.task_done()
                 except queue.Empty:
                     pass
 
@@ -111,7 +109,7 @@ def run_parallel(
         n_processes = cpu_count()
     if queue_size is None:
         queue_size = n_processes
-    run_config_queue = JoinableQueue(maxsize=queue_size)
+    run_config_queue = Queue(maxsize=queue_size)
     scores_info_queue = Queue()
     workers = [
         WorkerProcess(
@@ -131,8 +129,8 @@ def run_parallel(
         run_config_queue.put((i, run_config))
         yield run_config
         n += 1
-    run_config_queue.join()
-    assert scores_info_queue.qsize() == n
     for worker in workers:
         worker.stop_event.set()
+    for worker in workers:
+        worker.join()
     return pd.DataFrame(data=[scores_info_queue.get() for _ in range(n)])
