@@ -63,7 +63,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "image_translation": (1.0, 3.0),
         # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
-        "exlucde_cells_swap": 0.5,
+        "exclude_cells_swap": 0.5,
         "section_thickness": 2.0,
         "cell_diameter_mean": 7.931,
         "cell_diameter_std": 1.768,

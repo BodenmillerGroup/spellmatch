@@ -368,7 +368,7 @@ class SemisyntheticBenchmark:
         ) in enumerate(section_pair_generator, start=simutome_sections_start):
             next_new = np.amax(points.index) + 1
             source_n_new = np.sum(source_new_mask)
-            source_index = points.index[source_indices].copy()
+            source_index = points.index[source_indices].to_numpy().copy()
             source_index[source_new_mask] = next_new + np.arange(source_n_new)
             source_points = pd.DataFrame(
                 source_points, index=source_index, columns=points.columns
@@ -379,7 +379,7 @@ class SemisyntheticBenchmark:
                 )
             next_new += source_n_new
             target_n_new = np.sum(target_new_mask)
-            target_index = points.index[target_indices].copy()
+            target_index = points.index[target_indices].to_numpy().copy()
             target_index[target_new_mask] = next_new + np.arange(target_n_new)
             target_points = pd.DataFrame(
                 target_points, index=target_index, columns=points.columns
