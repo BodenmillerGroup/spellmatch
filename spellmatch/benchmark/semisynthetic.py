@@ -354,40 +354,41 @@ class SemisyntheticBenchmark:
         cell_clusters = None
         if clusters is not None:
             cell_clusters = clusters.loc[points.index].to_numpy()
-        n = simutome_sections_stop - simutome_sections_start
+        next_new = simutome_sections_stop - simutome_sections_start
         simutome.skip_section_pairs(simutome_sections_start)
         section_pair_generator = simutome.generate_section_pairs(
             cell_points,
             cell_intensities=cell_intensities,
             cell_clusters=cell_clusters,
-            n=n,
+            n=next_new,
         )
         for simutome_sections_index, (
-            (source_indices, source_points, source_intensities),
-            (target_indices, target_points, target_intensities),
+            (source_indices, source_new_mask, source_points, source_intensities),
+            (target_indices, target_new_mask, target_points, target_intensities),
         ) in enumerate(section_pair_generator, start=simutome_sections_start):
+            next_new = np.amax(points.index) + 1
+            source_n_new = np.sum(source_new_mask)
+            source_index = points.index[source_indices].copy()
+            source_index[source_new_mask] = next_new + np.arange(source_n_new)
             source_points = pd.DataFrame(
-                source_points,
-                index=points.index[source_indices],
-                columns=points.columns,
+                source_points, index=source_index, columns=points.columns
             )
             if source_intensities is not None:
                 source_intensities = pd.DataFrame(
-                    source_intensities,
-                    index=intensities.index[source_indices],
-                    columns=intensities.columns,
+                    source_intensities, index=source_index, columns=intensities.columns
                 )
+            next_new += source_n_new
+            target_n_new = np.sum(target_new_mask)
+            target_index = points.index[target_indices].copy()
+            target_index[target_new_mask] = next_new + np.arange(target_n_new)
             target_points = pd.DataFrame(
-                target_points,
-                index=points.index[target_indices],
-                columns=points.columns,
+                target_points, index=target_index, columns=points.columns
             )
             if target_intensities is not None:
                 target_intensities = pd.DataFrame(
-                    target_intensities,
-                    index=intensities.index[target_indices],
-                    columns=intensities.columns,
+                    target_intensities, index=target_index, columns=intensities.columns
                 )
+            next_new += target_n_new
             for run_config in self._generate_run_configs_for_simutome_sections(
                 file_set_index,
                 simutome_params_index,
