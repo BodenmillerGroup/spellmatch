@@ -14,13 +14,18 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch adjacency parameter sensitivity analysis
+# # Semi-synthetic Spellmatch parameter sensitivity analysis
 #
 # - Hand-picked images from Jackson & Fischer et al.
 # - Fixed simutome parameters, 1 section per image
-# - Spellmatch only
-#     - Fixed similarity/prior weights
-#     - Varying adjancy radii
+# - Spellmatch algorithm only
+#     - Cell exclusion and cell swapping
+#     - Varying adjacency radii
+#     - Fixed prior weight of $0.8$
+#     - Fixed similarity weights
+#         - $w_\text{degree} = 0.1$
+#         - $w_\text{intensity} = 1$
+#         - $w_\text{distance} = 1$
 
 # %%
 import logging
@@ -39,9 +44,9 @@ from spellmatch.benchmark.semisynthetic import (
 )
 
 # %%
-points_dir = "../datasets/jackson_fischer_2020/points"
-intensities_dir = "../datasets/jackson_fischer_2020/intensities"
-clusters_dir = "../datasets/jackson_fischer_2020/clusters"
+points_dir = "../../datasets/jackson_fischer_2020/points"
+intensities_dir = "../../datasets/jackson_fischer_2020/intensities"
+clusters_dir = "../../datasets/jackson_fischer_2020/clusters"
 
 benchmark_config = SemisyntheticBenchmarkConfig(
     points_file_names=[
@@ -54,18 +59,27 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         f.name for f in sorted(Path(clusters_dir).glob("*.csv"))
     ],
     simutome_kwargs={
-        # assume minor mis-alignment
+        # do not occlude images (assume images to be co-registered & cropped)
+        "image_occlusion": 0.0,
+        # simulate minor mis-alignment (assume small rotation & translation)
+        "image_scale": (1.0, 1.0),
         "image_rotation": 2.0 * np.pi / 180,
+        "image_shear": 0.0,
         "image_translation": (1.0, 3.0),
-        # see simutome_parameters.ipynb
+        # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
+        "exclude_cells_swap": 0.0,
         "section_thickness": 2.0,
         "cell_diameter_mean": 7.931,
         "cell_diameter_std": 1.768,
-        # see simutome_parameters.ipynb
+        # displace cells according to parameter estimates from Kuett et al.
         "displace_cells": True,
         "cell_displacement_mean": 0.067,
         "cell_displacement_var": 1.010,
+        # do not split cells (assume perfect segmentation)
+        "cell_division_probab": 0.0,
+        "cell_division_dist_mean": None,
+        "cell_division_dist_std": None,
     },
     simutome_param_grid={},
     n_simutome_sections=1,
@@ -73,25 +87,24 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
             algorithm_kwargs={
-
                 "filter_outliers": False,
                 "intensity_transform": "numpy.arcsinh",
-                "alpha": 0.7,  # TODO
-                "spatial_cdist_prior_thres": 25.0,  # TODO
                 "max_spatial_cdist": 50.0,
-                "degree_weight": 1.0,  # TODO
-                "degree_cdiff_thres": 3,  # TODO
-                "intensity_weight": 1.0,  # TODO
-                "intensity_interp_lmd": 1.0,  # TODO
-                "intensity_shared_pca_n_components": 15,  # TODO
-                "distance_weight": 1.0,  # TODO
-                "distance_cdiff_thres": 5.0,  # TODO
                 "scores_tol": 1e-6,
                 "require_convergence": True,
                 "require_opt_convergence": True,
+                "alpha": 0.8,
+                "spatial_cdist_prior_thres": 25.0,
+                "degree_weight": 0.1,
+                "degree_cdiff_thres": 3,
+                "intensity_weight": 1.0,
+                "intensity_interp_lmd": 1.0,
+                "intensity_shared_pca_n_components": 15,
+                "distance_weight": 1.0,
+                "distance_cdiff_thres": 5.0,
             },
             algorithm_param_grid={
-                "graph": [
+                "adjacency": [
                     {
                         "adj_radius": 12,
                     },
@@ -110,19 +123,42 @@ benchmark_config = SemisyntheticBenchmarkConfig(
 
 assignment_functions = {
     "linear_sum": partial(
-        assign, linear_sum=True, as_matrix=True
+        assign,
+        linear_sum_assignment=True,
+        as_matrix=True,
     ),
     "max_intersect": partial(
-        assign, max=True, direction="intersect", as_matrix=True
+        assign,
+        max_assignment=True,
+        assignment_direction="intersect",
+        as_matrix=True,
     ),
     "max_union": partial(
-        assign, max=True, direction="union", as_matrix=True
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        as_matrix=True,
     ),
-    "thresQ1_intersect": partial(
-        assign, min_score_quantile=0.25, direction="intersect", as_matrix=True
+    "max_union_thresQ05": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        min_post_assignment_score_quantile=0.05,
+        as_matrix=True,
     ),
-    "thresQ1_union": partial(
-        assign, min_score_quantile=0.25, direction="union", as_matrix=True
+    "max_union_thresQ15": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        min_post_assignment_score_quantile=0.15,
+        as_matrix=True,
+    ),
+    "max_union_thresQ25": partial(
+        assign,
+        max_assignment=True,
+        assignment_direction="union",
+        min_post_assignment_score_quantile=0.25,
+        as_matrix=True,
     ),
 }
 metric_functions = default_metrics
@@ -136,10 +172,9 @@ args, _ = parser.parse_known_args()
 
 # %%
 results_dir = Path("results")
-results_dir.mkdir()
 if args.nbatch > 1:
     results_dir /= f"batch{args.batch:03d}"
-    results_dir.mkdir()
+results_dir.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     filename=results_dir / "benchmark.log",
     filemode="w",
@@ -165,6 +200,21 @@ for run_config in tqdm(
     total=benchmark.get_run_length(args.nbatch),
 ):
     pass
+
+# %%
+# import numpy as np
+# import pandas as pd
+
+# scores_info = pd.read_csv(results_dir / "scores.csv")
+# scores_info["error"] = np.nan
+# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
+#     if not (results_dir / "scores" / scores_file_name).exists():
+#         scores_info.loc[i, "seconds"] = np.nan
+#         scores_info.loc[i, "scores_file"] = np.nan
+#         scores_info.loc[i, "error"] = "unknown"
+# scores_info.to_csv(results_dir / "scores.csv")
+
+# benchmark.scores_info = scores_info
 
 # %%
 for result in tqdm(

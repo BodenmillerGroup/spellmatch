@@ -21,8 +21,11 @@
 # - Spellmatch algorithm only
 #     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
-#     - Fixed prior weight of 0.8
-#     - Varying similarity weights
+#     - Varying prior weights
+#     - Fixed similarity weights
+#         - $w_\text{degree} = 0.1$
+#         - $w_\text{intensity} = 1$
+#         - $w_\text{distance} = 1$
 
 # %%
 import logging
@@ -91,6 +94,13 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "scores_tol": 1e-6,
                 "require_convergence": True,
                 "require_opt_convergence": True,
+                "degree_weight": 0.1,
+                "degree_cdiff_thres": 3,
+                "intensity_weight": 1.0,
+                "intensity_interp_lmd": 1.0,
+                "intensity_shared_pca_n_components": 15,
+                "distance_weight": 1.0,
+                "distance_cdiff_thres": 5.0,
             },
             algorithm_param_grid={
                 "prior": [
@@ -98,59 +108,21 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                         "alpha": 0.8,
                         "spatial_cdist_prior_thres": 25.0,
                     },
-                ],
-                "degrees": [
                     {
-                        "degree_weight": 1.0,
-                        "degree_cdiff_thres": 3,
+                        "alpha": 0.9,
+                        "spatial_cdist_prior_thres": 25.0,
                     },
                     {
-                        "degree_weight": 0.1,
-                        "degree_cdiff_thres": 3,
+                        "alpha": 0.95,
+                        "spatial_cdist_prior_thres": 25.0,
                     },
                     {
-                        "degree_weight": 10.0,
-                        "degree_cdiff_thres": 3,
+                        "alpha": 0.99,
+                        "spatial_cdist_prior_thres": 25.0,
                     },
                     {
-                        "degree_weight": 0.0,
-                    },
-                ],
-                "intensity": [
-                    {
-                        "intensity_weight": 1.0,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 0.1,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 10.0,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 0.0,
-                    },
-                ],
-                "distances": [
-                    {
-                        "distance_weight": 1.0,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.1,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 10.0,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.0,
+                        "alpha": 0.999,
+                        "spatial_cdist_prior_thres": 25.0,
                     },
                 ],
             },
