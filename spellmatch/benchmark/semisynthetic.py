@@ -160,17 +160,11 @@ class SemisyntheticBenchmark:
                 self.benchmark_dir / "scores" / scores_info_row["scores_file"]
             )
             scores_arr = scores.to_numpy()
-            assignment_mat_true = scores.copy(
-                data=np.zeros_like(scores_arr, dtype=bool)
-            )
-            cell_identity_indexer = xr.DataArray(
-                data=np.intersect1d(
-                    scores.coords[scores.dims[0]].to_numpy(),
-                    scores.coords[scores.dims[1]].to_numpy(),
-                )
-            )
-            assignment_mat_true.loc[cell_identity_indexer, cell_identity_indexer] = True
-            assignment_arr_true = assignment_mat_true.to_numpy()
+            coords0 = scores.coords[scores.dims[0]].to_numpy()  # may contain duplicates
+            coords1 = scores.coords[scores.dims[1]].to_numpy()  # may contain duplicates
+            assignment_arr_true = np.zeros_like(scores_arr, dtype=bool)
+            for c in np.unique(np.concatenate((coords0, coords1))):
+                assignment_arr_true[np.ix_(coords0 == c, coords1 == c)] = True
             reverse_scores = None
             reverse_scores_arr = None
             reverse_assignment_arr_true = None
@@ -180,19 +174,19 @@ class SemisyntheticBenchmark:
                     self.benchmark_dir / "scores" / reverse_scores_file
                 )
                 reverse_scores_arr = reverse_scores.to_numpy()
-                reverse_assignment_mat_true = reverse_scores.copy(
-                    data=np.zeros_like(reverse_scores_arr, dtype=bool)
+                reverse_coords0 = reverse_scores.coords[
+                    reverse_scores.dims[0]
+                ].to_numpy()  # may contain duplicates
+                reverse_coords1 = reverse_scores.coords[
+                    reverse_scores.dims[1]
+                ].to_numpy()  # may contain duplicates
+                reverse_assignment_arr_true = np.zeros_like(
+                    reverse_scores_arr, dtype=bool
                 )
-                reverse_cell_identity_indexer = xr.DataArray(
-                    data=np.intersect1d(
-                        reverse_scores.coords[reverse_scores.dims[0]].to_numpy(),
-                        reverse_scores.coords[reverse_scores.dims[1]].to_numpy(),
-                    )
-                )
-                reverse_assignment_mat_true.loc[
-                    reverse_cell_identity_indexer, reverse_cell_identity_indexer
-                ] = True
-                reverse_assignment_arr_true = reverse_assignment_mat_true.to_numpy()
+                for c in np.unique(np.concatenate((reverse_coords0, reverse_coords1))):
+                    reverse_assignment_arr_true[
+                        np.ix_(reverse_coords0 == c, reverse_coords1 == c)
+                    ] = True
             for assignment_name, assignment_function in assignment_functions.items():
                 assignment_mat_pred: xr.DataArray = assignment_function(
                     scores, reverse_scores=reverse_scores
@@ -400,22 +394,22 @@ class SemisyntheticBenchmark:
         cell_clusters = None
         if clusters is not None:
             cell_clusters = clusters.loc[points.index].to_numpy()
-        next_new = simutome_sections_stop - simutome_sections_start
         simutome.skip_section_pairs(simutome_sections_start)
         section_pair_generator = simutome.generate_section_pairs(
             cell_points,
             cell_intensities=cell_intensities,
             cell_clusters=cell_clusters,
-            n=next_new,
+            n=simutome_sections_stop - simutome_sections_start,
         )
         for simutome_sections_index, (
             (source_indices, source_new_mask, source_points, source_intensities),
             (target_indices, target_new_mask, target_points, target_intensities),
         ) in enumerate(section_pair_generator, start=simutome_sections_start):
-            next_new = np.amax(points.index) + 1
+            next_new_cell_id = np.amax(points.index) + 1
             source_n_new = np.sum(source_new_mask)
             source_index = points.index[source_indices].to_numpy().copy()
-            source_index[source_new_mask] = next_new + np.arange(source_n_new)
+            source_index[source_new_mask] = next_new_cell_id + np.arange(source_n_new)
+            source_index = pd.Index(source_index, name="cell")
             source_points = pd.DataFrame(
                 source_points, index=source_index, columns=points.columns
             )
@@ -423,10 +417,11 @@ class SemisyntheticBenchmark:
                 source_intensities = pd.DataFrame(
                     source_intensities, index=source_index, columns=intensities.columns
                 )
-            next_new += source_n_new
+            next_new_cell_id += source_n_new
             target_n_new = np.sum(target_new_mask)
             target_index = points.index[target_indices].to_numpy().copy()
-            target_index[target_new_mask] = next_new + np.arange(target_n_new)
+            target_index[target_new_mask] = next_new_cell_id + np.arange(target_n_new)
+            target_index = pd.Index(target_index, name="cell")
             target_points = pd.DataFrame(
                 target_points, index=target_index, columns=points.columns
             )
@@ -434,7 +429,7 @@ class SemisyntheticBenchmark:
                 target_intensities = pd.DataFrame(
                     target_intensities, index=target_index, columns=intensities.columns
                 )
-            next_new += target_n_new
+            next_new_cell_id += target_n_new
             for run_config in self._generate_run_configs_for_simutome_sections(
                 file_set_index,
                 simutome_params_index,
