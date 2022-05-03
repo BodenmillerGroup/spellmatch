@@ -22,7 +22,10 @@
 #     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
 #     - Varying prior weights
-#     - Fixed similarity weights ($w_\text{degree} = 0.1, w_\text{intensity} = 1, \text{distance} = 1$)
+#     - Fixed similarity weights
+#         - $w_\text{degree} = 0.1$
+#         - $w_\text{intensity} = 1$
+#         - $w_\text{distance} = 1$
 
 # %%
 import logging
