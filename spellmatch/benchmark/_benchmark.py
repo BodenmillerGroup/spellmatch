@@ -1,6 +1,6 @@
+import multiprocessing as mp
 import queue
 from collections.abc import Iterable
-from multiprocessing import Event, Process, Queue
 from os import PathLike, cpu_count
 from pathlib import Path
 from timeit import default_timer as timer
@@ -119,11 +119,11 @@ def run_parallel(
     queue_size: int = None,
     worker_timeout: int = 1,
 ) -> Generator[RunConfig, None, pd.DataFrame]:
-    class WorkerProcess(Process):
+    class WorkerProcess(mp.Process):
         def __init__(
             self,
-            run_config_queue: Queue,
-            scores_info_queue: Queue,
+            run_config_queue: mp.Queue,
+            scores_info_queue: mp.Queue,
             scores_dir: Path,
             timeout: int,
             **kwargs: Any,
@@ -133,7 +133,7 @@ def run_parallel(
             self.scores_info_queue = scores_info_queue
             self.scores_dir = scores_dir
             self.timeout = timeout
-            self.stop_event = Event()
+            self.stop_event = mp.Event()
 
         def run(self) -> None:
             while not self.stop_event.is_set() or not self.run_config_queue.empty():
@@ -155,8 +155,8 @@ def run_parallel(
         n_processes = cpu_count()
     if queue_size is None:
         queue_size = n_processes
-    run_config_queue = Queue(maxsize=queue_size)
-    scores_info_queue = Queue()
+    run_config_queue = mp.Queue(maxsize=queue_size)
+    scores_info_queue = mp.Queue()
     workers = [
         WorkerProcess(
             run_config_queue,

@@ -41,11 +41,12 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
         require_convergence: bool = False,
+        filter_outliers: bool = True,
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
     ) -> None:
         super(IterativeClosestPoints, self).__init__(
-            outlier_dist=max_dist,
+            outlier_dist=max_dist if filter_outliers else None,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
@@ -106,7 +107,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         cache: Optional[MutableMapping[str, Any]],
     ) -> xr.DataArray:
         nn = NearestNeighbors(n_neighbors=1)
-        nn.fit(target_points)
+        nn.fit(target_points.to_numpy())
         nn_dists, nn_ind = nn.kneighbors(source_points)
         dists, target_ind = nn_dists[:, 0], nn_ind[:, 0]
         source_ind = np.arange(len(source_points.index))
