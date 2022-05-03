@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from shapely.geometry import Polygon
-from skimage.transform import EuclideanTransform, ProjectiveTransform
+from skimage.transform import ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
@@ -36,7 +36,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         intensity_transform: Union[
             str, Callable[[np.ndarray], np.ndarray], None
         ] = None,
-        transform_type: Union[str, type[ProjectiveTransform]] = EuclideanTransform,
+        transform_type: Union[str, type[ProjectiveTransform]] = "rigid",
         max_iter: int = 200,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
