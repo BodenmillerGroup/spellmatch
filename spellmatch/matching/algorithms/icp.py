@@ -108,7 +108,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
     ) -> xr.DataArray:
         nn = NearestNeighbors(n_neighbors=1)
         nn.fit(target_points.to_numpy())
-        nn_dists, nn_ind = nn.kneighbors(source_points)
+        nn_dists, nn_ind = nn.kneighbors(source_points.to_numpy())
         dists, target_ind = nn_dists[:, 0], nn_ind[:, 0]
         source_ind = np.arange(len(source_points.index))
         if self.max_dist is not None:
