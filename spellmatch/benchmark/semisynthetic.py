@@ -191,24 +191,18 @@ class SemisyntheticBenchmark:
                 assignment_mat_pred: xr.DataArray = assignment_function(
                     scores, reverse_scores=reverse_scores
                 )
-                assignment_arr_pred = assignment_mat_pred.loc[scores.coords].to_numpy()
-                reverse_assignment_arr_pred = None
-                if reverse_scores is not None:
-                    reverse_assignment_arr_pred = assignment_mat_pred.loc[
-                        reverse_scores.coords
-                    ].to_numpy()
+                assignment_arr_pred = assignment_mat_pred.to_numpy()
                 for metric_name, metric_function in metric_functions.items():
                     metric_value = metric_function(
                         scores_arr, assignment_arr_pred, assignment_arr_true
                     )
                     if (
                         reverse_scores_arr is not None
-                        and reverse_assignment_arr_pred is not None
                         and reverse_assignment_arr_true is not None
                     ):
                         reverse_metric_value = metric_function(
                             reverse_scores_arr,
-                            reverse_assignment_arr_pred,
+                            assignment_arr_pred,
                             reverse_assignment_arr_true,
                         )
                         metric_value = (metric_value + reverse_metric_value) / 2
