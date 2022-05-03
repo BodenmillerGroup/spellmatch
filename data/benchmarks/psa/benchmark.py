@@ -19,6 +19,7 @@
 # - Hand-picked images from Jackson & Fischer et al.
 # - Fixed simutome parameters, 1 section per image
 # - Spellmatch algorithm only
+#     - Cell exclusion only
 #     - Fixed adjancy radius of $15 \mu m$
 #     - Varying similarity/prior weights
 
@@ -63,6 +64,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "image_translation": (1.0, 3.0),
         # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
+        "exclude_cells_swap": 0.0,
         "section_thickness": 2.0,
         "cell_diameter_mean": 7.931,
         "cell_diameter_std": 1.768,
@@ -74,8 +76,6 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_division_probab": 0.0,
         "cell_division_dist_mean": None,
         "cell_division_dist_std": None,
-        # do not swap cells (checked in separate benchmark)
-        "cell_swapping_probab": 0.0,
     },
     simutome_param_grid={},
     n_simutome_sections=1,
@@ -249,6 +249,21 @@ for run_config in tqdm(
     total=benchmark.get_run_length(args.nbatch),
 ):
     pass
+
+# %%
+# import numpy as np
+# import pandas as pd
+
+# scores_info = pd.read_csv(results_dir / "scores.csv")
+# scores_info["error"] = np.nan
+# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
+#     if not (results_dir / "scores" / scores_file_name).exists():
+#         scores_info.loc[i, "seconds"] = np.nan
+#         scores_info.loc[i, "scores_file"] = np.nan
+#         scores_info.loc[i, "error"] = "unknown"
+# scores_info.to_csv(results_dir / "scores.csv")
+
+# benchmark.scores_info = scores_info
 
 # %%
 for result in tqdm(

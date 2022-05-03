@@ -19,8 +19,10 @@
 # - Hand-picked images from Jackson & Fischer et al.
 # - Fixed simutome parameters, 1 section per image
 # - Spellmatch algorithm only
+#     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
-#     - Varying similarity/prior weights
+#     - Varying prior weights
+#     - Fixed similarity weights ($w_\text{degree} = 0.1, w_\text{intensity} = 1, \text{distance} = 1$)
 
 # %%
 import logging
@@ -96,14 +98,22 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                         "alpha": 0.8,
                         "spatial_cdist_prior_thres": 25.0,
                     },
-                    # {
-                    #     "alpha": 0.7,
-                    #     "spatial_cdist_prior_thres": 25.0,
-                    # },
-                    # {
-                    #     "alpha": 0.9,
-                    #     "spatial_cdist_prior_thres": 25.0,
-                    # },
+                    {
+                        "alpha": 0.9,
+                        "spatial_cdist_prior_thres": 25.0,
+                    },
+                    {
+                        "alpha": 0.95,
+                        "spatial_cdist_prior_thres": 25.0,
+                    },
+                    {
+                        "alpha": 0.99,
+                        "spatial_cdist_prior_thres": 25.0,
+                    },
+                    {
+                        "alpha": 0.999,
+                        "spatial_cdist_prior_thres": 25.0,
+                    },
                     # {
                     #     "alpha": 1.0,
                     #     "spatial_cdist_prior_thres": 25.0,
@@ -111,19 +121,8 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 ],
                 "degrees": [
                     {
-                        "degree_weight": 1.0,
-                        "degree_cdiff_thres": 3,
-                    },
-                    {
                         "degree_weight": 0.1,
                         "degree_cdiff_thres": 3,
-                    },
-                    {
-                        "degree_weight": 10.0,
-                        "degree_cdiff_thres": 3,
-                    },
-                    {
-                        "degree_weight": 0.0,
                     },
                 ],
                 "intensity": [
@@ -132,35 +131,11 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                         "intensity_interp_lmd": 1.0,
                         "intensity_shared_pca_n_components": 15,
                     },
-                    {
-                        "intensity_weight": 0.1,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 10.0,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 0.0,
-                    },
                 ],
                 "distances": [
                     {
                         "distance_weight": 1.0,
                         "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.1,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 10.0,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.0,
                     },
                 ],
             },
@@ -248,6 +223,21 @@ for run_config in tqdm(
     total=benchmark.get_run_length(args.nbatch),
 ):
     pass
+
+# %%
+# import numpy as np
+# import pandas as pd
+
+# scores_info = pd.read_csv(results_dir / "scores.csv")
+# scores_info["error"] = np.nan
+# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
+#     if not (results_dir / "scores" / scores_file_name).exists():
+#         scores_info.loc[i, "seconds"] = np.nan
+#         scores_info.loc[i, "scores_file"] = np.nan
+#         scores_info.loc[i, "error"] = "unknown"
+# scores_info.to_csv(results_dir / "scores.csv")
+
+# benchmark.scores_info = scores_info
 
 # %%
 for result in tqdm(
