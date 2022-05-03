@@ -6,9 +6,11 @@ from pathlib import Path
 from timeit import default_timer as timer
 from typing import Any, Generator, Optional, Union
 
+import numpy as np
 import pandas as pd
 import xarray as xr
 from pydantic import BaseModel
+from skimage.transform import ProjectiveTransform
 
 from ..io import write_scores
 from ..matching.algorithms import PointsMatchingAlgorithm
@@ -20,12 +22,17 @@ class RunConfig(BaseModel):
     algorithm_name: str
     algorithm_kwargs: dict[str, Any]
     match_points_kwargs: dict[str, Any]
+    algorithm_is_directed: bool = False
 
 
 def run(
-    run_config: RunConfig, scores_file: Union[str, PathLike]
-) -> tuple[dict[str, Any], xr.DataArray]:
+    run_config: RunConfig,
+    scores_file: Union[str, PathLike],
+    reverse_scores_file: Union[str, PathLike, None] = None,
+) -> tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]]:
     scores_file = Path(scores_file)
+    if reverse_scores_file is not None:
+        reverse_scores_file = Path(reverse_scores_file)
     scores_info = run_config.info.copy()
     algorithm = None
     try:
@@ -40,31 +47,67 @@ def run(
     except Exception as e:
         scores_info["error"] = str(e)
     scores = None
+    reverse_scores = None
     if algorithm is not None:
         try:
             start = timer()
             scores = algorithm.match_points(**run_config.match_points_kwargs)
+            if run_config.algorithm_is_directed:
+                inv_prior_transform = None
+                if "prior_transform" in run_config.match_points_kwargs:
+                    inv_prior_transform = ProjectiveTransform(
+                        matrix=np.linalg.inv(
+                            run_config.match_points_kwargs["prior_transform"].params
+                        )
+                    )
+                reverse_scores = algorithm.match_points(
+                    run_config.match_points_kwargs["target_name"],
+                    run_config.match_points_kwargs["source_name"],
+                    run_config.match_points_kwargs["target_points"],
+                    run_config.match_points_kwargs["source_points"],
+                    source_bbox=run_config.match_points_kwargs.get("target_bbox"),
+                    target_bbox=run_config.match_points_kwargs.get("source_bbox"),
+                    source_intensities=run_config.match_points_kwargs.get(
+                        "target_intensities"
+                    ),
+                    target_intensities=run_config.match_points_kwargs.get(
+                        "source_intensities"
+                    ),
+                    prior_transform=inv_prior_transform,
+                )
+                reverse_scores = reverse_scores.transpose()
             end = timer()
             scores_info["seconds"] = end - start
-            scores_info["scores_file"] = scores_file.name
             write_scores(scores_file, scores)
+            scores_info["scores_file"] = scores_file.name
+            if reverse_scores is not None and reverse_scores_file is not None:
+                write_scores(reverse_scores_file, reverse_scores)
+                scores_info["reverse_scores_file"] = reverse_scores_file.name
         except Exception as e:
             scores_info["error"] = str(e)
-    return scores_info, scores
+    return scores_info, scores, reverse_scores
 
 
 def run_sequential(
     run_configs: Iterable[RunConfig],
     scores_dir: Union[str, PathLike],
     offset: int = 0,
-) -> Generator[tuple[dict[str, Any], xr.DataArray], None, pd.DataFrame]:
+) -> Generator[
+    tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]],
+    None,
+    pd.DataFrame,
+]:
     scores_dir = Path(scores_dir)
     scores_dir.mkdir(exist_ok=True)
     scores_infos = []
     for i, run_config in enumerate(run_configs, start=offset):
-        scores_info, scores = run(run_config, scores_dir / f"scores{i:06d}.nc")
+        scores_info, scores, reverse_scores = run(
+            run_config,
+            scores_dir / f"scores{i:06d}.nc",
+            reverse_scores_file=scores_dir / f"scores{i:06d}_reverse.nc",
+        )
         scores_infos.append(scores_info)
-        yield scores_info, scores
+        yield scores_info, scores, reverse_scores
     return pd.DataFrame(data=scores_infos)
 
 
@@ -96,8 +139,11 @@ def run_parallel(
             while not self.stop_event.is_set() or not self.run_config_queue.empty():
                 try:
                     i, run_config = self.run_config_queue.get(timeout=self.timeout)
-                    scores_info, scores = run(
-                        run_config, self.scores_dir / f"scores{i:06d}.nc"
+                    scores_info, scores, reverse_scores = run(
+                        run_config,
+                        self.scores_dir / f"scores{i:06d}.nc",
+                        reverse_scores_file=self.scores_dir
+                        / f"scores{i:06d}_reverse.nc",
                     )
                     self.scores_info_queue.put(scores_info)
                 except queue.Empty:

@@ -22,6 +22,7 @@ class SemisyntheticBenchmarkConfig(BaseModel):
         algorithm_name: str
         algorithm_kwargs: dict[str, Any]
         algorithm_param_grid: dict[str, list[dict[str, Any]]]
+        algorithm_is_directed: bool = False
 
     points_file_names: list[str]
     intensities_file_names: Optional[list[str]]
@@ -34,7 +35,7 @@ class SemisyntheticBenchmarkConfig(BaseModel):
 
 
 class SemisyntheticBenchmark:
-    AssignmentFunction = Callable[[xr.DataArray], xr.DataArray]
+    AssignmentFunction = Callable[[xr.DataArray], xr.DataArray]  # FIXME reverse_scores
     MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
 
     def __init__(
@@ -54,7 +55,11 @@ class SemisyntheticBenchmark:
         clusters_dir: Union[str, PathLike, None] = None,
         batch_index: int = 0,
         n_batches: int = 1,
-    ) -> Generator[tuple[dict[str, Any], xr.DataArray], None, pd.DataFrame]:
+    ) -> Generator[
+        tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]],
+        None,
+        pd.DataFrame,
+    ]:
         run_config_generator = self.generate_run_configs(
             points_dir,
             intensities_dir=intensities_dir,
@@ -129,6 +134,7 @@ class SemisyntheticBenchmark:
                 algorithm_name=run_config.algorithm_name,
                 algorithm_kwargs=run_config.algorithm_kwargs,
                 match_points_kwargs=run_config.match_points_kwargs,
+                algorithm_is_directed=run_config.algorithm_is_directed,
             )
 
     def get_evaluation_length(
@@ -165,13 +171,53 @@ class SemisyntheticBenchmark:
             )
             assignment_mat_true.loc[cell_identity_indexer, cell_identity_indexer] = True
             assignment_arr_true = assignment_mat_true.to_numpy()
+            reverse_scores = None
+            reverse_scores_arr = None
+            reverse_assignment_arr_true = None
+            reverse_scores_file = scores_info_row.get("reverse_scores_file")
+            if reverse_scores_file not in (None, np.nan):
+                reverse_scores = read_scores(
+                    self.benchmark_dir / "scores" / reverse_scores_file
+                )
+                reverse_scores_arr = reverse_scores.to_numpy()
+                reverse_assignment_mat_true = reverse_scores.copy(
+                    data=np.zeros_like(reverse_scores_arr, dtype=bool)
+                )
+                reverse_cell_identity_indexer = xr.DataArray(
+                    data=np.intersect1d(
+                        reverse_scores.coords[reverse_scores.dims[0]].to_numpy(),
+                        reverse_scores.coords[reverse_scores.dims[1]].to_numpy(),
+                    )
+                )
+                reverse_assignment_mat_true.loc[
+                    reverse_cell_identity_indexer, reverse_cell_identity_indexer
+                ] = True
+                reverse_assignment_arr_true = reverse_assignment_mat_true.to_numpy()
             for assignment_name, assignment_function in assignment_functions.items():
-                assignment_mat_pred = assignment_function(scores)
+                assignment_mat_pred: xr.DataArray = assignment_function(
+                    scores, reverse_scores=reverse_scores
+                )
                 assignment_arr_pred = assignment_mat_pred.loc[scores.coords].to_numpy()
+                reverse_assignment_arr_pred = None
+                if reverse_scores is not None:
+                    reverse_assignment_arr_pred = assignment_mat_pred.loc[
+                        reverse_scores.coords
+                    ].to_numpy()
                 for metric_name, metric_function in metric_functions.items():
                     metric_value = metric_function(
                         scores_arr, assignment_arr_pred, assignment_arr_true
                     )
+                    if (
+                        reverse_scores_arr is not None
+                        and reverse_assignment_arr_pred is not None
+                        and reverse_assignment_arr_true is not None
+                    ):
+                        reverse_metric_value = metric_function(
+                            reverse_scores_arr,
+                            reverse_assignment_arr_pred,
+                            reverse_assignment_arr_true,
+                        )
+                        metric_value = (metric_value + reverse_metric_value) / 2
                     result = {
                         **scores_info_row.to_dict(),
                         "assignment_name": assignment_name,
