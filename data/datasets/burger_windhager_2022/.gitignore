@@ -1,5 +1,8 @@
+img/
 raw/
+volumes/
 source_img/
 source_mask/
 target_img/
 target_mask/
+*.tiff
