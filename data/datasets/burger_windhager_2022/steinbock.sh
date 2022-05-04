@@ -9,3 +9,5 @@ alias steinbock="docker run -v /mnt/data/git/spellmatch/data/datasets/burger_win
 
 # # images.csv has been manually annotated!
 # steinbock preprocess imc images --hpf 50
+
+# steinbock segment deepcell --minmax --type nuclear
