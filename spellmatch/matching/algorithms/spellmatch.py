@@ -50,7 +50,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         max_iter: int = 50,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
-        require_convergence: bool = False,
         filter_outliers: bool = True,
         adj_radius: float = 15,
         alpha: float = 0.8,
@@ -71,7 +70,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         cca_tol: float = 1e-6,
         opt_max_iter: int = 200,
         opt_tol: float = 1e-6,
-        require_opt_convergence: bool = False,
         precision: str = "float32",
     ) -> None:
         super(Spellmatch, self).__init__(
@@ -84,7 +82,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             max_iter=max_iter,
             scores_tol=scores_tol,
             transform_tol=transform_tol,
-            require_convergence=require_convergence,
             filter_outliers=filter_outliers,
             adj_radius=adj_radius,
         )
@@ -106,7 +103,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.cca_tol = cca_tol
         self.opt_max_iter = opt_max_iter
         self.opt_tol = opt_tol
-        self.require_opt_convergence = require_opt_convergence
         self.precision = np.dtype(precision).type
         self._current_source_points: Optional[pd.DataFrame] = None
         self._current_target_points: Optional[pd.DataFrame] = None
@@ -135,10 +131,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
         cache: Optional[MutableMapping[str, Any]],
-    ) -> xr.DataArray:
+    ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_source_points = source_points
         self._current_target_points = target_points
-        scores = super(Spellmatch, self)._match_graphs_from_points(
+        info, scores = super(Spellmatch, self)._match_graphs_from_points(
             source_name,
             target_name,
             source_points,
@@ -149,7 +145,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         self._current_source_points = None
         self._current_target_points = None
-        return scores
+        return info, scores
 
     def _match_graphs(
         self,
@@ -160,7 +156,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
         cache: Optional[MutableMapping[str, Any]],
-    ) -> xr.DataArray:
+    ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
         n1 = len(source_adj)
         n2 = len(target_adj)
@@ -252,7 +248,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             or c["intensity_cdist_all"] is None
             or 0 <= self.intensity_interp_lmd <= 1
         ):
-            scores_data = self._match_graphs_for_lambda(
+            info, scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
                 adj_csr,
@@ -266,6 +262,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
         else:
             lmd = None
+            info = None
             scores_data = None
             cancor_mean = None
             n_components = self.intensity_interp_cca_n_components
@@ -289,7 +286,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 n_components = n_target_features
             for current_lmd in np.linspace(0, 1, self.intensity_interp_lmd):
                 logger.info(f"Evaluating lambda={current_lmd:.3g}")
-                current_scores_data = self._match_graphs_for_lambda(
+                current_info, current_scores_data = self._match_graphs_for_lambda(
                     n1,
                     n2,
                     adj_csr,
@@ -324,6 +321,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 logger.info(f"Canonical correlations mean={current_cancor_mean:.6f}")
                 if cancor_mean is None or current_cancor_mean > cancor_mean:
                     lmd = current_lmd
+                    info = current_info
                     scores_data = current_scores_data
                     cancor_mean = current_cancor_mean
             logger.info(f"Best lambda={lmd:.3g} (CC mean={cancor_mean:.6f})")
@@ -334,7 +332,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 target_adj.name or "target": target_adj.coords["x"].to_numpy(),
             },
         )
-        return scores
+        return info, scores
 
     def _match_graphs_for_lambda(
         self,
@@ -348,7 +346,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         distance_cdist_csr: Optional[sparse.csr_array],
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
-    ) -> np.ndarray:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         if intensity_cdist_shared is not None and intensity_cdist_all is not None:
             logger.info("Combining intensity cross-distance matrices")
             intensity_cdist = np.asarray(
@@ -447,15 +445,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 )
                 break
         if not opt_converged:
-            message = (
+            logger.warning(
                 f"Optimization did not converge after {self.opt_max_iter} iterations "
                 f"({seconds:.3f} seconds, last loss: {opt_loss:.9f})"
             )
-            if self.require_opt_convergence:
-                raise SpellmatchException(message)
-            else:
-                logger.warning(message)
-        return s[:, 0].reshape((n1, n2))
+        info = {
+            "lambda": lmd,
+            "opt_iterations": opt_iteration + 1,
+            "opt_converged": opt_converged,
+        }
+        return info, s[:, 0].reshape((n1, n2))
 
     def _compute_degree_cdist(self, deg1: np.ndarray, deg2: np.ndarray) -> np.ndarray:
         degree_cdiff = abs(deg1[:, np.newaxis] - deg2[np.newaxis, :])

@@ -1332,7 +1332,7 @@ def cli_match(
             if prior_transform is not None:
                 prior_transform_matrix = np.linalg.inv(prior_transform.params)
                 prior_transform = ProjectiveTransform(matrix=prior_transform_matrix)
-        scores = mask_matching_algorithm.match_masks(
+        info, scores = mask_matching_algorithm.match_masks(
             source_mask,
             target_mask,
             source_img=source_img,
@@ -1342,6 +1342,7 @@ def cli_match(
         if reverse:
             scores = scores.transpose()
         io.write_scores(scores_file, scores)
+        logger.info(f"Info: {info}")
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
 
 

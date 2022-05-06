@@ -71,7 +71,7 @@ class _Probreg(PointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
         cache: Optional[MutableMapping[str, Any]],
-    ) -> xr.DataArray:
+    ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_iteration = 0
         transform = self._register_points(
             source_points.to_numpy(), target_points.to_numpy()
@@ -95,7 +95,7 @@ class _Probreg(PointsMatchingAlgorithm):
                 target_name: target_points.index.to_numpy(),
             },
         )
-        return scores
+        return {"iterations": self._current_iteration}, scores
 
     @abstractmethod
     def _register_points(
@@ -104,8 +104,8 @@ class _Probreg(PointsMatchingAlgorithm):
         raise NotImplementedError()
 
     def _callback(self, transformation: Transformation) -> None:
-        logger.info(f"Iteration {self._current_iteration:03d}")
         self._current_iteration += 1
+        logger.info(f"Iteration {self._current_iteration:03d}")
 
 
 class _CoherentPointDrift(_Probreg):

@@ -46,12 +46,14 @@ def run(
         algorithm = algorithm_type(**run_config.algorithm_kwargs)
     except Exception as e:
         scores_info["error"] = str(e)
+    info = None
     scores = None
+    reverse_info = None
     reverse_scores = None
     if algorithm is not None:
         try:
             start = timer()
-            scores = algorithm.match_points(**run_config.match_points_kwargs)
+            info, scores = algorithm.match_points(**run_config.match_points_kwargs)
             if run_config.algorithm_is_directed:
                 inv_prior_transform = None
                 if "prior_transform" in run_config.match_points_kwargs:
@@ -60,7 +62,7 @@ def run(
                             run_config.match_points_kwargs["prior_transform"].params
                         )
                     )
-                reverse_scores = algorithm.match_points(
+                reverse_info, reverse_scores = algorithm.match_points(
                     run_config.match_points_kwargs["target_name"],
                     run_config.match_points_kwargs["source_name"],
                     run_config.match_points_kwargs["target_points"],
@@ -80,9 +82,14 @@ def run(
             scores_info["seconds"] = end - start
             write_scores(scores_file, scores)
             scores_info["scores_file"] = scores_file.name
-            if reverse_scores is not None and reverse_scores_file is not None:
-                write_scores(reverse_scores_file, reverse_scores)
-                scores_info["reverse_scores_file"] = reverse_scores_file.name
+            scores_info.update({f"algorithm_{k}": v for k, v in info.items()})
+            if reverse_info is not None and reverse_scores is not None:
+                scores_info.update(
+                    {f"reverse_algorithm_{k}": v for k, v in reverse_info.items()}
+                )
+                if reverse_scores_file is not None:
+                    write_scores(reverse_scores_file, reverse_scores)
+                    scores_info["reverse_scores_file"] = reverse_scores_file.name
         except Exception as e:
             scores_info["error"] = str(e)
     return scores_info, scores, reverse_scores

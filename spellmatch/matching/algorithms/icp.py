@@ -40,7 +40,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         max_iter: int = 200,
         scores_tol: Optional[float] = None,
         transform_tol: Optional[float] = None,
-        require_convergence: bool = False,
         filter_outliers: bool = True,
         max_dist: Optional[float] = None,
         min_change: Optional[float] = None,
@@ -56,7 +55,6 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
             max_iter=max_iter,
             scores_tol=scores_tol,
             transform_tol=transform_tol,
-            require_convergence=require_convergence,
         )
         self.max_dist = max_dist
         self.min_change = min_change
@@ -77,10 +75,10 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_intensities: Optional[pd.DataFrame] = None,
         prior_transform: Optional[ProjectiveTransform] = None,
         cache: Optional[MutableMapping[str, Any]] = None,
-    ) -> xr.DataArray:
+    ) -> tuple[dict[str, Any], xr.DataArray]:
         self._last_dists_mean = None
         self._last_dists_std = None
-        scores = super(IterativeClosestPoints, self).match_points(
+        info, scores = super(IterativeClosestPoints, self).match_points(
             source_name,
             target_name,
             source_points,
@@ -94,7 +92,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         )
         self._current_dists_mean = None
         self._current_dists_std = None
-        return scores
+        return info, scores
 
     def _match_points(
         self,
@@ -105,7 +103,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         source_intensities: Optional[pd.DataFrame],
         target_intensities: Optional[pd.DataFrame],
         cache: Optional[MutableMapping[str, Any]],
-    ) -> xr.DataArray:
+    ) -> tuple[dict[str, Any], xr.DataArray]:
         nn = NearestNeighbors(n_neighbors=1)
         nn.fit(target_points.to_numpy())
         nn_dists, nn_ind = nn.kneighbors(source_points.to_numpy())
@@ -126,7 +124,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
                 target_name: target_points.index.to_numpy(),
             },
         )
-        return scores
+        return {}, scores
 
     def _check_convergence(
         self,
