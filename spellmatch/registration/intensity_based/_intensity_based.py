@@ -42,8 +42,13 @@ def register_image_intensities(
         -0.5 * source_img.shape[-2] + 0.5,
     )
     if "scale" in source_img.attrs:
-        moving_origin = tuple(x * source_img.attrs["scale"] for x in moving_origin)
-        moving_img.SetSpacing((source_img.attrs["scale"], source_img.attrs["scale"]))
+        moving_origin = (
+            moving_origin[0] * source_img.attrs["scale"][-1],
+            moving_origin[1] * source_img.attrs["scale"][-2],
+        )
+        moving_img.SetSpacing(
+            (source_img.attrs["scale"][-1], source_img.attrs["scale"][-2])
+        )
     moving_img.SetOrigin(moving_origin)
 
     fixed_img = sitk.GetImageFromArray(target_img.astype(float))
@@ -52,8 +57,13 @@ def register_image_intensities(
         -0.5 * target_img.shape[-2] + 0.5,
     )
     if "scale" in target_img.attrs:
-        fixed_origin = tuple(x * target_img.attrs["scale"] for x in fixed_origin)
-        fixed_img.SetSpacing((target_img.attrs["scale"], target_img.attrs["scale"]))
+        fixed_origin = (
+            fixed_origin[0] * target_img.attrs["scale"][-1],
+            fixed_origin[1] * target_img.attrs["scale"][-2],
+        )
+        fixed_img.SetSpacing(
+            (target_img.attrs["scale"][-1], target_img.attrs["scale"][-2])
+        )
     fixed_img.SetOrigin(fixed_origin)
 
     sitk_transform = sitk_transform_type()
