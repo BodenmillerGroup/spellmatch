@@ -14,7 +14,7 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch parameter sensitivity analysis
+# # Semi-synthetic algorithm benchmark
 #
 # - Hand-picked images from Jackson & Fischer et al.
 # - Varying simutome parameters (mis-alignment, mis-segmentation), 1 section per image
@@ -103,7 +103,6 @@ benchmark_config = SemisyntheticBenchmarkConfig(
             algorithm_name="icp",
             algorithm_kwargs={
                 "scores_tol": 1e-6,
-                "require_convergence": True,
                 "filter_outliers": False,
                 "max_dist": 25.0,
                 "min_change": 1e-9,
@@ -115,6 +114,8 @@ benchmark_config = SemisyntheticBenchmarkConfig(
             algorithm_name="rigid_cpd",
             algorithm_kwargs={
                 "max_dist": 25.0,
+                "w": 0.25,
+                "maxiter": 500,
                 "tol": 1e-6,
                 "update_scale": False,
             },
@@ -129,8 +130,6 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_transform": "numpy.arcsinh",
                 "max_spatial_cdist": 25.0,
                 "scores_tol": 1e-6,
-                "require_convergence": True,
-                "require_opt_convergence": True,
                 "alpha": 0.8,
                 "spatial_cdist_prior_thres": 25.0,
                 "degree_weight": 0.1,
