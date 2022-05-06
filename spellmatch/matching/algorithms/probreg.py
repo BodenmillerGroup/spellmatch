@@ -76,6 +76,7 @@ class _Probreg(PointsMatchingAlgorithm):
         transform = self._register_points(
             source_points.to_numpy(), target_points.to_numpy()
         )
+        info = {"iterations": self._current_iteration}
         self._current_iteration = None
         source_ind = np.arange(len(source_points.index))
         nn = NearestNeighbors(n_neighbors=1)
@@ -95,7 +96,7 @@ class _Probreg(PointsMatchingAlgorithm):
                 target_name: target_points.index.to_numpy(),
             },
         )
-        return {"iterations": self._current_iteration}, scores
+        return info, scores
 
     @abstractmethod
     def _register_points(
