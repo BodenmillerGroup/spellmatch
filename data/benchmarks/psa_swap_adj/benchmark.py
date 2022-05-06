@@ -102,6 +102,8 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_shared_pca_n_components": 15,
                 "distance_weight": 1.0,
                 "distance_cdiff_thres": 5.0,
+                "max_iter": 100,  # more iterations required for larger adjacency radii
+                "opt_max_iter": 500,  # more iterations required for larger adjacency radii
             },
             algorithm_param_grid={
                 "adjacency": [
