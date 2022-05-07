@@ -72,32 +72,62 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "image_shear": 0.0,
     },
     simutome_param_grid={
-        "misalignment_rotation": [
-            {"image_rotation": 0.0},
-            {"image_rotation": 1.0 * np.pi / 180.0},
-            {"image_rotation": 2.0 * np.pi / 180.0},
-            {"image_rotation": 3.0 * np.pi / 180.0},
-        ],
-        "misalignment_translation": [
-            {"image_translation": (0.0, 0.0)},
-            {"image_translation": (5.0, 0.0)},
-            {"image_translation": (10.0, 0.0)},
-            {"image_translation": (15.0, 0.0)},
-        ],
-        "missegmentation": [
+        "misalignment": [
             {
-                "cell_division_probab": 0.0,
-                "cell_division_dist_mean": None,
-                "cell_division_dist_std": None,
+                "image_rotation": 0.0,
+                "image_translation": 0.0,
             },
             {
-                "cell_division_probab": 0.05,
-                "cell_division_dist_mean": 7.931 / 2,
-                "cell_division_dist_std": 1.768 / 2,
+                "image_rotation": 0.0,
+                "image_translation": 5.0,
+            },
+            {
+                "image_rotation": 0.0,
+                "image_translation": 10.0,
+            },
+            {
+                "image_rotation": 0.0,
+                "image_translation": 15.0,
+            },
+            {
+                "image_rotation": 1.0 * np.pi / 180.0,
+                "image_translation": 0.0,
+            },
+            {
+                "image_rotation": 2.0 * np.pi / 180.0,
+                "image_translation": 0.0,
+            },
+            {
+                "image_rotation": 3.0 * np.pi / 180.0,
+                "image_translation": 0.0,
             },
         ],
+        # "misalignment_rotation": [
+        #     {"image_rotation": 0.0},
+        #     {"image_rotation": 1.0 * np.pi / 180.0},
+        #     {"image_rotation": 2.0 * np.pi / 180.0},
+        #     {"image_rotation": 3.0 * np.pi / 180.0},
+        # ],
+        # "misalignment_translation": [
+        #     {"image_translation": (0.0, 0.0)},
+        #     {"image_translation": (5.0, 0.0)},
+        #     {"image_translation": (10.0, 0.0)},
+        #     {"image_translation": (15.0, 0.0)},
+        # ],
+        # "missegmentation": [
+        #     {
+        #         "cell_division_probab": 0.0,
+        #         "cell_division_dist_mean": None,
+        #         "cell_division_dist_std": None,
+        #     },
+        #     {
+        #         "cell_division_probab": 0.05,
+        #         "cell_division_dist_mean": 7.931 / 2,
+        #         "cell_division_dist_std": 1.768 / 2,
+        #     },
+        # ],
     },
-    n_simutome_sections=1,
+    n_simutome_sections=5,  # 1,
     algorithm_configs={
         "icp": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="icp",
@@ -125,19 +155,19 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
             algorithm_kwargs={
-                "adj_radius": 15,
+                "adj_radius": 18,  # 15,
                 "filter_outliers": False,
                 "intensity_transform": "numpy.arcsinh",
                 "max_spatial_cdist": 25.0,
                 "scores_tol": 1e-6,
                 "alpha": 0.8,
                 "spatial_cdist_prior_thres": 25.0,
-                "degree_weight": 0.1,
+                "degree_weight": 1.0,  # 0.1,
                 "degree_cdiff_thres": 3,
-                "intensity_weight": 1.0,
+                "intensity_weight": 1.0,  # 1.0,
                 "intensity_interp_lmd": 1.0,
                 "intensity_shared_pca_n_components": 15,
-                "distance_weight": 1.0,
+                "distance_weight": 10.0,  # 1.0,
                 "distance_cdiff_thres": 5.0,
             },
             algorithm_param_grid={},
