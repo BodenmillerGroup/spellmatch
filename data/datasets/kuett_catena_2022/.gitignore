@@ -5,6 +5,7 @@ source_masks/
 target_masks/
 source_panel.csv
 target_panel.csv
+initial_transforms/
 refined_transforms/
 scores_*/
 sectioning/
