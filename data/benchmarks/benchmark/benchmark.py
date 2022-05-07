@@ -75,19 +75,19 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "misalignment": [
             {
                 "image_rotation": 0.0,
-                "image_translation": 0.0,
+                "image_translation": (0.0, 0.0),
             },
             {
                 "image_rotation": 0.0,
-                "image_translation": 5.0,
+                "image_translation": (5.0, 0.0),
             },
             {
                 "image_rotation": 0.0,
-                "image_translation": 10.0,
+                "image_translation": (10.0, 0.0),
             },
             {
                 "image_rotation": 0.0,
-                "image_translation": 15.0,
+                "image_translation": (15.0, 0.0),
             },
             {
                 "image_rotation": 1.0 * np.pi / 180.0,
