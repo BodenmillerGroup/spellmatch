@@ -70,8 +70,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_diameter_std": 1.768,
         # displace cells according to parameter estimates from Kuett et al.
         "displace_cells": True,
-        "cell_displacement_mean": 1.774559,
-        "cell_displacement_std": 1.135156,
+        "cell_displacement_var": 1.010,
         # do not split cells (assume perfect segmentation)
         "cell_division_probab": 0.0,
         "cell_division_dist_mean": None,
