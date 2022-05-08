@@ -17,7 +17,7 @@
 # # Semi-synthetic Spellmatch parameter sensitivity analysis
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section per image
+# - Fixed simutome parameters, 5 sections per image
 # - Spellmatch algorithm only
 #     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
@@ -79,7 +79,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_division_dist_std": None,
     },
     simutome_param_grid={},
-    n_simutome_sections=1,
+    n_simutome_sections=5,
     algorithm_configs={
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",

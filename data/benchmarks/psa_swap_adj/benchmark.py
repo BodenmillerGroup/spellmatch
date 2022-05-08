@@ -17,15 +17,15 @@
 # # Semi-synthetic Spellmatch parameter sensitivity analysis
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section per image
+# - Fixed simutome parameters, 5 sections per image
 # - Spellmatch algorithm only
 #     - Cell exclusion and cell swapping
 #     - Varying adjacency radii
 #     - Fixed prior weight of $0.8$
 #     - Fixed similarity weights
-#         - $w_\text{degree} = 0.1$
+#         - $w_\text{degree} = 1$
 #         - $w_\text{intensity} = 1$
-#         - $w_\text{distance} = 1$
+#         - $w_\text{distance} = 10$
 
 # %%
 import logging
@@ -68,7 +68,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "image_translation": (1.0, 3.0),
         # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
-        "exclude_cells_swap": 0.0,
+        "exclude_cells_swap": 0.5,
         "section_thickness": 2.0,
         "cell_diameter_mean": 7.931,
         "cell_diameter_std": 1.768,
@@ -82,7 +82,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_division_dist_std": None,
     },
     simutome_param_grid={},
-    n_simutome_sections=1,
+    n_simutome_sections=5,
     algorithm_configs={
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
@@ -95,12 +95,12 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "require_opt_convergence": True,
                 "alpha": 0.8,
                 "spatial_cdist_prior_thres": 25.0,
-                "degree_weight": 0.1,
+                "degree_weight": 1.0,
                 "degree_cdiff_thres": 3,
                 "intensity_weight": 1.0,
                 "intensity_interp_lmd": 1.0,
                 "intensity_shared_pca_n_components": 15,
-                "distance_weight": 1.0,
+                "distance_weight": 10.0,
                 "distance_cdiff_thres": 5.0,
                 "max_iter": 100,  # more iterations for larger adjacency radii
                 "opt_max_iter": 500,  # more iterations for larger adjacency radii
