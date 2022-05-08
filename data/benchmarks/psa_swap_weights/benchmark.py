@@ -89,8 +89,6 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_transform": "numpy.arcsinh",
                 "max_spatial_cdist": 50.0,
                 "scores_tol": 1e-6,
-                "require_convergence": True,
-                "require_opt_convergence": True,
                 "alpha": 0.8,
                 "spatial_cdist_prior_thres": 25.0,
             },
