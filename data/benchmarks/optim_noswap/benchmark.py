@@ -14,10 +14,10 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch parameter sensitivity analysis
+# # Semi-synthetic Spellmatch parameter optimization
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section per image
+# - Fixed simutome parameters, 1 section pair per image
 # - Spellmatch algorithm only
 #     - Cell exclusion only
 #     - Fixed adjancy radius of $15 \mu m$
@@ -203,6 +203,24 @@ for run_config in tqdm(
     total=benchmark.get_run_length(args.nbatch),
 ):
     pass
+
+# %%
+## deadlock during benchmarking --> restore scores info file
+
+# import numpy as np
+# import pandas as pd
+
+# scores_info = pd.read_csv(results_dir / "scores.csv")
+# scores_info["error"] = np.nan
+# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
+#     if not (results_dir / "scores" / scores_file_name).exists():
+#         scores_info.loc[i, "seconds"] = np.nan
+#         scores_info.loc[i, "scores_file"] = np.nan
+#         scores_info.loc[i, "reverse_scores_file"] = np.nan
+#         scores_info.loc[i, "error"] = "unknown"
+# scores_info.to_csv(results_dir / "scores.csv")
+
+# benchmark.scores_info = scores_info
 
 # %%
 for result in tqdm(

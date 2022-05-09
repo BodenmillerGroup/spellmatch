@@ -14,14 +14,14 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch parameter sensitivity analysis
+# # Semi-synthetic Spellmatch parameter optimization
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section per image
+# - Fixed simutome parameters, 5 section pairs per image
 # - Spellmatch algorithm only
-#     - Cell exclusion only
+#     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
-#     - Varying similarity/prior weights
+#     - Fixed similarity weights, varying prior weight
 
 # %%
 import logging
@@ -91,10 +91,10 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_interp_lmd": 1.0,
                 "intensity_shared_pca_n_components": 15,
                 "distance_cdiff_thres": 5.0,
-                "degree_weight": 0.0,  # TODO
-                "intensity_weight": 0.0,  # TODO
-                "distance_weight": 0.0,  # TODO
-                "adj_radius": 15,  # TODO
+                "degree_weight": 1.0,
+                "intensity_weight": 1.0,
+                "distance_weight": 10.0,
+                "adj_radius": 15,
             },
             algorithm_param_grid={
                 "prior": [
