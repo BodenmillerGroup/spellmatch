@@ -181,7 +181,6 @@ metric_functions = default_metrics
 parser = ArgumentParser()
 parser.add_argument("--batch", type=int, default=0)
 parser.add_argument("--nbatch", type=int, default=1)
-parser.add_argument("--nproc", type=int, default=None)
 args, _ = parser.parse_known_args()
 
 # %%
@@ -203,13 +202,14 @@ benchmark.save()
 
 # %%
 for run_config in tqdm(
-    benchmark.run_parallel(
+    # RigidCPD does not support multiprocessing
+    # https://github.com/neka-nat/probreg/issues/90
+    benchmark.run_sequential(
         points_dir,
         intensities_dir=intensities_dir,
         clusters_dir=clusters_dir,
         batch_index=args.batch,
         n_batches=args.nbatch,
-        n_processes=args.nproc,
     ),
     total=benchmark.get_run_length(args.nbatch),
 ):
