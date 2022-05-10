@@ -69,8 +69,8 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "displace_cells": True,
         "cell_displacement_var": 1.010,
         # cell displacement parameters
-        "cell_division_dist_mean": None,
-        "cell_division_dist_std": None,
+        "cell_division_dist_mean": 7.931 / 2,
+        "cell_division_dist_std": 1.768 / 2,
     },
     simutome_param_grid={
         "mis-alignment (rotation)": [
