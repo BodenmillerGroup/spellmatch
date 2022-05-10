@@ -97,6 +97,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_weight": 1.0,
                 "distance_weight": 10.0,
             },
+            algorithm_param_grid={},
         ),
     },
     seed=123,
