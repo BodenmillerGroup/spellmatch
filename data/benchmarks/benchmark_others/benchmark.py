@@ -80,7 +80,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
             {"image_translation": (0.0, 0.0)},
             {"image_translation": (5.0, 5.0)},
             {"image_translation": (10.0, 10.0)},
-        ]
+        ],
         "mis-segmentation": [
             {"cell_division_probab": 0.0},
             {"cell_division_probab": 0.05},
