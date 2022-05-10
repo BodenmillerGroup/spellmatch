@@ -17,9 +17,8 @@
 # # Semi-synthetic Spellmatch parameter optimization
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 5 section pairs per image
+# - Fixed simutome parameters, cell exclusion and cell swapping, 5 section pairs per image
 # - Spellmatch algorithm only
-#     - Cell exclusion and cell swapping
 #     - Fixed adjancy radius of $15 \mu m$
 #     - Varying distance weight, fixed prior weight
 

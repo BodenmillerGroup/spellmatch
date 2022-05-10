@@ -14,14 +14,11 @@
 # ---
 
 # %% [markdown]
-# # Semi-synthetic Spellmatch parameter sensitivity analysis
+# # Semi-synthetic algorithm benchmark
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section per image
-# - Spellmatch algorithm only
-#     - Cell exclusion only
-#     - Fixed adjancy radius of $15 \mu m$
-#     - Varying similarity/prior weights
+# - Varying simutome parameters, 1 section pair per image
+# - Baseline algorithms
 
 # %%
 import logging
@@ -57,11 +54,9 @@ benchmark_config = SemisyntheticBenchmarkConfig(
     simutome_kwargs={
         # do not occlude images (assume images to be co-registered & cropped)
         "image_occlusion": 0.0,
-        # simulate minor mis-alignment (assume small rotation & translation)
+        # do not scale or shear the images
         "image_scale": (1.0, 1.0),
-        "image_rotation": 2.0 * np.pi / 180,
         "image_shear": 0.0,
-        "image_translation": (1.0, 3.0),
         # exclude cells according to parameter estimates from Kuett et al.
         "exclude_cells": True,
         "exclude_cells_swap": 0.0,
@@ -70,102 +65,72 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_diameter_std": 1.768,
         # displace cells according to parameter estimates from Kuett et al.
         "displace_cells": True,
-        "cell_displacement_mean": 0.067,
         "cell_displacement_var": 1.010,
-        # do not split cells (assume perfect segmentation)
-        "cell_division_probab": 0.0,
+        # cell displacement parameters
         "cell_division_dist_mean": None,
         "cell_division_dist_std": None,
     },
-    simutome_param_grid={},
+    simutome_param_grid={
+        "mis-alignment (rotation)": [
+            {"image_rotation": 0.0 * np.pi / 180},
+            {"image_rotation": 2.0 * np.pi / 180},
+            {"image_rotation": 4.0 * np.pi / 180},
+        ],
+        "mis-alignment (translation)": [
+            {"image_translation": (0.0, 0.0)},
+            {"image_translation": (5.0, 5.0)},
+            {"image_translation": (10.0, 10.0)},
+        ]
+        "mis-segmentation": [
+            {"cell_division_probab": 0.0},
+            {"cell_division_probab": 0.05},
+        ],
+    },
     n_simutome_sections=1,
     algorithm_configs={
-        "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
-            algorithm_name="spellmatch",
+        "icp": SemisyntheticBenchmarkConfig.AlgorithmConfig(
+            algorithm_name="icp",
             algorithm_kwargs={
-                "adj_radius": 15,
-                "filter_outliers": False,
-                "intensity_transform": "numpy.arcsinh",
-                "max_spatial_cdist": 50.0,
                 "scores_tol": 1e-6,
-                "require_convergence": True,
-                "require_opt_convergence": True,
+                "filter_outliers": False,
+                "max_dist": 50.0,
+                "min_change": 1e-9,
             },
-            algorithm_param_grid={
-                "prior": [
-                    {
-                        "alpha": 0.8,
-                        "spatial_cdist_prior_thres": 25.0,
-                    },
-                    {
-                        "alpha": 0.7,
-                        "spatial_cdist_prior_thres": 25.0,
-                    },
-                    {
-                        "alpha": 0.9,
-                        "spatial_cdist_prior_thres": 25.0,
-                    },
-                    {
-                        "alpha": 1.0,
-                        "spatial_cdist_prior_thres": 25.0,
-                    },
-                ],
-                "degrees": [
-                    {
-                        "degree_weight": 1.0,
-                        "degree_cdiff_thres": 3,
-                    },
-                    {
-                        "degree_weight": 0.1,
-                        "degree_cdiff_thres": 3,
-                    },
-                    {
-                        "degree_weight": 10.0,
-                        "degree_cdiff_thres": 3,
-                    },
-                    {
-                        "degree_weight": 0.0,
-                    },
-                ],
-                "intensity": [
-                    {
-                        "intensity_weight": 1.0,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 0.1,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 10.0,
-                        "intensity_interp_lmd": 1.0,
-                        "intensity_shared_pca_n_components": 15,
-                    },
-                    {
-                        "intensity_weight": 0.0,
-                    },
-                ],
-                "distances": [
-                    {
-                        "distance_weight": 1.0,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.1,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 10.0,
-                        "distance_cdiff_thres": 5.0,
-                    },
-                    {
-                        "distance_weight": 0.0,
-                    },
-                ],
-            },
+            algorithm_param_grid={},
+            algorithm_is_directed=True,
         ),
+        "rigid_cpd": SemisyntheticBenchmarkConfig.AlgorithmConfig(
+            algorithm_name="rigid_cpd",
+            algorithm_kwargs={
+                "max_dist": 50.0,
+                "w": 0.25,
+                "maxiter": 500,
+                "tol": 1e-6,
+                "update_scale": False,
+            },
+            algorithm_param_grid={},
+            algorithm_is_directed=True,
+        ),
+        # "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
+        #     algorithm_name="spellmatch",
+        #     algorithm_kwargs={
+        #         "intensity_transform": "numpy.arcsinh",
+        #         "scores_tol": 1e-6,
+        #         "filter_outliers": False,                
+        #         "adj_radius": 15,
+        #         "spatial_cdist_prior_thres": 25.0,
+        #         "max_spatial_cdist": 50.0,
+        #         "degree_cdiff_thres": 3,
+        #         "intensity_interp_lmd": 1.0,
+        #         "intensity_shared_pca_n_components": 15,
+        #         "distance_cdiff_thres": 5.0,
+        #         "alpha": 0.9,
+        #         "degree_weight": 0.0,
+        #         "intensity_weight": 1.0,
+        #         "distance_weight": 1.0,
+        #     },
+        #     algorithm_param_grid={},
+        # ),
     },
     seed=123,
 )
@@ -249,21 +214,6 @@ for run_config in tqdm(
     total=benchmark.get_run_length(args.nbatch),
 ):
     pass
-
-# %%
-# import numpy as np
-# import pandas as pd
-
-# scores_info = pd.read_csv(results_dir / "scores.csv")
-# scores_info["error"] = np.nan
-# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
-#     if not (results_dir / "scores" / scores_file_name).exists():
-#         scores_info.loc[i, "seconds"] = np.nan
-#         scores_info.loc[i, "scores_file"] = np.nan
-#         scores_info.loc[i, "error"] = "unknown"
-# scores_info.to_csv(results_dir / "scores.csv")
-
-# benchmark.scores_info = scores_info
 
 # %%
 for result in tqdm(

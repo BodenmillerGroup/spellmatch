@@ -17,11 +17,10 @@
 # # Semi-synthetic Spellmatch parameter optimization
 #
 # - Hand-picked images from Jackson & Fischer et al.
-# - Fixed simutome parameters, 1 section pair per image
+# - Fixed simutome parameters, cell exclusion only, 5 section pairs per image
 # - Spellmatch algorithm only
-#     - Cell exclusion only
 #     - Fixed adjancy radius of $15 \mu m$
-#     - Varying similarity/prior weights
+#     - Fixed similarity/prior weights
 
 # %%
 import logging
@@ -77,7 +76,7 @@ benchmark_config = SemisyntheticBenchmarkConfig(
         "cell_division_dist_std": None,
     },
     simutome_param_grid={},
-    n_simutome_sections=1,
+    n_simutome_sections=5,
     algorithm_configs={
         "spellmatch": SemisyntheticBenchmarkConfig.AlgorithmConfig(
             algorithm_name="spellmatch",
@@ -92,33 +91,12 @@ benchmark_config = SemisyntheticBenchmarkConfig(
                 "intensity_interp_lmd": 1.0,
                 "intensity_shared_pca_n_components": 15,
                 "distance_cdiff_thres": 5.0,
+                "alpha": 0.8,
+                "degree_weight": 1.0,
+                "intensity_weight": 1.0,
+                "distance_weight": 10.0,
             },
-            algorithm_param_grid={
-                "prior": [
-                    {"alpha": 0.7},
-                    {"alpha": 0.8},
-                    {"alpha": 0.9},
-                    {"alpha": 1.0},
-                ],
-                "degrees": [
-                    {"degree_weight": 0.0},
-                    {"degree_weight": 0.1},
-                    {"degree_weight": 1.0},
-                    {"degree_weight": 10.0},
-                ],
-                "intensity": [
-                    {"intensity_weight": 0.0},
-                    {"intensity_weight": 0.1},
-                    {"intensity_weight": 1.0},
-                    {"intensity_weight": 10.0},
-                ],
-                "distances": [
-                    {"distance_weight": 0.0},
-                    {"distance_weight": 0.1},
-                    {"distance_weight": 1.0},
-                    {"distance_weight": 10.0},
-                ],
-            },
+            algorithm_param_grid={},
         ),
     },
     seed=123,
