@@ -1,3 +1,3 @@
-class Dummy:
+class DummyTest:
     def test_dummy(self):
         pass
