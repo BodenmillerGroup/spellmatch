@@ -6,10 +6,10 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <link href="assets/images/favicon.png" rel="icon"/>
-<meta content="mkdocs-1.3.0, mkdocs-material-8.2.9" name="generator"/>
+<meta content="mkdocs-1.3.0, mkdocs-material-8.2.15" name="generator"/>
 <title>Welcome - spellmatch</title>
-<link href="assets/stylesheets/main.120efc48.min.css" rel="stylesheet"/>
-<link href="assets/stylesheets/palette.9647289d.min.css" rel="stylesheet"/>
+<link href="assets/stylesheets/main.c382b1dc.min.css" rel="stylesheet"/>
+<link href="assets/stylesheets/palette.cc9b2e1e.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
@@ -125,16 +125,6 @@
 <li class="md-tabs__item">
 <a class="md-tabs__link" href="reference/">
         Reference
-      </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="protocol/">
-        Protocol
-      </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="benchmark/">
-        Benchmark
       </a>
 </li>
 </ul>
@@ -328,46 +318,6 @@
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
-<label class="md-nav__link" for="__nav_4">
-          Protocol
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-label="Protocol" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_4">
-<span class="md-nav__icon md-icon"></span>
-          Protocol
-        </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="protocol/">
-        Overview
-      </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
-<label class="md-nav__link" for="__nav_5">
-          Benchmark
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_5">
-<span class="md-nav__icon md-icon"></span>
-          Benchmark
-        </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="benchmark/">
-        Overview
-      </a>
-</li>
-</ul>
-</nav>
-</li>
 </ul>
 </nav>
 </div>
@@ -428,42 +378,43 @@ imaged with partially overlapping panels, e.g. to enhance multiplexity.</p>
 <div class="admonition note">
 <p class="admonition-title">Spellmatch matches spatial cell representations</p>
 <p>Unlike other approaches, spellmatch is not meant for matching similar cells, but
-matches <em>different representations of the same (i.e., identical) cell</em> instead.
-Importantly, spellmatch only includes algorithms for <em>spatial</em> cell matching, i.e.
-algorithms that consider the spatial distributions of cells in tissue.</p>
+matches <em>different representations of the same cell</em>. Importantly, spellmatch only
+includes algorithms for <em>spatial</em> cell matching, i.e. algorithms that consider the
+spatial distributions of cells in tissue.</p>
 </div>
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">¶</a></h2>
 <p>Spellmatch provides the following functionality:</p>
 <ul>
-<li>Automatic feature/intensity-based image registration</li>
-<li>Interactive cell matching for manual image registration and validation</li>
-<li>Point set registration for matching cells based on their spatial distribution</li>
+<li>Interactive cell matching for ground truth generation and initial image alignment</li>
+<li>Automatic feature/intensity-based image registration for refining image alignments</li>
+<li>Point set registration for matching cells based on their spatial distribution alone</li>
 <li>Network alignment for matching cells based on their topology and attributes (e.g.
   intensities)</li>
-<li>Extraction of directed and/or undirected cell-cell assignments from matching scores</li>
+<li>Extraction of directed and/or undirected cell-cell assignments from cell alignment
+  scores</li>
 </ul>
 <p>Notably, spellmatch ships with its own network alignment algorithm, which leverages the
-full information present in multichannel images to obtain a probabilistic cell matching.
-For an overview of all matching algorithms implemented in spellmatch, please refer to
+full information present in multichannel images to obtain cell alignment scores. For an
+overview of all matching algorithms implemented in spellmatch, please refer to
 <a href="algorithms/">Algorithms</a>.</p>
 <p>For developers, spellmatch can also be used as a Python package, e.g. to extend
 spellmatch or to integrate it into custom pipelines. Please refer to
 <a href="reference/">Reference</a> for a detailed API documentation</p>
 <h2 id="experiments">Experiments<a class="headerlink" href="#experiments" title="Permanent link">¶</a></h2>
 <p>To ensure spellmatch yields high-quality results, your dataset needs to meet certain
-experimental requirements. Please refer to <a href="protocol/">Protocol</a> for
+experimental requirements. Please refer to <a href="protocol/index.md">Protocol</a> for
 instructions related to data acquisition protocols.</p>
 <h2 id="getting-started">Getting started<a class="headerlink" href="#getting-started" title="Permanent link">¶</a></h2>
 <p><a href="installation/">Install spellmatch</a></p>
 <p><a href="usage/">Use spellmatch</a></p>
 <h2 id="getting-help">Getting help<a class="headerlink" href="#getting-help" title="Permanent link">¶</a></h2>
-<p>A preprint is in preparation.</p>
+<p>A manuscript is in preparation.</p>
 <p>For conceptual questions, please do not hesitate to
 <a href="mailto:jonas.windhager@uzh.ch">reach out</a>.</p>
 <p>For technical issues, please refer to the
 <a href="https://github.com/BodenmillerGroup/spellmatch/issues">spellmatch issue tracker</a>.</p>
 <h2 id="citing-spellmatch">Citing spellmatch<a class="headerlink" href="#citing-spellmatch" title="Permanent link">¶</a></h2>
-<p>A preprint is in preparation.</p>
+<p>A manuscript is in preparation.</p>
 <p>If you are using spellmatch in your work, please
 <a href="mailto:jonas.windhager@uzh.ch">reach out</a> to inquire how to best cite the tool.</p>
 </article>
@@ -505,7 +456,7 @@ instructions related to data acquisition protocols.</p>
 <div class="md-dialog__inner md-typeset"></div>
 </div>
 <script id="__config" type="application/json">{"base": ".", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.top"], "search": "assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "version": {"provider": "mike"}}</script>
-<script src="assets/javascripts/bundle.6e54b5cd.min.js"></script>
+<script src="assets/javascripts/bundle.a6c66575.min.js"></script>
 <script src="https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js"></script>
 </body>
 </html>

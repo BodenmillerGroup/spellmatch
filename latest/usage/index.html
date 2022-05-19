@@ -6,10 +6,10 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <link href="../assets/images/favicon.png" rel="icon"/>
-<meta content="mkdocs-1.3.0, mkdocs-material-8.2.9" name="generator"/>
+<meta content="mkdocs-1.3.0, mkdocs-material-8.2.15" name="generator"/>
 <title>Introduction - spellmatch</title>
-<link href="../assets/stylesheets/main.120efc48.min.css" rel="stylesheet"/>
-<link href="../assets/stylesheets/palette.9647289d.min.css" rel="stylesheet"/>
+<link href="../assets/stylesheets/main.c382b1dc.min.css" rel="stylesheet"/>
+<link href="../assets/stylesheets/palette.cc9b2e1e.min.css" rel="stylesheet"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback" rel="stylesheet"/>
 <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
@@ -125,16 +125,6 @@
 <li class="md-tabs__item">
 <a class="md-tabs__link" href="../reference/">
         Reference
-      </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../protocol/">
-        Protocol
-      </a>
-</li>
-<li class="md-tabs__item">
-<a class="md-tabs__link" href="../benchmark/">
-        Benchmark
       </a>
 </li>
 </ul>
@@ -328,46 +318,6 @@
 </ul>
 </nav>
 </li>
-<li class="md-nav__item md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_4" id="__nav_4" type="checkbox"/>
-<label class="md-nav__link" for="__nav_4">
-          Protocol
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-label="Protocol" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_4">
-<span class="md-nav__icon md-icon"></span>
-          Protocol
-        </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="../protocol/">
-        Overview
-      </a>
-</li>
-</ul>
-</nav>
-</li>
-<li class="md-nav__item md-nav__item--nested">
-<input checked="" class="md-nav__toggle md-toggle" data-md-state="indeterminate" data-md-toggle="__nav_5" id="__nav_5" type="checkbox"/>
-<label class="md-nav__link" for="__nav_5">
-          Benchmark
-          <span class="md-nav__icon md-icon"></span>
-</label>
-<nav aria-label="Benchmark" class="md-nav" data-md-level="1">
-<label class="md-nav__title" for="__nav_5">
-<span class="md-nav__icon md-icon"></span>
-          Benchmark
-        </label>
-<ul class="md-nav__list" data-md-scrollfix="">
-<li class="md-nav__item">
-<a class="md-nav__link" href="../benchmark/">
-        Overview
-      </a>
-</li>
-</ul>
-</nav>
-</li>
 </ul>
 </nav>
 </div>
@@ -419,10 +369,7 @@
 </a>
 <h1 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">¶</a></h1>
 <p>In this chapter, the usage of spellmatch is introduced by example. The dataset being
-showcased is a subset of 
-<a href="https://doi.org/10.5281/zenodo.4752030">(Kuett and Catena et al., 2022)</a>, which can be
-found in <code>data/kuett_catena_2022</code> of the
-<a href="https://github.com/BodenmillerGroup/spellmatch">spellmatch repository</a>.</p>
+showcased can be found <a href="https://github.com/BodenmillerGroup/spellmatch/tree/main/data/datasets/kuett_catena_2022">in the spellmatch repository</a> (subset of Kuett &amp; Catena et al, 2021).</p>
 <h2 id="workflow">Workflow<a class="headerlink" href="#workflow" title="Permanent link">¶</a></h2>
 <p>The following flowchart illustrates the spellmatch workflow. Blue rectangles indicate
 <em>steps</em>, yellow boxes represent <em>modules</em>. Cylinders indicate input and output data of
@@ -432,34 +379,29 @@ the workflow.</p>
     target_data[("Target data&lt;br&gt;(masks, images, panel)")] --&gt; initial_registration
 
     subgraph Registration
-        initial_registration["Interactive cell matching&lt;br&gt;OR&lt;br&gt;Feature-based image registration"]
-        refined_registration[Intensity-based image registration]
+        initial_registration["Interactive cell matching"]
+        refined_registration["Feature/intensity-based&lt;br&gt;image registration"]
 
         initial_registration --&gt;|"initial transform"| refined_registration
     end
 
-    initial_registration --&gt;|"initial assignment&lt;br&gt;(for validation, optional)"| assignment
-    refined_registration --&gt;|refined transform| matching
+    source_data --&gt; matching
+    refined_registration --&gt;|"refined transform&lt;br&gt;(spatial prior, optional)"| matching
+    target_data --&gt; matching
 
-    subgraph Matching
+    subgraph Spatial cell matching
         matching[Automatic cell matching]
-        transform_update["Transform estimation&lt;br&gt;(iterative algorithms only)"]        
+        transform_update["Transform estimation&lt;br&gt;(iterative algorithms)"]        
 
-        matching --&gt;|matching scores| transform_update
+        matching --&gt;|cell alignment scores| transform_update
         transform_update --&gt;|updated transform| matching
     end
 
-    matching --&gt;|matching scores| assignment
+    initial_registration --&gt;|"partial assignment&lt;br&gt;(for validation, optional)"| assignment
+    matching --&gt;|alignment scores| assignment
+    assignment["Cell assignment"]
 
-    subgraph Assignment
-        assignment["Cell assignment&lt;br&gt;(directed/undirected)"]
-        combination["Assignment combination&lt;br&gt;(directed assignments only)"]
-
-        assignment --&gt;|"forward assignment&lt;br&gt;reverse assignment"| combination
-    end
-
-    combination --&gt; cell_pairs[("Cell assignment&lt;br&gt;(directed/undirected)")]
-    transform_update --&gt; transform[(Geometric transform)]
+    assignment --&gt; cell_pairs[("Cell assignment")]
 </div>
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Permanent link">¶</a></h2>
 <p>Spellmatch can be used from the command-line (terminal in Linux/MacOS, console in
@@ -468,33 +410,33 @@ Windows):</p>
 Usage: spellmatch [OPTIONS] COMMAND [ARGS]...
 
 Options:
--v, --verbosity LVL  Either CRITICAL, ERROR, WARNING, INFO or DEBUG
---version            Show the version and exit.
---help               Show this message and exit.
+  --version  Show the version and exit.
+  --help     Show this message and exit.
 
 Commands:
+  ...
 ...
 </code></pre>
-<p>As indicated above, all spellmatch commands support <code>-v</code> option for enabling more
-verbose output. In addition, many spellmatch commands support a <code>--show</code> option for
-graphical visualization of the current operation. At any point, use the <code>--help</code> option
-to display additional information about a specific command.</p>
+<p>Most spellmatch commands support a <code>-v</code> option for enabling more verbose output. In
+addition, many spellmatch commands support a <code>--show</code> option for visualizing the current
+operation. At any point, use the <code>--help</code> option to display additional information about
+a specific command.</p>
 <p>All spellmatch commands can operate on individual file pairs as well as on entire
 directories.</p>
 <h2 id="input">Input<a class="headerlink" href="#input" title="Permanent link">¶</a></h2>
 <p>Spellmatch requires pairs of source data and target data, where source/target data
 consist of:</p>
 <ul>
-<li>2D cell masks (TIFF files of any data type)</li>
-<li>2D single- or multichannel images (TIFF files of any data type, optional)</li>
+<li>Cell masks (TIFF files of any data type)</li>
+<li>Single- or multichannel images (TIFF files of any data type, optional)</li>
 <li>For multichannel images: panel with channel information (CSV files, in channel order)<br/>
   Column headers: <code>name</code> (channel name, unique), <code>keep</code> (<code>0</code> or <code>1</code>, optional)</li>
 </ul>
-<p>Images and corresponding masks have to match in size. For multichannel images, the
+<p>Images and corresponding cell masks have to match in size. For multichannel images, the
 number of rows in the panel (exluding column headers) has to match the number of image
-channels. Images and masks are matched by filename (alphabetical order).</p>
+channels. Images and cell masks are matched by filename (alphabetical order).</p>
 <p>Source and target data are matched by filename (alphabetical order). Source and target
-images/masks do not have to have the same size, scale (pixel size), or number of
+images/cell masks do not have to have the same size, scale (pixel size), or number of
 channels. Source panel and target panel can share channels, but do not have to.</p>
 <h2 id="tasks">Tasks<a class="headerlink" href="#tasks" title="Permanent link">¶</a></h2>
 <p>For convenience, multiple steps are combined into <em>tasks</em>. For each task, spellmatch
@@ -507,30 +449,21 @@ following pages.</p>
 <li>Intensity-based image registration</li>
 </ul>
 </li>
-<li><a href="matching/">Spatial cell matching</a><ul>
-<li>Automatic cell matching</li>
-<li>Transform estimation (iterative algorithms only)</li>
-</ul>
-</li>
-<li><a href="assignment/">Cell assignment</a><ul>
-<li>Cell assignment (directed/undirected)</li>
-<li>Assignment combination (directed assignments only)</li>
-</ul>
-</li>
+<li><a href="matching/">Spatial cell matching</a></li>
+<li><a href="assignment/">Cell assignment</a></li>
 </ol>
 <h2 id="output">Output<a class="headerlink" href="#output" title="Permanent link">¶</a></h2>
 <p>Spellmatch produces the following output data:</p>
 <ul>
 <li>Projective transformations (3x3 numpy array, stored as numpy <code>.npy</code> files)<br/>
 <em>Note: geometric transforms are computed from centered masks/images</em></li>
-<li>Matching scores (xarray DataArray, stored as netCDF <code>.nc</code> files)<br/>
+<li>Cell alignment scores (xarray DataArray, stored as netCDF <code>.nc</code> files)<br/>
   Shape: source labels x target labels, data type: floating point</li>
-<li>Directed/undirected assignments (CSV files holding cell label pairs)<br/>
+<li>Cell assignments (CSV files holding cell label pairs)<br/>
   Column headers: <code>Source</code> (source cell label), <code>Target</code> (target cell label)</li>
 </ul>
 <p>By default, all files are named <code>{source}_to_{target}.{suffix}</code>, where <code>{source}</code>
-corresponds to the source mask/image name and <code>{target}</code> corresponds to the target
-mask/image name.</p>
+is the source image/cell mask name and <code>{target}</code> is the target image/cell mask name.</p>
 </article>
 </div>
 </div>
@@ -583,7 +516,7 @@ mask/image name.</p>
 <div class="md-dialog__inner md-typeset"></div>
 </div>
 <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand", "navigation.top"], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "version": {"provider": "mike"}}</script>
-<script src="../assets/javascripts/bundle.6e54b5cd.min.js"></script>
+<script src="../assets/javascripts/bundle.a6c66575.min.js"></script>
 <script src="https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js"></script>
 <script>mermaid.initialize({
     securityLevel: "loose"
