@@ -34,12 +34,6 @@ For developers, spellmatch can also be used as a Python package, e.g. to extend
 spellmatch or to integrate it into custom pipelines. Please refer to
 [Reference](reference/index.md) for a detailed API documentation
 
-## Experiments
-
-To ensure spellmatch yields high-quality results, your dataset needs to meet certain
-experimental requirements. Please refer to [Protocol](protocol/index.md) for
-instructions related to data acquisition protocols.
-
 ## Getting started
 
 [Install spellmatch](installation.md)
