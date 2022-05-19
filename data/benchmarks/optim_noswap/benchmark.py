@@ -183,24 +183,6 @@ for run_config in tqdm(
     pass
 
 # %%
-## deadlock during benchmarking --> restore scores info file
-
-# import numpy as np
-# import pandas as pd
-
-# scores_info = pd.read_csv(results_dir / "scores.csv")
-# scores_info["error"] = np.nan
-# for i, scores_file_name in enumerate(scores_info["scores_file"].tolist()):
-#     if not (results_dir / "scores" / scores_file_name).exists():
-#         scores_info.loc[i, "seconds"] = np.nan
-#         scores_info.loc[i, "scores_file"] = np.nan
-#         scores_info.loc[i, "reverse_scores_file"] = np.nan
-#         scores_info.loc[i, "error"] = "unknown"
-# scores_info.to_csv(results_dir / "scores.csv")
-
-# benchmark.scores_info = scores_info
-
-# %%
 for result in tqdm(
     benchmark.evaluate(assignment_functions, metric_functions),
     total=benchmark.get_evaluation_length(assignment_functions, metric_functions),
