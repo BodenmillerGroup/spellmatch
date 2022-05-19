@@ -1,8 +1,9 @@
-recursive-exclude notebooks *
-recursive-exclude docs *
-recursive-exclude data *
 recursive-exclude .github *
+recursive-exclude .vscode *
+recursive-exclude data *
+recursive-exclude docs *
 
-exclude requirements*.txt
-exclude mkdocs.yml
 exclude .gitignore
+exclude environment.yml
+exclude mkdocs.yml
+exclude requirements*.txt

@@ -12,5 +12,8 @@ dependencies:
   - SimpleITK
   - pip:
     - -e .
+    - colorcet
+    - datashader
     - matplotlib
     - seaborn
+    - tqdm
