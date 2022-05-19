@@ -6,7 +6,3 @@
 ## Cell assignment
 
     spellmatch assign
-
-## Assignment combination
-
-    spellmatch combine

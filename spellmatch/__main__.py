@@ -2,7 +2,7 @@ import logging
 from collections.abc import Mapping
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, OrderedDict
 
 import click
 import click_log
@@ -90,8 +90,22 @@ def glob_sorted(dir: Path, pattern: str, expect: Optional[int] = None) -> list[P
     return files
 
 
+class OrderedGroup(click.Group):
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        commands: Optional[Mapping[str, click.Command]] = None,
+        **kwargs,
+    ):
+        super(OrderedGroup, self).__init__(name, commands, **kwargs)
+        self.commands = commands or OrderedDict()
+
+    def list_commands(self, ctx: click.Context) -> Mapping[str, click.Command]:
+        return self.commands
+
+
 class KeywordArgumentsParamType(click.ParamType):
-    name = "keyword arguments"
+    name = "Keyword arguments"
 
     def convert(
         self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
@@ -121,18 +135,22 @@ class KeywordArgumentsParamType(click.ParamType):
 KEYWORD_ARGUMENTS = KeywordArgumentsParamType()
 
 
-@click.group(name="spellmatch")
+@click.group(name="spellmatch", cls=OrderedGroup)
 @click.version_option()
 def cli() -> None:
     pass
 
 
-@cli.group(name="register")
+@cli.group(
+    name="register",
+    cls=OrderedGroup,
+    help="Align images (obtain spatial alignment prior)",
+)
 def cli_register() -> None:
     pass
 
 
-@cli_register.command(name="interactive")
+@cli_register.command(name="interactive", help="Interactive cell matching")
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
@@ -148,12 +166,14 @@ def cli_register() -> None:
     "--source-images",
     "source_img_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Source image file(s)",
 )
 @click.option(
     "--target-image",
     "--target-images",
     "target_img_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Target image file(s)",
 )
 @click.option(
     "--source-panel",
@@ -161,6 +181,7 @@ def cli_register() -> None:
     default="source_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Source panel file",
 )
 @click.option(
     "--target-panel",
@@ -168,6 +189,7 @@ def cli_register() -> None:
     default="target_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Target panel file",
 )
 @click.option(
     "--source-scale",
@@ -175,11 +197,13 @@ def cli_register() -> None:
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (all axes)",
 )
 @click.option(
     "--source-zscale",
     "source_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (z-axis)",
 )
 @click.option(
     "--target-scale",
@@ -187,11 +211,13 @@ def cli_register() -> None:
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (all axes)",
 )
 @click.option(
     "--target-zscale",
     "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (z-axis)",
 )
 @click.option(
     "--transform-type",
@@ -199,6 +225,7 @@ def cli_register() -> None:
     default="rigid",
     show_default=True,
     type=click.Choice(list(transform_types.keys())),
+    help="Transformation model",
 )
 @click.argument(
     "assignment_path",
@@ -385,7 +412,7 @@ def cli_register_interactive(
             raise click.Abort()
 
 
-@cli_register.command("features")
+@cli_register.command("features", help="Feature-based image registration")
 @click.argument(
     "source_img_path",
     metavar="SOURCE_IMAGE(S)",
@@ -402,6 +429,7 @@ def cli_register_interactive(
     default="source_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Source panel",
 )
 @click.option(
     "--target-panel",
@@ -409,6 +437,7 @@ def cli_register_interactive(
     default="target_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Target panel",
 )
 @click.option(
     "--source-scale",
@@ -416,11 +445,13 @@ def cli_register_interactive(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (all axes)",
 )
 @click.option(
     "--source-zscale",
     "source_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (z-axis)",
 )
 @click.option(
     "--target-scale",
@@ -428,51 +459,61 @@ def cli_register_interactive(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (all axes)",
 )
 @click.option(
     "--target-zscale",
     "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (z-axis)",
 )
 @click.option(
     "--source-channel",
     "source_channel",
     type=click.STRING,
+    help="Source channel name",
 )
 @click.option(
     "--target-channel",
     "target_channel",
     type=click.STRING,
+    help="Target channel name",
 )
 @click.option(
     "--denoise-source",
     "source_median_filter_size",
     type=click.IntRange(min=3),
+    help="Source median filter size",
 )
 @click.option(
     "--denoise-target",
     "target_median_filter_size",
     type=click.IntRange(min=3),
+    help="Target median filter size",
 )
 @click.option(
     "--clip-source",
     "source_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Source clipping quantile",
 )
 @click.option(
     "--clip-target",
     "target_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Target clipping quantile",
 )
 @click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source Gaussian filter SD",
 )
 @click.option(
     "--blur-target",
     "target_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target Gaussian filter SD",
 )
 @click.option(
     "--feature",
@@ -480,6 +521,7 @@ def cli_register_interactive(
     default="ORB",
     show_default=True,
     type=click.Choice(list(cv2_feature_types.keys())),
+    help="OpenCV feature",
 )
 @click.option(
     "--feature-args",
@@ -487,6 +529,7 @@ def cli_register_interactive(
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
+    help="OpenCV feature options",
 )
 @click.option(
     "--matcher",
@@ -494,6 +537,7 @@ def cli_register_interactive(
     default="bruteforce",
     show_default=True,
     type=click.Choice(list(cv2_matcher_types.keys())),
+    help="OpenCV matcher",
 )
 @click.option(
     "--keep",
@@ -501,6 +545,7 @@ def cli_register_interactive(
     default=0.2,
     show_default=True,
     type=click.FloatRange(min=0, max=1, min_open=True),
+    help="Fraction of matches to keep",
 )
 @click.option(
     "--ransac-args",
@@ -508,12 +553,14 @@ def cli_register_interactive(
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
+    help="RANSAC options",
 )
 @click.option(
     "--show/--no-show",
     "show",
     default=False,
     show_default=True,
+    help="Enable visualization",
 )
 @click.argument(
     "transform_path",
@@ -683,7 +730,7 @@ def cli_register_features(
             )
 
 
-@cli_register.command("intensities")
+@cli_register.command("intensities", help="Intensity-based image registration")
 @click.argument(
     "source_img_path",
     metavar="SOURCE_IMAGE(S)",
@@ -700,6 +747,7 @@ def cli_register_features(
     default="source_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Source panel file",
 )
 @click.option(
     "--target-panel",
@@ -707,6 +755,7 @@ def cli_register_features(
     default="target_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Target panel file",
 )
 @click.option(
     "--source-scale",
@@ -714,11 +763,13 @@ def cli_register_features(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (all axes)",
 )
 @click.option(
     "--source-zscale",
     "source_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (z-axis)",
 )
 @click.option(
     "--target-scale",
@@ -726,51 +777,61 @@ def cli_register_features(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (all axes)",
 )
 @click.option(
     "--target-zscale",
     "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (z-axis)",
 )
 @click.option(
     "--source-channel",
     "source_channel",
     type=click.STRING,
+    help="Source channel name",
 )
 @click.option(
     "--target-channel",
     "target_channel",
     type=click.STRING,
+    help="Target channel name",
 )
 @click.option(
     "--denoise-source",
     "source_median_filter_size",
     type=click.IntRange(min=3),
+    help="Source median filter size",
 )
 @click.option(
     "--denoise-target",
     "target_median_filter_size",
     type=click.IntRange(min=3),
+    help="Target median filter size",
 )
 @click.option(
     "--clip-source",
     "source_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Source clipping quantile",
 )
 @click.option(
     "--clip-target",
     "target_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Target clipping quantile",
 )
 @click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source Gaussian filter SD",
 )
 @click.option(
     "--blur-target",
     "target_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target Gaussian filter SD",
 )
 @click.option(
     "--metric",
@@ -778,6 +839,7 @@ def cli_register_features(
     default="correlation",
     show_default=True,
     type=click.Choice(list(sitk_metric_types.keys())),
+    help="SimpleITK metric",
 )
 @click.option(
     "--metric-args",
@@ -785,6 +847,7 @@ def cli_register_features(
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
+    help="SimpleITK metric options",
 )
 @click.option(
     "--optimizer",
@@ -792,6 +855,7 @@ def cli_register_features(
     default="regular_step_gradient_descent",
     show_default=True,
     type=click.Choice(list(sitk_optimizer_types.keys())),
+    help="SimpleITK optimizer",
 )
 @click.option(
     "--optimizer-args",
@@ -807,6 +871,7 @@ def cli_register_features(
     ),
     show_default=True,
     type=KEYWORD_ARGUMENTS,
+    help="SimpleITK optimizer options",
 )
 @click.option(
     "--transform-type",
@@ -814,24 +879,28 @@ def cli_register_features(
     default="rigid",
     show_default=True,
     type=click.Choice(list(sitk_transform_types.keys())),
+    help="Transformation model",
 )
 @click.option(
     "--initial-transform",
     "--initial-transforms",
     "initial_transform_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Initial transformation file",
 )
 @click.option(
     "--show/--no-show",
     "show",
     default=False,
     show_default=True,
+    help="Enable visualization",
 )
 @click.option(
     "--hold/--no-hold",
     "hold",
     default=False,
     show_default=True,
+    help="Pause on visualization",
 )
 @click.argument(
     "transform_path",
@@ -1023,7 +1092,9 @@ def cli_register_intensities(
         )
 
 
-@cli.command(name="match")
+@cli.command(
+    name="match", help="Match cells (generate continuous cell alignment scores)"
+)
 @click.argument(
     "source_mask_path",
     metavar="SOURCE_MASK(S)",
@@ -1039,6 +1110,7 @@ def cli_register_intensities(
     "mask_matching_algorithm_name",
     required=True,
     type=click.Choice(mask_matching_algorithm_names),
+    help="Matching algorithm",
 )
 @click.option(
     "--algorithm-args",
@@ -1046,18 +1118,21 @@ def cli_register_intensities(
     default="",
     show_default=True,
     type=KEYWORD_ARGUMENTS,
+    help="Matching algorithm options",
 )
 @click.option(
     "--source-image",
     "--source-images",
     "source_img_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Source image file(s)",
 )
 @click.option(
     "--target-image",
     "--target-images",
     "target_img_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Target image file(s)",
 )
 @click.option(
     "--source-panel",
@@ -1065,6 +1140,7 @@ def cli_register_intensities(
     default="source_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Source panel file",
 )
 @click.option(
     "--target-panel",
@@ -1072,6 +1148,7 @@ def cli_register_intensities(
     default="target_panel.csv",
     show_default=True,
     type=click.Path(dir_okay=False, path_type=Path),
+    help="Target panel file",
 )
 @click.option(
     "--source-scale",
@@ -1079,11 +1156,13 @@ def cli_register_intensities(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (all axes)",
 )
 @click.option(
     "--source-zscale",
     "source_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (z-axis)",
 )
 @click.option(
     "--target-scale",
@@ -1091,53 +1170,63 @@ def cli_register_intensities(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (all axes)",
 )
 @click.option(
     "--target-zscale",
     "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (z-axis)",
 )
 @click.option(
     "--denoise-source",
     "source_median_filter_size",
     type=click.IntRange(min=3),
+    help="Source median filter size",
 )
 @click.option(
     "--denoise-target",
     "target_median_filter_size",
     type=click.IntRange(min=3),
+    help="Target median filter size",
 )
 @click.option(
     "--clip-source",
     "source_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Source clipping quantile",
 )
 @click.option(
     "--clip-target",
     "target_clipping_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Target clipping quantile",
 )
 @click.option(
     "--blur-source",
     "source_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source Gaussian filter SD",
 )
 @click.option(
     "--blur-target",
     "target_gaussian_filter_sigma",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target Gaussian filter SD",
 )
 @click.option(
     "--prior-transform",
     "--prior-transforms",
     "prior_transform_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Spatial alignment prior file",
 )
 @click.option(
     "--reverse/--no-reverse",
     "reverse",
     default=False,
     show_default=True,
+    help="Enable target-to-source matching",
 )
 @click.argument(
     "scores_path",
@@ -1346,7 +1435,10 @@ def cli_match(
         logger.info(f"Scores: {scores_file.name} ({describe_scores(scores)})")
 
 
-@cli.command(name="assign")
+@cli.command(
+    name="assign",
+    help="Assign cells (convert cell alignment scores to cell assignments)",
+)
 @click.argument(
     "scores_path",
     metavar="SCORES",
@@ -1356,72 +1448,85 @@ def cli_match(
     "--reverse-scores",
     "reverse_scores_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Target-to-source cell alignment scores file",
 )
 @click.option(
     "--normalize/--no-normalize",
     "normalize",
     default=False,
     show_default=True,
+    help="Rescale alignment scores of each cell to sum up to 1.0",
 )
 @click.option(
     "--min-score",
     "min_score",
     type=click.FloatRange(min=0, min_open=True),
+    help="Minimum cell alignment score",
 )
 @click.option(
     "--min-scoreQ",
     "min_score_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Minimum cell alignment score quantile",
 )
 @click.option(
     "--margin-thres",
     "margin_thres",
     type=click.FloatRange(min=0, min_open=True),
+    help="Cell alignment score margin threshold",
 )
 @click.option(
     "--margin-thresQ",
     "margin_thres_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Cell alignment score margin threshold quantile",
 )
 @click.option(
     "--max/--no-max",
     "max_assignment",
     default=False,
     show_default=True,
+    help="Enable maximum cell alignment score assignment",
 )
 @click.option(
     "--linear-sum/--no-linear-sum",
     "linear_sum_assignment",
     default=False,
     show_default=True,
+    help="Enable linear sum assignment",
 )
 @click.option(
     "--min-post-score",
     "min_post_assignment_score",
     type=click.FloatRange(min=0, min_open=True),
+    help="Minimum cell alignment score after cell assignment",
 )
 @click.option(
     "--min-post-scoreQ",
     "min_post_assignment_score_quantile",
     type=click.FloatRange(min=0, max=1, min_open=True, max_open=True),
+    help="Minimum cell alignment score quantile after cell assignment",
 )
 @click.option(
     "--direction",
     "assignment_direction",
     required=True,
     type=click.Choice([item.value for item in AssignmentDirection]),
+    help="Direction of the generated cell assignment",
 )
 @click.option(
     "--source-mask",
     "--source-masks",
     "source_mask_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Source mask file(s)",
 )
 @click.option(
     "--target-mask",
     "--target-masks",
     "target_mask_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Target mask file(s)",
 )
 @click.option(
     "--source-scale",
@@ -1429,11 +1534,13 @@ def cli_match(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (all axes)",
 )
 @click.option(
     "--source-zscale",
     "source_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Source pixel size (z-axis)",
 )
 @click.option(
     "--target-scale",
@@ -1441,21 +1548,25 @@ def cli_match(
     default=1,
     show_default=True,
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (all axes)",
 )
 @click.option(
     "--target-zscale",
     "target_zscale",
     type=click.FloatRange(min=0, min_open=True),
+    help="Target pixel size (z-axis)",
 )
 @click.option(
     "--show",
     "show",
     type=click.IntRange(min=0, min_open=True),
+    help="Enable visualization",
 )
 @click.option(
     "--validate",
     "validation_assignment_path",
     type=click.Path(exists=True, path_type=Path),
+    help="Cell assignment file for validation",
 )
 @click.argument(
     "assignment_path",

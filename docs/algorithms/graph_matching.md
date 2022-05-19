@@ -14,11 +14,10 @@ alignment ([Zhang and Tong, 2018](https://doi.org/10.1109/TKDE.2018.2866440)). I
 operates under the assumption that the tissue topology as given by spatial cell graphs
 is preserved across neighboring tissue sections. In addition to tissue topology, it
 considers cell features (number of neighbors, intensities) and spatial cell-cell
-distances to yield a globally optimal probabilistic matching. Notably, the *Spellmatch*
-algorithm adopts the *MARIO* 
-([Zhu et al., 2021](https://doi.org/10.1101/2021.12.03.471185)) strategy for balancing
-similarity scores computed from cell intensity information of shared (intersection) and
-combined (union) markers.
+distances to yield a globally optimal matching. Notably, the *Spellmatch* algorithm
+adopts the *MARIO* ([Zhu et al., 2021](https://doi.org/10.1101/2021.12.03.471185))
+strategy for balancing similarity scores computed from cell intensity information of
+shared (intersection) and combined (union) markers.
 
 The *Spellmatch* algorithm is an *iterative* algorithm. As such, it can take the initial
 spatial alignment (cf. image co-registration) as a weighted prior for matching cells,

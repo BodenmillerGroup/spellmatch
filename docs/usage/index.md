@@ -1,10 +1,9 @@
 # Introduction
 
 In this chapter, the usage of spellmatch is introduced by example. The dataset being
-showcased is a subset of 
-[(Kuett and Catena et al., 2022)](https://doi.org/10.5281/zenodo.4752030), which can be
-found in `data/kuett_catena_2022` of the
-[spellmatch repository](https://github.com/BodenmillerGroup/spellmatch).
+showcased can be found [in the spellmatch repository](
+https://github.com/BodenmillerGroup/spellmatch/tree/main/data/datasets/kuett_catena_2022
+) (subset of Kuett & Catena et al, 2021).
 
 ## Workflow
 
@@ -18,34 +17,29 @@ flowchart TB
     target_data[("Target data<br>(masks, images, panel)")] --> initial_registration
 
     subgraph Registration
-        initial_registration["Interactive cell matching<br>OR<br>Feature-based image registration"]
-        refined_registration[Intensity-based image registration]
+        initial_registration["Interactive cell matching"]
+        refined_registration["Feature/intensity-based<br>image registration"]
 
         initial_registration -->|"initial transform"| refined_registration
     end
 
-    initial_registration -->|"initial assignment<br>(for validation, optional)"| assignment
-    refined_registration -->|refined transform| matching
+    source_data --> matching
+    refined_registration -->|"refined transform<br>(spatial prior, optional)"| matching
+    target_data --> matching
 
-    subgraph Matching
+    subgraph Spatial cell matching
         matching[Automatic cell matching]
-        transform_update["Transform estimation<br>(iterative algorithms only)"]        
+        transform_update["Transform estimation<br>(iterative algorithms)"]        
 
-        matching -->|matching scores| transform_update
+        matching -->|cell alignment scores| transform_update
         transform_update -->|updated transform| matching
     end
 
-    matching -->|matching scores| assignment
-
-    subgraph Assignment
-        assignment["Cell assignment<br>(directed/undirected)"]
-        combination["Assignment combination<br>(directed assignments only)"]
-
-        assignment -->|"forward assignment<br>reverse assignment"| combination
-    end
+    initial_registration -->|"partial assignment<br>(for validation, optional)"| assignment
+    matching -->|alignment scores| assignment
+    assignment["Cell assignment"]
     
-    combination --> cell_pairs[("Cell assignment<br>(directed/undirected)")]
-    transform_update --> transform[(Geometric transform)]
+    assignment --> cell_pairs[("Cell assignment")]
 ```
 
 ## Usage
@@ -57,17 +51,17 @@ Windows):
     Usage: spellmatch [OPTIONS] COMMAND [ARGS]...
 
     Options:
-    -v, --verbosity LVL  Either CRITICAL, ERROR, WARNING, INFO or DEBUG
-    --version            Show the version and exit.
-    --help               Show this message and exit.
+      --version  Show the version and exit.
+      --help     Show this message and exit.
 
     Commands:
+      ...
     ...
 
-As indicated above, all spellmatch commands support `-v` option for enabling more
-verbose output. In addition, many spellmatch commands support a `--show` option for
-graphical visualization of the current operation. At any point, use the `--help` option
-to display additional information about a specific command.
+Most spellmatch commands support a `-v` option for enabling more verbose output. In
+addition, many spellmatch commands support a `--show` option for visualizing the current
+operation. At any point, use the `--help` option to display additional information about
+a specific command.
 
 All spellmatch commands can operate on individual file pairs as well as on entire
 directories.
@@ -77,17 +71,17 @@ directories.
 Spellmatch requires pairs of source data and target data, where source/target data
 consist of:
 
-- 2D cell masks (TIFF files of any data type)
-- 2D single- or multichannel images (TIFF files of any data type, optional)
+- Cell masks (TIFF files of any data type)
+- Single- or multichannel images (TIFF files of any data type, optional)
 - For multichannel images: panel with channel information (CSV files, in channel order)  
   Column headers: `name` (channel name, unique), `keep` (`0` or `1`, optional)
 
-Images and corresponding masks have to match in size. For multichannel images, the
+Images and corresponding cell masks have to match in size. For multichannel images, the
 number of rows in the panel (exluding column headers) has to match the number of image
-channels. Images and masks are matched by filename (alphabetical order).
+channels. Images and cell masks are matched by filename (alphabetical order).
 
 Source and target data are matched by filename (alphabetical order). Source and target
-images/masks do not have to have the same size, scale (pixel size), or number of
+images/cell masks do not have to have the same size, scale (pixel size), or number of
 channels. Source panel and target panel can share channels, but do not have to.
 
 ## Tasks
@@ -101,11 +95,7 @@ following pages.
     - Feature-based image registration
     - Intensity-based image registration
 2. [Spatial cell matching](matching.md)
-    - Automatic cell matching
-    - Transform estimation (iterative algorithms only)
 3. [Cell assignment](assignment.md)
-    - Cell assignment (directed/undirected)
-    - Assignment combination (directed assignments only)
 
 ## Output
 
@@ -113,11 +103,10 @@ Spellmatch produces the following output data:
 
 - Projective transformations (3x3 numpy array, stored as numpy `.npy` files)  
   *Note: geometric transforms are computed from centered masks/images*
-- Matching scores (xarray DataArray, stored as netCDF `.nc` files)  
+- Cell alignment scores (xarray DataArray, stored as netCDF `.nc` files)  
   Shape: source labels x target labels, data type: floating point
-- Directed/undirected assignments (CSV files holding cell label pairs)  
+- Cell assignments (CSV files holding cell label pairs)  
   Column headers: `Source` (source cell label), `Target` (target cell label)
 
 By default, all files are named `{source}_to_{target}.{suffix}`, where `{source}`
-corresponds to the source mask/image name and `{target}` corresponds to the target
-mask/image name.
+is the source image/cell mask name and `{target}` is the target image/cell mask name.

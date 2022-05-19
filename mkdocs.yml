@@ -73,7 +73,3 @@ nav:
     - algorithms/graph_matching.md
   - Reference:
     - reference/index.md
-  - Protocol:
-    - protocol/index.md
-  - Benchmark:
-    - benchmark/index.md
