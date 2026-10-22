@@ -1354,6 +1354,30 @@ def cli_match(
     ):
         if len(source_mask_files) > 1:
             logger.info(f"MASK PAIR {i + 1}/{len(source_mask_files)}")
+        # Refuse to match a section against itself. The matching algorithms
+        # use the source/target mask names as the dimension names of the
+        # scores (coords={source_name: ..., target_name: ...}), which
+        # collapses to a single key -- and crashes deep inside matching --
+        # when the two names are identical. Identical source and target is
+        # invalid input anyway, so it is rejected here, before any file is
+        # read, following the UsageError pattern glob_sorted already uses
+        # for mismatched counts.
+        if source_mask_file.name == target_mask_file.name:
+            raise click.UsageError(
+                f"source_mask and target_mask have the same filename "
+                f"({source_mask_file.name!r}) -- refusing to match a "
+                "section against itself."
+            )
+        if (
+            source_img_file is not None
+            and target_img_file is not None
+            and source_img_file.name == target_img_file.name
+        ):
+            raise click.UsageError(
+                f"source_image and target_image have the same filename "
+                f"({source_img_file.name!r}) -- refusing to match a "
+                "section against itself."
+            )
         source_mask = io.read_mask(
             source_mask_file, scale=source_scale, zscale=source_zscale
         )

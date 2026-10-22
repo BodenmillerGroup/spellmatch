@@ -117,6 +117,14 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         self._current_dists_std = np.std(dists)
         scores_data = np.zeros((len(source_points.index), len(target_points.index)))
         scores_data[source_ind, target_ind] = 1
+        # source_name/target_name (the mask's own identifier, e.g. a
+        # filename stem) are used as the dimension names so downstream
+        # outputs (assignment CSV headers, via assignment.py's
+        # scores.dims[0]/[1]) show the real file names. If source_name ==
+        # target_name this dict literal would collapse to one key, silently
+        # dropping a dimension -- that's prevented earlier (cli_match refuses
+        # identical source/target mask filenames before this is ever
+        # reached), not handled here.
         scores = xr.DataArray(
             data=scores_data,
             coords={

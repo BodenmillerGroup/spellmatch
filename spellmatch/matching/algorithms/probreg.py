@@ -89,6 +89,9 @@ class _Probreg(PointsMatchingAlgorithm):
             dists = dists[dists <= self.max_dist]
         scores_data = np.zeros((len(source_points.index), len(target_points.index)))
         scores_data[source_ind, target_ind] = 1
+        # source_name/target_name used as dimension names -- see the
+        # matching comment in icp.py. Identical-name collision is prevented
+        # earlier (cli_match), not handled here.
         scores = xr.DataArray(
             data=scores_data,
             coords={

@@ -639,9 +639,12 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 scores.to_numpy(), np.expand_dims(max_score_ind, axis=1), axis=1
             ).squeeze(axis=1)
             if self.transform_estim_k_best is not None:
-                source_ind = np.argpartition(
-                    -max_scores, self.transform_estim_k_best - 1
-                )[: self.transform_estim_k_best]
+                # np.argpartition requires kth < array length; a FOV with
+                # fewer candidate points than transform_estim_k_best (e.g. a
+                # small ROI) would otherwise crash with a "kth out of bounds"
+                # ValueError instead of just using every available candidate.
+                k_best = min(self.transform_estim_k_best, len(max_scores))
+                source_ind = np.argpartition(-max_scores, k_best - 1)[:k_best]
             else:
                 source_ind = np.arange(len(source_points.index))
             source_ind = source_ind[max_scores[source_ind] > 0]
@@ -651,9 +654,8 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
             if self.transform_estim_k_best is not None:
                 margins = max2_scores[:, 0] - max2_scores[:, 1]
-                source_ind = np.argpartition(-margins, self.transform_estim_k_best - 1)[
-                    : self.transform_estim_k_best
-                ]
+                k_best = min(self.transform_estim_k_best, len(margins))
+                source_ind = np.argpartition(-margins, k_best - 1)[:k_best]
             else:
                 source_ind = np.arange(len(source_points.index))
             source_ind = source_ind[max2_scores[source_ind, 0] > 0]

@@ -14,6 +14,13 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
+from .._kron_free import (
+    DistanceTerms,
+    build_distance_correction,
+    distance_term_matvec,
+    kron_matvec,
+    outer_sum_matvec,
+)
 from ._algorithms import (
     IterativeGraphMatchingAlgorithm,
     MaskMatchingAlgorithm,
@@ -119,7 +126,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             iteration_cache.pop("degree_cdist", None)
             iteration_cache.pop("intensity_cdist_shared", None)
             iteration_cache.pop("intensity_cdist_all", None)
-            iteration_cache.pop("distance_cdist_csr", None)
+            iteration_cache.pop("distance_terms", None)
             iteration_cache.pop("spatial_cdist", None)
 
     def _match_graphs_from_points(
@@ -160,11 +167,19 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         c = cache if cache is not None else {}
         n1 = len(source_adj)
         n2 = len(target_adj)
-        adj1 = source_adj.to_numpy().astype(np.bool8)
-        adj2 = target_adj.to_numpy().astype(np.bool8)
-        adj_csr = sparse.csr_array(sparse.kron(adj1, adj2, format="csr"))
-        deg1 = np.sum(adj1, axis=1, dtype=np.uint8)
-        deg2 = np.sum(adj2, axis=1, dtype=np.uint8)
+        adj1 = source_adj.to_numpy().astype(np.bool_)
+        adj2 = target_adj.to_numpy().astype(np.bool_)
+        # The product graph adj_csr = sparse.kron(adj1, adj2) is never built:
+        # it is an (n1*n2)x(n1*n2) matrix with nnz(adj1)*nnz(adj2) entries
+        # and runs out of memory for realistic FOV sizes. adj1/adj2 are kept
+        # small and square; every "adj_csr @ v" is computed exactly by
+        # kron_matvec(adj1, adj2, v, n1, n2) instead.
+        # The degree dtype must have headroom for the product deg1[i]*deg2[j]
+        # below (numpy keeps the operands' dtype): with uint8, degrees above
+        # ~16 wrapped around and broke the D^-1/2 normalization. uint16 (max
+        # 65,535) leaves a wide margin at realistic adj_radius values.
+        deg1 = np.sum(adj1, axis=1, dtype=np.uint16)
+        deg2 = np.sum(adj2, axis=1, dtype=np.uint16)
         deg = np.asarray(deg1[:, np.newaxis] * deg2[np.newaxis, :])
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
@@ -207,21 +222,23 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     target_intensities,
                 )
                 assert c["intensity_cdist_all"].dtype == self.precision
-        if "distance_cdist_csr" not in c:
-            c["distance_cdist_csr"] = None
+        if "distance_terms" not in c:
+            # None: distance term switched off (distance_weight == 0)
+            c["distance_terms"] = None
             if self.distance_weight > 0:
                 if source_dists is None or target_dists is None:
                     raise SpellmatchException(
                         "Distances are required for computing their cross-distance"
                     )
-                logger.info("Computing distance cross-distance")
-                c["distance_cdist_csr"] = self._compute_distance_cdist(
+                logger.info("Computing distance cross-distance (matrix-free)")
+                c["distance_terms"] = self._compute_distance_terms(
                     adj1,
                     adj2,
-                    source_dists.to_numpy().astype(self.precision),
-                    target_dists.to_numpy().astype(self.precision),
+                    source_dists.to_numpy().astype(np.float64),
+                    target_dists.to_numpy().astype(np.float64),
+                    n1,
+                    n2,
                 )
-                assert c["distance_cdist_csr"].dtype == self.precision
         if "spatial_cdist" not in c:
             c["spatial_cdist"] = None
             if (
@@ -251,12 +268,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             info, scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
-                adj_csr,
+                adj1,
+                adj2,
                 deg,
                 c["degree_cdist"],
                 c["intensity_cdist_shared"],
                 c["intensity_cdist_all"],
-                c["distance_cdist_csr"],
+                c["distance_terms"],
                 c["spatial_cdist"],
                 self.intensity_interp_lmd,
             )
@@ -289,12 +307,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 current_info, current_scores_data = self._match_graphs_for_lambda(
                     n1,
                     n2,
-                    adj_csr,
+                    adj1,
+                    adj2,
                     deg,
                     c["degree_cdist"],
                     c["intensity_cdist_shared"],
                     c["intensity_cdist_all"],
-                    c["distance_cdist_csr"],
+                    c["distance_terms"],
                     c["spatial_cdist"],
                     current_lmd,
                 )
@@ -338,12 +357,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         n1: int,
         n2: int,
-        adj_csr: sparse.csr_array,
+        adj1: np.ndarray,
+        adj2: np.ndarray,
         deg: np.ndarray,
         degree_cdist: Optional[np.ndarray],
         intensity_cdist_shared: Optional[np.ndarray],
         intensity_cdist_all: Optional[np.ndarray],
-        distance_cdist_csr: Optional[sparse.csr_array],
+        distance_terms: Optional[DistanceTerms],
         spatial_cdist: Optional[np.ndarray],
         lmd: float,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -362,46 +382,60 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             intensity_cdist = None
         logger.info("Initializing")
-        w_csr = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
-        total_weight = 0
+        # The iteration needs w_csr @ v with
+        #   w_csr = d_dia @ (adj_csr - combined) @ d_dia,
+        # an (n1*n2)x(n1*n2) matrix like adj_csr. Instead of building it, we
+        # build only the small ingredients each term needs and define
+        # w_matvec(v) = w_csr @ v, computed fresh each call. This is an exact
+        # reformulation, not an approximation. The distance term's expansion
+        # is sensitive to cancellation, which is why it is computed in float64
+        # regardless of self.precision.
+        total_weight = 0.0
+        if self.degree_weight > 0:
+            total_weight += 2 * self.degree_weight
+        if self.intensity_weight > 0:
+            total_weight += 2 * self.intensity_weight
+        if self.distance_weight > 0:
+            total_weight += self.distance_weight
+
+        u_degree = None
         if self.degree_weight > 0:
             assert degree_cdist is not None
-            degree_cdist = degree_cdist.ravel()
-            w_csr += adj_csr * (
-                self.precision(self.degree_weight) * degree_cdist[:, np.newaxis]
-            )
-            w_csr += adj_csr * (
-                self.precision(self.degree_weight) * degree_cdist[np.newaxis, :]
-            )
-            total_weight += 2 * self.degree_weight
-            assert w_csr.dtype == self.precision
+            u_degree = np.asarray(degree_cdist.ravel(), dtype=np.float64)
+        u_intensity = None
         if self.intensity_weight > 0:
             assert intensity_cdist is not None
-            intensity_cdist = intensity_cdist.ravel()
-            w_csr += adj_csr * (
-                self.precision(self.intensity_weight) * intensity_cdist[:, np.newaxis]
-            )
-            w_csr += adj_csr * (
-                self.precision(self.intensity_weight) * intensity_cdist[np.newaxis, :]
-            )
-            total_weight += 2 * self.intensity_weight
-            assert w_csr.dtype == self.precision
+            u_intensity = np.asarray(intensity_cdist.ravel(), dtype=np.float64)
         if self.distance_weight > 0:
-            assert distance_cdist_csr is not None
-            w_csr += adj_csr * (
-                self.precision(self.distance_weight) * distance_cdist_csr
-            )
-            total_weight += self.distance_weight
-            assert w_csr.dtype == self.precision
-        if total_weight > 0:
-            w_csr /= self.precision(total_weight)
-            assert w_csr.dtype == self.precision
-        d = np.asarray(deg.flatten(), dtype=self.precision)
+            assert distance_terms is not None
+
+        # float64 is required by the distance term.
+        adj1_f64 = sparse.csr_array(adj1, dtype=np.float64)
+        adj2_f64 = sparse.csr_array(adj2, dtype=np.float64)
+
+        d = np.asarray(deg.flatten(), dtype=np.float64)
         d[d != 0] = d[d != 0] ** (-0.5)
-        d_dia = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
-        w_csr: sparse.csr_array = d_dia @ (adj_csr - w_csr) @ d_dia
-        assert w_csr.dtype == self.precision
-        del d, d_dia
+
+        def w_matvec(v: np.ndarray) -> np.ndarray:
+            s1 = d * v
+            a_s1 = kron_matvec(adj1_f64, adj2_f64, s1, n1, n2)
+            raw = np.zeros_like(a_s1)
+            if self.degree_weight > 0:
+                raw += self.degree_weight * outer_sum_matvec(
+                    adj1_f64, adj2_f64, u_degree, s1, n1, n2, a_s=a_s1
+                )
+            if self.intensity_weight > 0:
+                raw += self.intensity_weight * outer_sum_matvec(
+                    adj1_f64, adj2_f64, u_intensity, s1, n1, n2, a_s=a_s1
+                )
+            if self.distance_weight > 0:
+                raw += self.distance_weight * distance_term_matvec(
+                    adj1_f64, adj2_f64, distance_terms, s1, n1, n2
+                )
+            if total_weight > 0:
+                raw = raw / total_weight
+            return np.asarray(d * (a_s1 - raw), dtype=self.precision)
+
         if self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None:
             assert spatial_cdist is not None
             h = np.ravel(
@@ -426,7 +460,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         for opt_iteration in range(self.opt_max_iter):
             start = timer()
             s_new: np.ndarray = (
-                self.precision(self.alpha) * (w_csr @ s)
+                self.precision(self.alpha) * w_matvec(s[:, 0])[:, np.newaxis]
                 + self.precision(1.0 - self.alpha) * h
             )
             opt_loss = float(np.linalg.norm(s[:, 0] - s_new[:, 0]))
@@ -457,7 +491,12 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         return info, s[:, 0].reshape((n1, n2))
 
     def _compute_degree_cdist(self, deg1: np.ndarray, deg2: np.ndarray) -> np.ndarray:
-        degree_cdiff = abs(deg1[:, np.newaxis] - deg2[np.newaxis, :])
+        # deg1/deg2 are unsigned: subtract in a signed dtype, otherwise a
+        # negative difference wraps around (e.g. 5 - 7 -> 65534) instead of
+        # giving |5 - 7| = 2.
+        degree_cdiff = np.abs(
+            deg1.astype(np.int32)[:, np.newaxis] - deg2.astype(np.int32)[np.newaxis, :]
+        )
         degree_cdist = (self.precision(degree_cdiff) / self.degree_cdiff_thres) ** 2
         np.clip(degree_cdist, 0, 1, out=degree_cdist)
         assert degree_cdist.dtype == self.precision
@@ -568,23 +607,62 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         return intensity_cdist_all
 
-    def _compute_distance_cdist(
+    def _compute_distance_terms(
         self,
         adj1: np.ndarray,
         adj2: np.ndarray,
         dists1: np.ndarray,
         dists2: np.ndarray,
-    ) -> sparse.csr_array:
-        m_csr = sparse.csr_array(
-            abs(
-                sparse.kron(adj1 * dists1, adj2, format="csr")  # CSR for subtraction
-                - sparse.kron(adj1, adj2 * dists2, format="csr")  # CSR for subtraction
-            )
+        n1: int,
+        n2: int,
+    ) -> DistanceTerms:
+        """Ingredients for the distance cross-distance, in matrix-free form.
+
+        The distance cross-distance is ``clip(((kron(adj1*dists1,adj2) -
+        kron(adj1,adj2*dists2))/thresh)**2, 0, 1)``, an ``(n1*n2)x(n1*n2)``
+        matrix with ``nnz(adj1)*nnz(adj2)`` entries that runs out of memory
+        for realistic FOV sizes if built explicitly (as the previous
+        ``_compute_distance_cdist`` did).
+
+        Returns ``DistanceTerms(d1, d2, thresh, correction)``: ``d1 = adj1 ⊙
+        dists1``, ``d2 = adj2 ⊙ dists2`` are small (``n1xn1``/``n2xn2``)
+        edge-masked distance matrices in float64, and ``correction`` is the
+        sparse, upper-triangular-only ``relu(y-1)`` matrix (symmetric), or
+        ``None`` if no edge pair is clipped. Combined with
+        ``distance_term_matvec``, these reproduce ``clip(y,0,1) @ s`` exactly,
+        without ever materializing the big object.
+        """
+        d1 = sparse.csr_array((adj1 * dists1).astype(np.float64))
+        d2 = sparse.csr_array((adj2 * dists2).astype(np.float64))
+
+        # |d1 - d2| <= max edge length, so if no edge is longer than the
+        # threshold the clip can never fire and no correction is needed.
+        max_edge = max(
+            d1.max() if d1.nnz > 0 else 0.0, d2.max() if d2.nnz > 0 else 0.0
         )
-        m_csr.data = (m_csr.data / self.precision(self.distance_cdiff_thres)) ** 2
-        np.clip(m_csr.data, 0, 1, out=m_csr.data)
-        assert m_csr.dtype == self.precision
-        return m_csr
+        if max_edge <= self.distance_cdiff_thres:
+            logger.info(
+                "Distance-correction skipped: longest edge (%.3f) <= "
+                "distance_cdiff_thres (%s), nothing is clipped",
+                max_edge,
+                self.distance_cdiff_thres,
+            )
+            return DistanceTerms(d1, d2, self.distance_cdiff_thres, correction=None)
+
+        correction = build_distance_correction(
+            d1, d2, self.distance_cdiff_thres, n1, n2
+        )
+        if correction is None:
+            logger.info(
+                "Distance-correction skipped: no edge pair differs by more than "
+                "distance_cdiff_thres (%s), nothing is clipped",
+                self.distance_cdiff_thres,
+            )
+        else:
+            logger.info(
+                "Built distance-correction matrix: %s nonzeros", f"{correction.nnz:,}"
+            )
+        return DistanceTerms(d1, d2, self.distance_cdiff_thres, correction)
 
 
 class SpellmatchException(SpellmatchMatchingAlgorithmException):
