@@ -44,15 +44,13 @@ spellmatch or to integrate it into custom pipelines. Please refer to
 
 A manuscript is in preparation.
 
-For conceptual questions, please do not hesitate to
-[reach out](mailto:jonas.windhager@uzh.ch).
-
-For technical issues, please refer to the
+For conceptual questions and technical issues, please refer to the
 [spellmatch issue tracker](https://github.com/BodenmillerGroup/spellmatch/issues).
 
 ## Citing spellmatch
 
 A manuscript is in preparation.
 
-If you are using spellmatch in your work, please
-[reach out](mailto:jonas.windhager@uzh.ch) to inquire how to best cite the tool.
+If you are using spellmatch in your work, please open an issue on the
+[spellmatch issue tracker](https://github.com/BodenmillerGroup/spellmatch/issues) to
+inquire how to best cite the tool.
