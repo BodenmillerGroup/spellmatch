@@ -21,9 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spellmatch: `max_spatial_cdist` (d_max) is now a hard constraint; cell pairs farther
   apart are excluded from the optimization and receive a score of zero (previously,
   it only affected the initialization and had no effect on converged scores)
-- Spellmatch: new parameters `intensity_shared_metric` (`correlation`, `cosine`,
-  `reconstructed_correlation`) and `intensity_all_metric` (`correlation`, `cosine`) to
-  select the intensity cross-distance metrics (defaults unchanged)
+- Spellmatch: new parameters `intensity_shared_metric` (`reconstructed_correlation`,
+  `cosine`, `correlation`) and `intensity_all_metric` (`cosine`, `correlation`) to
+  select the intensity cross-distance metrics. **The defaults changed**: shared-marker
+  intensities are now compared using the Pearson correlation across markers between
+  rank-k SVD reconstructions (previously: across SVD components), and all-marker
+  intensities using the cosine distance between CCA embeddings (previously: Pearson
+  correlation across CCA components). Set both parameters to `correlation` to restore
+  the previous behavior.
 
 ### Fixed
 

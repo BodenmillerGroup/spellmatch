@@ -71,11 +71,11 @@ Parameters (symbols refer to the manuscript, where applicable):
 | `intensity_interp_lmd` | λ, n<sup>(try)</sup><sub>λ-sel</sub> | `11` | Weight of the shared-marker intensity cross-distance relative to the all-marker one: a number in `[0, 1]` specifies λ; an integer larger than `1` specifies the number of regularly spaced λ values to evaluate for automatic selection |
 | `intensity_interp_cca_n_components` | n<sup>(cancor)</sup><sub>λ-sel</sub> | `10` | Number of canonical correlations used for automatic λ selection |
 | `intensity_shared_pca_n_components` | k<sub>SVD</sub> | `5` | Number of SVD components for the shared-marker intensity cross-distance |
-| `intensity_shared_metric` | | `correlation` | Distance between SVD-embedded shared-marker intensities: `correlation` (Pearson correlation across SVD components), `cosine` (cosine distance between SVD embeddings), or `reconstructed_correlation` (Pearson correlation across markers between rank-k SVD reconstructions, as in MARIO) |
+| `intensity_shared_metric` | | `reconstructed_correlation` | Distance between SVD-embedded shared-marker intensities: `reconstructed_correlation` (Pearson correlation across markers between rank-k SVD reconstructions, as in MARIO), `cosine` (cosine distance between SVD embeddings), or `correlation` (Pearson correlation across SVD components; default of spellmatch 0.1) |
 | `intensity_all_cca_fit_k_closest` | n<sup>(closest)</sup><sub>CCA</sub> | `500` | Number of spatially closest cell pairs considered for fitting the CCA (all-marker intensity cross-distance) |
 | `intensity_all_cca_fit_k_most_certain` | n<sup>(most certain)</sup><sub>CCA</sub> | `100` | Number of most certain cell pairs (largest spatial margins) used for fitting the CCA |
 | `intensity_all_cca_n_components` | k<sub>CCA</sub> | `10` | Number of CCA components for the all-marker intensity cross-distance |
-| `intensity_all_metric` | | `correlation` | Distance between CCA-embedded intensities: `correlation` (Pearson correlation across CCA components) or `cosine` (cosine distance between CCA embeddings) |
+| `intensity_all_metric` | | `cosine` | Distance between CCA-embedded intensities: `cosine` (cosine distance between CCA embeddings) or `correlation` (Pearson correlation across CCA components; default of spellmatch 0.1) |
 | `distance_weight` | w<sub>distance</sub> | `0` | Relative importance of spatial cell-cell distances |
 | `distance_cdiff_thres` | θ<sub>distance</sub> | `5` | Spatial cell-cell distance difference threshold |
 | `cca_max_iter`<br>`cca_tol` | | `500`<br>`1e-6` | Canonical correlation analysis (CCA) fitting parameters |
