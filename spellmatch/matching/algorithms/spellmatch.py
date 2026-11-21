@@ -148,12 +148,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         super()._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
         if iteration == 0:
             self._warned.clear()
-        if iteration > 0:
-            # transform has been updated --> cached spatial cross-distance and
-            # all-marker intensity cross-distance (fitted on nearest neighbors under
-            # the current transform) are invalid
-            iteration_cache.pop("spatial_cdist", None)
-            iteration_cache.pop("intensity_cdist_all", None)
         if iteration > 0 and self.max_spatial_cdist is not None:
             # transform has been updated --> candidate cell pairs within
             # max_spatial_cdist (and thus the cached product graph) may have changed
@@ -200,17 +194,23 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         target_intensities: pd.DataFrame | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
+        if self.distance_weight > 0 and (
+            source_graph.dists is None or target_graph.dists is None
+        ):
+            raise SpellmatchException(
+                "Distances are required for computing their cross-distance"
+            )
         c = cache if cache is not None else {}
-        n1 = len(source_graph)
-        n2 = len(target_graph)
-        deg1 = source_graph.degrees.astype(self.precision)
-        deg2 = target_graph.degrees.astype(self.precision)
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
             if self.degree_weight > 0.0:
                 logger.debug("Computing degree cross-distance")
-                c["degree_cdist"] = self._compute_degree_cdist(deg1, deg2)
+                c["degree_cdist"] = self._compute_degree_cdist(
+                    source_graph.degrees.astype(self.precision),
+                    target_graph.degrees.astype(self.precision),
+                )
                 assert c["degree_cdist"].dtype == self.precision
+        degree_cdist = c["degree_cdist"]
         if "intensity_cdist_shared" not in c:
             c["intensity_cdist_shared"] = None
             if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 0.0:
@@ -223,72 +223,63 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     source_intensities, target_intensities
                 )
                 assert c["intensity_cdist_shared"].dtype == self.precision
-        if "intensity_cdist_all" not in c:
-            c["intensity_cdist_all"] = None
-            if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 1.0:
-                if source_intensities is None or target_intensities is None:
-                    raise SpellmatchException(
-                        "Intensities are required for computing their cross-distance"
-                    )
-                if (
-                    self._current_source_points is None
-                    or self._current_target_points is None
-                ):
-                    raise SpellmatchException(
-                        "Computing intensity cross-distances on all markers requires "
-                        "running Spellmatch in point set registration mode"
-                    )
-                if c.get("prior_transform") is None:
-                    logger.info(
-                        "No spatial transform available, not using the intensity "
-                        "cross-distance from all markers in this iteration"
-                    )
-                else:
-                    logger.debug("Computing intensity cross-distance (all markers)")
-                    c["intensity_cdist_all"] = self._compute_intensity_cdist_all(
-                        self._current_source_points,
-                        self._current_target_points,
-                        source_intensities,
-                        target_intensities,
-                    )
-                    assert c["intensity_cdist_all"].dtype == self.precision
-        if self.distance_weight > 0 and (
-            source_graph.dists is None or target_graph.dists is None
-        ):
-            raise SpellmatchException(
-                "Distances are required for computing their cross-distance"
-            )
-        if "spatial_cdist" not in c:
-            c["spatial_cdist"] = None
-            if (
-                self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None
-            ) or self.max_spatial_cdist is not None:
-                if (
-                    self._current_source_points is None
-                    or self._current_target_points is None
-                ):
-                    raise SpellmatchException(
-                        "Computing spatial cross-distance requires running Spellmatch "
-                        "in point set registration or mask matching mode"
-                    )
-                if c.get("prior_transform") is None:
-                    logger.info(
-                        "No spatial transform available, not using the spatial prior "
-                        "and the maximum spatial cross-distance in this iteration"
-                    )
-                else:
-                    logger.debug("Computing spatial cross-distance")
-                    c["spatial_cdist"] = np.asarray(
-                        distance.cdist(
-                            self._current_source_points.to_numpy(self.precision),
-                            self._current_target_points.to_numpy(self.precision),
-                        ),
-                        dtype=self.precision,
-                    )
-        degree_cdist = c["degree_cdist"]
         intensity_cdist_shared = c["intensity_cdist_shared"]
-        intensity_cdist_all = c["intensity_cdist_all"]
-        spatial_cdist = c["spatial_cdist"]
+        n1 = len(source_graph)
+        n2 = len(target_graph)
+        intensity_cdist_all = None
+        if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 1.0:
+            if source_intensities is None or target_intensities is None:
+                raise SpellmatchException(
+                    "Intensities are required for computing their cross-distance"
+                )
+            if (
+                self._current_source_points is None
+                or self._current_target_points is None
+            ):
+                raise SpellmatchException(
+                    "Computing intensity cross-distances on all markers requires "
+                    "running Spellmatch in point set registration mode"
+                )
+            if c.get("prior_transform") is None:
+                logger.info(
+                    "No spatial transform available, not using the intensity "
+                    "cross-distance from all markers in this iteration"
+                )
+            else:
+                logger.debug("Computing intensity cross-distance (all markers)")
+                intensity_cdist_all = self._compute_intensity_cdist_all(
+                    self._current_source_points,
+                    self._current_target_points,
+                    source_intensities,
+                    target_intensities,
+                )
+                assert intensity_cdist_all.dtype == self.precision
+        spatial_cdist = None
+        if (
+            self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None
+        ) or self.max_spatial_cdist is not None:
+            if (
+                self._current_source_points is None
+                or self._current_target_points is None
+            ):
+                raise SpellmatchException(
+                    "Computing spatial cross-distance requires running Spellmatch "
+                    "in point set registration or mask matching mode"
+                )
+            if c.get("prior_transform") is None:
+                logger.info(
+                    "No spatial transform available, not using the spatial prior "
+                    "and the maximum spatial cross-distance in this iteration"
+                )
+            else:
+                logger.debug("Computing spatial cross-distance")
+                spatial_cdist = np.asarray(
+                    distance.cdist(
+                        self._current_source_points.to_numpy(self.precision),
+                        self._current_target_points.to_numpy(self.precision),
+                    ),
+                    dtype=self.precision,
+                )
         cell_pairs = None
         if self.max_spatial_cdist is not None and spatial_cdist is not None:
             cell_pairs = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
