@@ -49,7 +49,6 @@ gui = ["napari[all]>=0.6", "pyqtgraph>=0.14", "qtpy>=2.4"]
 # probreg 0.3.8 hard-codes 3D point clouds, breaking 2D registration
 probreg = ["probreg>=0.3.5,<0.3.8"]
 cuda = ["cupy-cuda12x"]
-nonfree = ["opencv-contrib-python-headless>=4.11"]
 all = ["spellmatch[gui,probreg]"]
 
 [project.scripts]

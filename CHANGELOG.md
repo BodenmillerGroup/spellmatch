@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pydantic 2.12, PyYAML 6.0.3, scikit-learn 1.7.2, scipy 1.16.1, shapely 2.1.2); the
   lower bounds are now tested in CI
 
+### Removed
+
+- The `nonfree` extra: the OpenCV packages on PyPI (including
+  `opencv-contrib-python-headless`) do not include patented algorithms such as SURF,
+  which require an OpenCV build with `OPENCV_ENABLE_NONFREE`
+
 ### Fixed
 
 - Parallel benchmark runs with the spawn/forkserver multiprocessing start methods

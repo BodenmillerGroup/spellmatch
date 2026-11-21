@@ -33,7 +33,6 @@ installed. Additional functionality can be enabled by installing optional depend
 | `probreg` | Point set registration algorithms from probreg (CPD, FilterReg, ...) |
 | `all`     | All of the above                                                     |
 | `cuda`    | GPU acceleration for probreg algorithms (requires CUDA 12)           |
-| `nonfree` | Patented OpenCV features (e.g. SURF) for feature-based registration  |
 
 For example, to install spellmatch with all optional dependencies:
 
@@ -43,12 +42,10 @@ For example, to install spellmatch with all optional dependencies:
     The probreg package is only available as source distribution and requires a C++
     compiler for installation.
 
-!!! warning "Installing nonfree"
-    The `nonfree` extra installs `opencv-contrib-python-headless`, which provides the
-    same `cv2` module as the `opencv-python-headless` package installed by default.
-    After installing it, run
-    `pip install --force-reinstall --no-deps opencv-contrib-python-headless` to ensure
-    that the contrib version of the `cv2` module is used.
+!!! note "Feature-based registration"
+    SIFT and ORB features are included in the default OpenCV installation. SURF is
+    patented and excluded from the OpenCV packages on PyPI; it is only available with
+    an OpenCV build with `OPENCV_ENABLE_NONFREE` enabled.
 
 ## Reproducing the publication
 
