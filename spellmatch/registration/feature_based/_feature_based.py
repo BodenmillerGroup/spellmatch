@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Mapping
 from enum import Enum
 from typing import Any
@@ -8,6 +9,8 @@ import xarray as xr
 from skimage.transform import ProjectiveTransform
 
 from ...utils import show_image
+
+logger = logging.getLogger(__name__)
 
 try:
     from cv2 import xfeatures2d as cv2_xfeatures2d  # type: ignore
@@ -53,9 +56,17 @@ def register_image_features(
     keep_matches_frac: float | None = None,
     ransac_kwargs: Mapping[str, Any] | None = None,
     show: bool = False,
-) -> ProjectiveTransform:
+) -> ProjectiveTransform | None:
+    """Register two images using feature matching.
+
+    Returns the transform in physical units (same coordinate system as cell centroids,
+    see ``compute_points``), or None if registration failed.
+    """
     if source_img.ndim != 2 or target_img.ndim != 2:
         raise NotImplementedError("3D/multi-channel registration is not supported")
+    ransac_kwargs = dict(ransac_kwargs or {})
+    source_scale = source_img.attrs.get("scale", (1, 1))
+    target_scale = target_img.attrs.get("scale", (1, 1))
     source_img = source_img.to_numpy()
     target_img = target_img.to_numpy()
     img_min = min(np.amin(source_img), np.amin(target_img))
@@ -66,19 +77,31 @@ def register_image_features(
     target_img = (target_img * 255).astype(np.uint8)
     source_kps, source_descs = cv2_feature.detectAndCompute(source_img, None)
     target_kps, target_descs = cv2_feature.detectAndCompute(target_img, None)
+    if source_descs is None or target_descs is None:
+        logger.warning("Failed to register images: no features detected")
+        return None
     cv2_matcher = cv2.DescriptorMatcher_create(cv2_matcher_type.value)
     matches = cv2_matcher.match(source_descs, target_descs)
+    matches = sorted(matches, key=lambda match: match.distance)
     if keep_matches_frac is not None:
         matches = matches[: int(len(matches) * keep_matches_frac)]
-    if len(matches) == 0:
+    if len(matches) < 4:
+        logger.warning(
+            f"Failed to register images: {len(matches)} feature matches, "
+            "at least 4 required"
+        )
         return None
     src = np.empty((len(matches), 2))
     dst = np.empty((len(matches), 2))
     for i, match in enumerate(matches):
         src[i] = source_kps[match.queryIdx].pt
         dst[i] = target_kps[match.trainIdx].pt
-    src += -0.5 * np.array([source_img.shape]) + 0.5
-    dst += -0.5 * np.array([target_img.shape]) + 0.5
+    # keypoint coordinates are (x, y) pixel coordinates; convert them to physical
+    # coordinates relative to the image center, as for cell centroids
+    src += -0.5 * np.array([source_img.shape[::-1]]) + 0.5
+    dst += -0.5 * np.array([target_img.shape[::-1]]) + 0.5
+    src *= np.array([[source_scale[-1], source_scale[-2]]])
+    dst *= np.array([[target_scale[-1], target_scale[-2]]])
     h, _ = cv2.findHomography(src, dst, method=cv2.RANSAC, **ransac_kwargs)
     if show:
         matches_img = cv2.drawMatches(
@@ -86,4 +109,7 @@ def register_image_features(
         )
         _, imv_loop = show_image(matches_img, window_title="spellmatch registration")
         imv_loop.exec()
+    if h is None:
+        logger.warning("Failed to register images: no homography found (RANSAC)")
+        return None
     return ProjectiveTransform(matrix=h)

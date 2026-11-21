@@ -28,8 +28,8 @@ def register_interactive(
         )
     if target_img is not None and target_img.shape[-2:] != target_mask.shape:
         raise SpellmatchInteractiveRegistrationException(
-            f"Source image has shape {target_img.shape}, "
-            f"but source mask has shape {target_mask.shape}"
+            f"Target image has shape {target_img.shape}, "
+            f"but target mask has shape {target_mask.shape}"
         )
 
     source_viewer, source_mask_layer, _ = _create_viewer(
@@ -115,19 +115,25 @@ def _create_viewer(
             colormap="gray",
             name=img_name,
             scale=img.attrs["scale"],
-            translate=-0.5 * np.array(img.shape[1:]),
+            translate=_get_layer_translate(img),
             visible=False,
         )
     mask_layer = viewer.add_labels(
         data=mask,
         name=mask.name,
         scale=mask.attrs["scale"],
-        translate=-0.5 * np.array(mask.shape),
+        translate=_get_layer_translate(mask),
     )
     mask_layer.contour = 1
     mask_layer.selected_label = 0
     mask_layer.show_selected_label = True
     return viewer, mask_layer, img_layers
+
+
+def _get_layer_translate(data: xr.DataArray) -> np.ndarray:
+    spatial_shape = np.array([n for dim, n in data.sizes.items() if dim != "c"])
+    scale = np.asarray(data.attrs.get("scale", np.ones(len(spatial_shape))))
+    return (-0.5 * spatial_shape + 0.5) * scale
 
 
 class SpellmatchInteractiveRegistrationException(SpellmatchRegistrationException):

@@ -100,6 +100,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (source, target); previously, they were merged on shared column names, which could
   over-count recovered cell pairs
 - CLI: keyword arguments (e.g. `--algorithm-args`) are parsed using the safe YAML loader
+- `match --denoise-*/--clip-*/--blur-*`: image filters were also applied across channels
+  (signal bled into neighboring channels), and the clipping quantile was pooled across
+  channels; filters and clipping are now applied to each channel separately
+- Anisotropic pixel sizes were applied in the wrong axis order to cell coordinates (3D:
+  x and z swapped) and bounding boxes
+- `register features`: keypoints of non-square images were centered using swapped axes
+  (spurious translation), `keep_matches_frac` kept arbitrary instead of the best matches,
+  the pixel size (`--source-scale`/`--target-scale`) was ignored (transform in pixel
+  instead of physical units), failed RANSAC fits silently resulted in an identity
+  transform, and the default `ransac_kwargs=None` crashed (Python API)
+- `register interactive`: single-channel images were displayed with an offset relative
+  to the mask; layers are now displayed in the same (physical) coordinates as cell
+  centroids; Save is only enabled with enough cell pairs for the transform type
+- `register intensities`: metric sampling (`RANDOM`/`REGULAR` sampling strategies) is now
+  reproducible by default (`sampling_seed=42`; set to `0` for wall-clock seeding)
 
 ## [0.1.0] - 2022-05-19
 
