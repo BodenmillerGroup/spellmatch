@@ -25,7 +25,7 @@ jobs:
         run: uv run --only-group lint pre-commit run --all-files --show-diff-on-failure
 
   test:
-    name: ${{ matrix.platform }} py${{ matrix.python-version }} ${{ matrix.extras }}
+    name: ${{ matrix.platform }} py${{ matrix.python-version }} ${{ matrix.extras }} ${{ matrix.sync }}
     runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
@@ -38,6 +38,12 @@ jobs:
           - platform: ubuntu-latest
             python-version: "3.14"
             extras: ""
+          # lowest versions of direct dependencies (checks the lower bounds, which
+          # are the first versions with wheels for Python 3.14)
+          - platform: ubuntu-latest
+            python-version: "3.14"
+            extras: ""
+            sync: "--resolution lowest-direct"
           # probreg is only available as source distribution (requires compilation)
           - platform: ubuntu-latest
             python-version: "3.14"
@@ -57,7 +63,7 @@ jobs:
         if: runner.os == 'Linux'
         uses: tlambert03/setup-qt-libs@v1
       - name: Install dependencies
-        run: uv sync --locked --no-default-groups --group test ${{ matrix.extras }}
+        run: uv sync ${{ matrix.sync || '--locked' }} --no-default-groups --group test ${{ matrix.extras }}
       - name: Run tests
         run: uv run --no-sync pytest
       - name: Upload coverage

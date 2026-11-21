@@ -1,9 +1,15 @@
 import numpy as np
 import pandas as pd
 import xarray as xr
-from napari.layers import Image, Labels
-from napari.viewer import Viewer
-from qtpy.QtCore import QEventLoop
+
+from ..._spellmatch import missing_gui_dependency
+
+try:
+    from napari.layers import Image, Labels
+    from napari.viewer import Viewer
+    from qtpy.QtCore import QEventLoop
+except ImportError as e:
+    raise missing_gui_dependency(e) from e
 from skimage.transform import AffineTransform, ProjectiveTransform
 
 from ...utils import compute_points

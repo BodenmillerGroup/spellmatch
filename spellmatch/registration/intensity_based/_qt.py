@@ -1,5 +1,11 @@
 import SimpleITK as sitk
-from qtpy.QtCore import QObject, Signal
+
+from ..._spellmatch import missing_gui_dependency
+
+try:
+    from qtpy.QtCore import QObject, Signal
+except ImportError as e:
+    raise missing_gui_dependency(e) from e
 
 
 class QSITKRegistrationWorker(QObject):

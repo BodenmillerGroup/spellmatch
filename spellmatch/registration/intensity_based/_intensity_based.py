@@ -5,6 +5,7 @@ import SimpleITK as sitk
 import xarray as xr
 from skimage.transform import ProjectiveTransform
 
+from ..._spellmatch import missing_gui_dependency
 from ...utils import show_image
 from .sitk_metrics import SITKMetric
 from .sitk_optimizers import SITKOptimizer
@@ -94,9 +95,12 @@ def register_image_intensities(
                 imv.setCurrentIndex(len(composite_imgs) - 1)
 
         # imported here, as Qt is an optional dependency (spellmatch[gui])
-        from qtpy.QtCore import QThread
+        try:
+            from qtpy.QtCore import QThread
 
-        from ._qt import QSITKRegistrationWorker
+            from ._qt import QSITKRegistrationWorker
+        except ImportError as e:
+            raise missing_gui_dependency(e) from e
 
         imv, imv_loop = show_image(None, window_title="spellmatch registration")
         append_composite_image()
