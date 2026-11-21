@@ -163,7 +163,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         adj_csr = sparse.csr_array(sparse.kron(adj1, adj2, format="csr"))
         deg1 = np.sum(adj1, axis=1, dtype=np.uint8)
         deg2 = np.sum(adj2, axis=1, dtype=np.uint8)
-        deg = np.asarray(deg1[:, np.newaxis] * deg2[np.newaxis, :])
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
             if self.degree_weight > 0.0:
@@ -250,7 +249,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 n1,
                 n2,
                 adj_csr,
-                deg,
                 c["degree_cdist"],
                 c["intensity_cdist_shared"],
                 c["intensity_cdist_all"],
@@ -288,7 +286,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     n1,
                     n2,
                     adj_csr,
-                    deg,
                     c["degree_cdist"],
                     c["intensity_cdist_shared"],
                     c["intensity_cdist_all"],
@@ -337,7 +334,6 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         n1: int,
         n2: int,
         adj_csr: sparse.csr_array,
-        deg: np.ndarray,
         degree_cdist: np.ndarray | None,
         intensity_cdist_shared: np.ndarray | None,
         intensity_cdist_all: np.ndarray | None,
@@ -360,7 +356,26 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             intensity_cdist = None
         logger.info("Initializing")
-        w_csr = sparse.csr_array((n1 * n2, n1 * n2), dtype=self.precision)
+        n = n1 * n2
+        candidates = None
+        if self.max_spatial_cdist is not None:
+            assert spatial_cdist is not None
+            candidates = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
+            if len(candidates) == 0:
+                raise SpellmatchException(
+                    "No candidate cell pairs within the maximum spatial cross-distance"
+                )
+            logger.info(f"Restricting to {len(candidates)} of {n} candidate cell pairs")
+            n = len(candidates)
+            adj_csr = adj_csr[candidates][:, candidates]
+            if degree_cdist is not None:
+                degree_cdist = degree_cdist.ravel()[candidates]
+            if intensity_cdist is not None:
+                intensity_cdist = intensity_cdist.ravel()[candidates]
+            if distance_cdist_csr is not None:
+                distance_cdist_csr = distance_cdist_csr[candidates][:, candidates]
+            spatial_cdist = spatial_cdist.ravel()[candidates]
+        w_csr = sparse.csr_array((n, n), dtype=self.precision)
         total_weight = 0
         if self.degree_weight > 0:
             assert degree_cdist is not None
@@ -394,9 +409,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         if total_weight > 0:
             w_csr /= self.precision(total_weight)
             assert w_csr.dtype == self.precision
-        d = np.asarray(deg.flatten(), dtype=self.precision)
+        # degrees of the (restricted) product graph, i.e., its row sums: in CSR format,
+        # the entries of row i are stored at positions indptr[i] to indptr[i + 1] - 1,
+        # so np.diff(indptr) is the number of entries per row; since all entries of the
+        # adjacency matrix are one, this equals the row sums
+        d = np.diff(adj_csr.indptr).astype(self.precision)
         d[d != 0] = d[d != 0] ** (-0.5)
-        d_dia = sparse.dia_array((d, [0]), shape=(n1 * n2, n1 * n2))
+        d_dia = sparse.dia_array((d, [0]), shape=(n, n))
         w_csr: sparse.csr_array = d_dia @ (adj_csr - w_csr) @ d_dia
         assert w_csr.dtype == self.precision
         del d, d_dia
@@ -405,18 +424,17 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             h = np.ravel(
                 1 - np.clip((spatial_cdist / self.spatial_cdist_prior_thres) ** 2, 0, 1)
             )
+            if np.sum(h) == 0:
+                raise SpellmatchException(
+                    "No candidate cell pairs within the spatial prior threshold"
+                )
             h = np.asarray(h / np.sum(h), dtype=self.precision)[:, np.newaxis]
         else:
-            h = np.ones((n1 * n2, 1), dtype=self.precision)
-            h /= self.precision(n1 * n2)
+            h = np.ones((n, 1), dtype=self.precision)
+            h /= self.precision(n)
         assert h.dtype == self.precision
-        if self.max_spatial_cdist is not None:
-            assert spatial_cdist is not None
-            s = np.ravel(spatial_cdist <= self.max_spatial_cdist)
-            s = np.asarray(s / np.sum(s), dtype=self.precision)[:, np.newaxis]
-        else:
-            s = np.ones((n1 * n2, 1), dtype=self.precision)
-            s /= self.precision(n1 * n2)
+        s = np.ones((n, 1), dtype=self.precision)
+        s /= self.precision(n)
         assert s.dtype == self.precision
         logger.info("Optimizing")
         opt_converged = False
@@ -452,7 +470,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             "opt_iterations": opt_iteration + 1,
             "opt_converged": opt_converged,
         }
-        return info, s[:, 0].reshape((n1, n2))
+        scores_data = s[:, 0]
+        if candidates is not None:
+            scores_data = np.zeros(n1 * n2, dtype=self.precision)
+            scores_data[candidates] = s[:, 0]
+        return info, scores_data.reshape((n1, n2))
 
     def _compute_degree_cdist(self, deg1: np.ndarray, deg2: np.ndarray) -> np.ndarray:
         degree_cdiff = abs(deg1[:, np.newaxis] - deg2[np.newaxis, :])
@@ -466,10 +488,32 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensities1: pd.DataFrame,
         intensities2: pd.DataFrame,
     ) -> np.ndarray:
-        intensities1 = intensities1.astype(self.precision)
-        intensities2 = intensities2.astype(self.precision)
-        intensities1 = (intensities1 - intensities1.mean()) / intensities1.std()
-        intensities2 = (intensities2 - intensities2.mean()) / intensities2.std()
+        columns = [c for c in intensities1.columns if c in intensities2.columns]
+        intensities1 = intensities1[columns].astype(self.precision)
+        intensities2 = intensities2[columns].astype(self.precision)
+        intensities1_std = intensities1.std()
+        intensities2_std = intensities2.std()
+        constant_columns = [
+            column
+            for column in columns
+            if not (intensities1_std[column] > 0 and intensities2_std[column] > 0)
+        ]
+        if len(constant_columns) > 0:
+            logger.warning(
+                "Excluding shared markers without variance from computing the "
+                f"intensity cross-distance: {', '.join(map(str, constant_columns))}"
+            )
+            intensities1 = intensities1.drop(columns=constant_columns)
+            intensities2 = intensities2.drop(columns=constant_columns)
+            intensities1_std = intensities1_std.drop(constant_columns)
+            intensities2_std = intensities2_std.drop(constant_columns)
+        if len(intensities1.columns) == 0 or len(intensities2.columns) == 0:
+            raise SpellmatchException(
+                "No shared markers with non-zero variance for computing the intensity "
+                "cross-distance"
+            )
+        intensities1 = (intensities1 - intensities1.mean()) / intensities1_std
+        intensities2 = (intensities2 - intensities2.mean()) / intensities2_std
         intensities_shared = pd.concat(
             (intensities1, intensities2), join="inner", ignore_index=True
         )

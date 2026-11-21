@@ -18,11 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publish to PyPI using trusted publishing
 - Replace the conda `environment.yml` with the `analysis` uv dependency group
 - Replace the unmaintained click-log dependency (no change in CLI behavior)
+- Spellmatch: `max_spatial_cdist` (d_max) is now a hard constraint; cell pairs farther
+  apart are excluded from the optimization and receive a score of zero (previously,
+  it only affected the initialization and had no effect on converged scores)
 
 ### Fixed
 
 - Parallel benchmark runs with the spawn/forkserver multiprocessing start methods
   (default on Windows, macOS and, as of Python 3.14, Linux)
+- Spellmatch: shared markers without variance no longer cause NaN errors when computing
+  the intensity cross-distance (such markers are excluded with a warning)
+- Spellmatch: the degrees of the product graph (used for normalization) no longer
+  overflow for cells with many neighbors (8-bit integer products of cell degrees)
 
 ## [0.1.0] - 2022-05-19
 
