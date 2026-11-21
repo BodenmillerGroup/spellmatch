@@ -52,5 +52,15 @@ For example, to install spellmatch with all optional dependencies:
 
 ## Reproducing the publication
 
-The analyses in `data/` were run with the original release of spellmatch (Python 3.9);
-the corresponding conda environment is provided in `environment.yml`.
+The analyses in `data/` (notebooks and benchmark scripts) require the optional GUI
+dependencies, [simutome](https://github.com/BodenmillerGroup/simutome), and a few
+analysis packages (JupyterLab, matplotlib, seaborn, datashader). From a clone of the
+[spellmatch repository](https://github.com/BodenmillerGroup/spellmatch), all of them
+can be installed with [uv](https://docs.astral.sh/uv/), using the exact versions
+recorded in `uv.lock`:
+
+    uv sync --extra all --group benchmark --group analysis
+    uv run jupyter lab
+
+Cell segmentation using Mesmer (`deepcell`), performed in some of the dataset notebooks,
+requires a separate environment.

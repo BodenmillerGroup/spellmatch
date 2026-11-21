@@ -69,6 +69,17 @@ docs = [
 # simutome is not available on PyPI (and direct URL dependencies are not allowed in
 # published extras), so the benchmark dependencies are provided as a dependency group
 benchmark = ["simutome"]
+# analysis notebooks and scripts in data/ (together with the gui extra and the
+# benchmark group); Mesmer segmentation (deepcell) requires a separate environment
+analysis = [
+    "colorcet>=3.1",
+    "datashader>=0.17",
+    "jupyterlab>=4.3",
+    "jupytext>=1.16",
+    "matplotlib>=3.10",
+    "seaborn>=0.13",
+    "tqdm>=4.67",
+]
 dev = [{ include-group = "test" }, { include-group = "lint" }]
 
 [tool.uv]
@@ -89,7 +100,6 @@ exclude = [
     "/data",
     "/docs",
     "/publication",
-    "/environment.yml",
     "/mkdocs.yml",
     "/uv.lock",
 ]
