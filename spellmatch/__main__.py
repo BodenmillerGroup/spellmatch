@@ -1,12 +1,11 @@
 import logging
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from functools import partial, wraps
 from pathlib import Path
 from typing import Any
 
 import click
-import click_log
 import numpy as np
 import yaml
 from skimage.transform import (
@@ -46,13 +45,43 @@ from .utils import (
     preprocess_image,
 )
 
-# click_log.basic_config(logger=logger)
-logger_handler = click_log.ClickHandler()
+
+class ClickHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            click.echo(self.format(record), err=True)
+        except Exception:
+            self.handleError(record)
+
+
+logger_handler = ClickHandler()
 logger_handler.formatter = logging.Formatter(
     fmt="%(asctime)s %(levelname)s %(name)s - %(message)s"
 )
 logger.handlers = [logger_handler]
 logger.propagate = False
+
+
+def verbosity_option[F: Callable[..., Any]](logger: logging.Logger) -> Callable[[F], F]:
+    def set_level(ctx: click.Context, param: click.Parameter, value: str) -> None:
+        level = logging.getLevelNamesMapping().get(value.upper())
+        if level is None:
+            raise click.BadParameter(
+                f"Must be CRITICAL, ERROR, WARNING, INFO or DEBUG, not {value}"
+            )
+        logger.setLevel(level)
+
+    return click.option(
+        "--verbosity",
+        "-v",
+        default="INFO",
+        metavar="LVL",
+        expose_value=False,
+        is_eager=True,
+        callback=set_level,
+        help="Either CRITICAL, ERROR, WARNING, INFO or DEBUG",
+    )
+
 
 mask_matching_algorithm_names = [
     mask_matching_algorithm_name
@@ -237,7 +266,7 @@ def cli_register() -> None:
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_interactive(
     source_mask_path: Path,
@@ -570,7 +599,7 @@ def cli_register_interactive(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_features(
     source_img_path: Path,
@@ -910,7 +939,7 @@ def cli_register_features(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_intensities(
     source_img_path: Path,
@@ -1236,7 +1265,7 @@ def cli_register_intensities(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_match(
     source_mask_path: Path,
@@ -1576,7 +1605,7 @@ def cli_match(
     metavar="ASSIGNMENT(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_assign(
     scores_path: Path,

@@ -544,18 +544,6 @@ wheels = [
 ]
 
 [[package]]
-name = "click-log"
-version = "0.4.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/32/32/228be4f971e4bd556c33d52a22682bfe318ffe57a1ddb7a546f347a90260/click-log-0.4.0.tar.gz", hash = "sha256:3970f8570ac54491237bcdb3d8ab5e3eef6c057df29f8c3d1151a51a9c23b975", size = 9985, upload-time = "2022-03-13T11:10:15.262Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/5a/4f025bc751087833686892e17e7564828e409c43b632878afeae554870cd/click_log-0.4.0-py2.py3-none-any.whl", hash = "sha256:a43e394b528d52112af599f2fc9e4b7cf3c15f94e53581f74fa6867e68c91756", size = 4273, upload-time = "2022-03-13T11:10:17.594Z" },
-]
-
-[[package]]
 name = "cloudpickle"
 version = "3.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -4119,7 +4107,6 @@ name = "spellmatch"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
-    { name = "click-log" },
     { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'x86_64' and sys_platform == 'darwin'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'x86_64' or sys_platform != 'darwin'" },
     { name = "opencv-python-headless" },
@@ -4186,7 +4173,6 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.2" },
-    { name = "click-log", specifier = ">=0.4" },
     { name = "cupy-cuda12x", marker = "extra == 'cuda'" },
     { name = "napari", extras = ["all"], marker = "extra == 'all'", specifier = ">=0.6" },
     { name = "napari", extras = ["all"], marker = "extra == 'gui'", specifier = ">=0.6" },

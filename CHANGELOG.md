@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrate packaging to `pyproject.toml` (hatchling, hatch-vcs) and development tooling
   to uv and ruff
 - Publish to PyPI using trusted publishing
+- Replace the unmaintained click-log dependency (no change in CLI behavior)
 
 ### Fixed
 
