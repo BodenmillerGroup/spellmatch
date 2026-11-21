@@ -19,12 +19,14 @@ from skimage.transform import (
 
 from ...utils import (
     compute_intensities,
+    compute_max2,
     compute_points,
     create_bounding_box,
     create_graph,
     describe_transform,
     filter_outlier_points,
     get_function_by_name,
+    make_unique_names,
     restore_outlier_scores,
     transform_bounding_box,
     transform_points,
@@ -217,6 +219,7 @@ class _PointsMatchingMixin:
         prior_transform: ProjectiveTransform | None = None,
         cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
+        source_name, target_name = make_unique_names(source_name, target_name)
         c = cache if cache is not None else {}
         c["prior_transform"] = prior_transform
         if "transformed_source_points" not in c:
@@ -237,8 +240,12 @@ class _PointsMatchingMixin:
         ):
             c["filtered_transformed_source_points"] = c["transformed_source_points"]
             c["filtered_target_points"] = target_points
-            c["filtered_source_intensities"] = source_intensities
-            c["filtered_target_intensities"] = target_intensities
+            c["filtered_source_intensities"] = _align_intensities(
+                source_intensities, source_points, "source"
+            )
+            c["filtered_target_intensities"] = _align_intensities(
+                target_intensities, target_points, "target"
+            )
             if self.outlier_dist is not None:
                 if source_bbox is None or target_bbox is None:
                     raise SpellmatchMatchingAlgorithmException(
@@ -252,7 +259,7 @@ class _PointsMatchingMixin:
                         c["filtered_transformed_source_points"].index, :
                     ]
                 transformed_source_bbox = source_bbox
-                if source_bbox is not None:
+                if prior_transform is not None:
                     transformed_source_bbox = transform_bounding_box(
                         source_bbox, prior_transform
                     )
@@ -560,6 +567,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         prior_transform: ProjectiveTransform | None = None,
         cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
+        source_name, target_name = make_unique_names(source_name, target_name)
         seconds = 0
         converged = False
         last_scores = None
@@ -597,8 +605,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
                 source_points, target_points, scores
             )
             if updated_transform is None:
-                logger.warning("Failed to fit updated transform")
-                break
+                break  # reason logged by _update_transform
             logger.info(f"Updated transform: {describe_transform(updated_transform)}")
             stop = timer()
             seconds += stop - start
@@ -615,7 +622,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             current_transform = updated_transform
         if not converged:
             logger.warning(
-                f"Iterative algorithm did not converge after {self.max_iter} "
+                f"Iterative algorithm did not converge after {iteration + 1} "
                 f"iterations ({seconds:.3f} seconds)"
             )
         info["iterations"] = iteration + 1
@@ -642,44 +649,37 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         scores: xr.DataArray,
     ) -> ProjectiveTransform | None:
+        scores_data = scores.to_numpy()
+        max_score_ind = np.argmax(scores_data, axis=1)
+        max_scores = np.take_along_axis(
+            scores_data, np.expand_dims(max_score_ind, axis=1), axis=1
+        ).squeeze(axis=1)
         if self.transform_estim_type == self.TransformEstimationType.MAX_SCORE:
-            max_score_ind = np.argmax(scores.to_numpy(), axis=1)
-            max_scores = np.take_along_axis(
-                scores.to_numpy(), np.expand_dims(max_score_ind, axis=1), axis=1
-            ).squeeze(axis=1)
-            if self.transform_estim_k_best is not None:
-                source_ind = np.argpartition(
-                    -max_scores, self.transform_estim_k_best - 1
-                )[: self.transform_estim_k_best]
-            else:
-                source_ind = np.arange(len(source_points.index))
-            source_ind = source_ind[max_scores[source_ind] > 0]
-            target_ind = max_score_ind[source_ind]
+            rankings = max_scores
         elif self.transform_estim_type == self.TransformEstimationType.MAX_MARGIN:
-            max2_score_ind = np.argpartition(-scores.to_numpy(), 1, axis=1)[:, :2]
-            max2_scores = np.take_along_axis(scores.to_numpy(), max2_score_ind, axis=1)
-            if self.transform_estim_k_best is not None:
-                margins = max2_scores[:, 0] - max2_scores[:, 1]
-                source_ind = np.argpartition(-margins, self.transform_estim_k_best - 1)[
-                    : self.transform_estim_k_best
-                ]
-            else:
-                source_ind = np.arange(len(source_points.index))
-            source_ind = source_ind[max2_scores[source_ind, 0] > 0]
-            target_ind = max2_score_ind[source_ind, 0]
+            max2_scores = compute_max2(scores_data, axis=1)
+            rankings = max2_scores[:, 0] - max2_scores[:, 1]
         else:
             raise NotImplementedError()
-        updated_transform = self.transform_type()
-        if (
-            len(source_ind) > 0
-            and len(target_ind) > 0
-            and updated_transform.estimate(
-                source_points.iloc[source_ind, :].to_numpy(),
-                target_points.iloc[target_ind, :].to_numpy(),
+        source_ind = np.arange(len(source_points.index))
+        k_best = self.transform_estim_k_best
+        if k_best is not None and k_best < len(source_ind):
+            source_ind = np.argpartition(-rankings, k_best - 1)[:k_best]
+        source_ind = source_ind[max_scores[source_ind] > 0]
+        target_ind = max_score_ind[source_ind]
+        if len(source_ind) == 0:
+            logger.warning(
+                "Failed to estimate transform: no cells with positive scores"
             )
-        ):
-            return updated_transform
-        return None
+            return None
+        updated_transform = self.transform_type.from_estimate(
+            source_points.iloc[source_ind, :].to_numpy(),
+            target_points.iloc[target_ind, :].to_numpy(),
+        )
+        if not updated_transform:
+            logger.warning(f"Failed to estimate transform: {updated_transform}")
+            return None
+        return updated_transform
 
     def _check_convergence(
         self,
@@ -691,10 +691,13 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         converged = False
         scores_loss = float("inf")
         if last_scores is not None:
-            scores_loss = np.linalg.norm(current_scores - last_scores)
+            scores_loss = float(np.linalg.norm(current_scores - last_scores))
+            current_scores_norm = float(np.linalg.norm(current_scores))
+            if current_scores_norm > 0:
+                scores_loss /= current_scores_norm
             if self.scores_tol is not None and scores_loss < self.scores_tol:
                 converged = True
-            logger.info(f"Scores loss: {scores_loss:.9f}")
+            logger.info(f"Scores loss (relative): {scores_loss:.9f}")
         transform_loss = float("inf")
         if current_transform is not None and updated_transform is not None:
             transform_loss = np.linalg.norm(
@@ -807,6 +810,20 @@ class IterativeGraphMatchingAlgorithm(
             target_intensities,
             cache,
         )
+
+
+def _align_intensities(
+    intensities: pd.DataFrame | None, points: pd.DataFrame, name: str
+) -> pd.DataFrame | None:
+    if intensities is None:
+        return None
+    missing_labels = points.index.difference(intensities.index)
+    if len(missing_labels) > 0:
+        raise SpellmatchMatchingAlgorithmException(
+            f"Missing {name} intensities for {len(missing_labels)} cells, e.g. "
+            f"{', '.join(map(str, missing_labels[:5]))}"
+        )
+    return intensities.loc[points.index, :]
 
 
 def _preserves_distances(

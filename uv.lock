@@ -4840,7 +4840,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "qtpy", marker = "extra == 'all'", specifier = ">=2.4" },
     { name = "qtpy", marker = "extra == 'gui'", specifier = ">=2.4" },
-    { name = "scikit-image", specifier = ">=0.25" },
+    { name = "scikit-image", specifier = ">=0.26" },
     { name = "scikit-learn", specifier = ">=1.6" },
     { name = "scipy", specifier = ">=1.15" },
     { name = "shapely", specifier = ">=2.1" },

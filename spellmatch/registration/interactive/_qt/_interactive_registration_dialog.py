@@ -14,6 +14,7 @@ from qtpy.QtWidgets import (
 )
 from skimage.transform import AffineTransform, ProjectiveTransform
 
+from ..._registration import get_min_point_pairs
 from ._pandas_table_model import QPandasTableModel
 
 
@@ -79,7 +80,6 @@ class QInteractiveRegistrationDialog(QDialog):
         )
 
     def update_transform(self) -> None:
-        transform = self._transform_type()
         src = np.array(
             [
                 self._source_points.loc[label, :].to_numpy()
@@ -92,13 +92,20 @@ class QInteractiveRegistrationDialog(QDialog):
                 for label in self.label_pairs.iloc[:, 1]
             ]
         )
-        if len(src) > 0 and len(dst) > 0 and transform.estimate(src, dst):
-            self._transform = transform
-            transform_rmsd = np.mean(transform.residuals(src, dst) ** 2) ** 0.5
-            self._transform_rmsd_line_edit.setText(f"{transform_rmsd:.6f}")
+        self._transform = None
+        min_label_pairs = get_min_point_pairs(self._transform_type)
+        if len(src) < min_label_pairs:
+            self._transform_rmsd_line_edit.setText(
+                f"At least {min_label_pairs} cell pairs required"
+            )
         else:
-            self._transform = None
-            self._transform_rmsd_line_edit.setText("")
+            transform = self._transform_type.from_estimate(src, dst)
+            if transform:
+                self._transform = transform
+                transform_rmsd = np.mean(transform.residuals(src, dst) ** 2) ** 0.5
+                self._transform_rmsd_line_edit.setText(f"{transform_rmsd:.6f}")
+            else:
+                self._transform_rmsd_line_edit.setText(f"{transform}")
         self._button_box.button(QDialogButtonBox.StandardButton.Save).setEnabled(
             self._transform is not None
         )

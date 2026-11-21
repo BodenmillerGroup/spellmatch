@@ -58,7 +58,7 @@ Parameters (symbols refer to the manuscript, where applicable):
 | `transform_estim_type` | | `max_score` | Transform estimation strategy (`max_score`, `max_margin`) |
 | `transform_estim_k_best` | n<sub>𝒯</sub> | `50` | Number of top-matched cells used for estimating the spatial transform |
 | `max_iter` | n<sub>maxiter</sub> | `50` | Maximum number of iterations (spatial transform estimations) |
-| `scores_tol` | ε<sub>RGA</sub> | | Convergence tolerance (Frobenius norm) for changes in the cell alignment scores between iterations; if not specified, `max_iter` iterations are performed |
+| `scores_tol` | ε<sub>RGA</sub> | `1e-3` | Convergence tolerance for the relative change in the cell alignment scores between iterations (Frobenius norm of the change, divided by the Frobenius norm of the current scores); if `None`, `max_iter` iterations are performed |
 | `transform_tol` | | | Convergence tolerance (Frobenius norm) for changes in the spatial transform matrix between iterations |
 | `filter_outliers` | | `True` | Whether to exclude cells outside of the overlapping image region (bounding boxes, extended by `adj_radius`) from matching |
 | `adj_radius` | r<sub>adj</sub> | `15` | Physical radius in which cells are considered neighbors |

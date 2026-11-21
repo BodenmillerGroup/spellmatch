@@ -42,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fixed point iteration is ill-defined (documented, no change in behavior)
 - Spellmatch: less verbose log output; per-step and per-λ messages are logged at the
   `DEBUG` level (`--verbosity DEBUG`), and repeated warnings once per matching run
+- Iterative algorithms: `scores_tol` is now a tolerance for the *relative* change in
+  scores between iterations (previously absolute, which depended on the number of
+  cells); Spellmatch now defaults to `scores_tol=1e-3` (previously `None`, i.e., always
+  `max_iter` iterations)
+- Require scikit-image 0.26 or newer (`Transform.from_estimate`)
 
 ### Fixed
 
@@ -75,6 +80,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   components; differences thresholded at `intensity_1d_cdiff_thres_sd` (new
   parameter) standard deviations, or cosine distances, are used instead. CCA
   convergence warnings are logged with a hint to increase `cca_max_iter`
+- Iterative algorithms: no crash with outlier filtering (default) and no prior transform
+- Iterative algorithms: no crash with fewer cells than `transform_estim_k_best`, or with
+  `max_margin` transform estimation and a single target cell
+- Matching: no crash for source and target masks/point sets with identical names (e.g.
+  identically named mask files in different directories); the score dimensions are now
+  suffixed with ` (source)`/` (target)` in this case
+- Matching: intensities are now aligned to points by cell label instead of row position
+  without outlier filtering (Python API)
+- probreg algorithms: no crash when cupy is installed without a working CUDA runtime
 
 ## [0.1.0] - 2022-05-19
 

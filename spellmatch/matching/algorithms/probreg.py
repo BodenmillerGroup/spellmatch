@@ -21,6 +21,23 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _cuda_available() -> bool:
+    if cp is None:
+        return False
+    try:
+        return cp.cuda.runtime.getDeviceCount() > 0
+    except Exception as e:  # e.g. missing CUDA driver/runtime
+        logger.debug(f"CUDA is not available: {e}")
+        return False
+
+
+def _asnumpy(data: Any) -> np.ndarray:
+    """Like cupy.asnumpy: copy CuPy arrays (GPU) to the host, if CuPy is installed."""
+    if cp is not None and isinstance(data, cp.ndarray):
+        return cp.asnumpy(data)
+    return np.asarray(data)
+
+
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
     name: str | None,
@@ -81,7 +98,9 @@ class _Probreg(PointsMatchingAlgorithm):
         source_ind = np.arange(len(source_points.index))
         nn = NearestNeighbors(n_neighbors=1)
         nn.fit(target_points.to_numpy())
-        nn_dists, nn_ind = nn.kneighbors(transform.transform(source_points.to_numpy()))
+        nn_dists, nn_ind = nn.kneighbors(
+            _asnumpy(transform.transform(source_points.to_numpy()))
+        )
         dists, target_ind = nn_dists[:, 0], nn_ind[:, 0]
         if self.max_dist:
             source_ind = source_ind[dists <= self.max_dist]
@@ -176,7 +195,7 @@ class RigidCoherentPointDrift(_CoherentPointDrift):
             tol=tol,
         )
         self.update_scale = update_scale
-        self.use_cuda = cp is not None and cp.cuda.runtime.getDeviceCount() > 0
+        self.use_cuda = _cuda_available()
 
     def _get_instance(self, source: np.ndarray) -> cpd.CoherentPointDrift:
         return cpd.RigidCPD(
@@ -207,7 +226,7 @@ class AffineCoherentPointDrift(_CoherentPointDrift):
             maxiter=maxiter,
             tol=tol,
         )
-        self.use_cuda = cp is not None and cp.cuda.runtime.getDeviceCount() > 0
+        self.use_cuda = _cuda_available()
 
     def _get_instance(self, source: np.ndarray) -> cpd.CoherentPointDrift:
         return cpd.AffineCPD(source=source, use_cuda=self.use_cuda)
@@ -240,7 +259,7 @@ class NonRigidCoherentPointDrift(_CoherentPointDrift):
         )
         self.beta = beta
         self.lmd = lmd
-        self.use_cuda = cp is not None and cp.cuda.runtime.getDeviceCount() > 0
+        self.use_cuda = _cuda_available()
 
     def _get_instance(self, source: np.ndarray) -> cpd.CoherentPointDrift:
         return cpd.NonRigidCPD(
