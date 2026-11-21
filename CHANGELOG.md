@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Require Python 3.13 or newer
 - Update dependencies to current versions (numpy 2, pandas 2.3+, pydantic 2, ...)
+- Benchmark configurations (`SemisyntheticBenchmarkConfig`) are validated using
+  pydantic 2, which is stricter in type coercion (e.g. numbers are no longer converted
+  to strings); hand-written configurations may need to be adapted
 - Make napari/Qt (`gui`) and probreg (`probreg`) optional dependencies; install
   `spellmatch[all]` for the previous set of features
 - Migrate packaging to `pyproject.toml` (hatchling, hatch-vcs) and development tooling
@@ -35,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the first estimated transform on; previously, the untransformed cell coordinates were
   used, i.e. the images were implicitly assumed to be aligned. Pass an identity
   transform as prior transform to restore the previous behavior
+- Spellmatch: `alpha` must be smaller than 1; without a spatial prior (`alpha=1`), the
+  fixed point iteration is ill-defined (documented, no change in behavior)
 
 ### Fixed
 
@@ -42,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (default on Windows, macOS and, as of Python 3.14, Linux)
 - Spellmatch: shared markers without variance no longer cause NaN errors when computing
   the intensity cross-distance (such markers are excluded with a warning)
+- Spellmatch: informative errors instead of NaN scores if no cell pairs lie within
+  `spatial_cdist_prior_thres` or `max_spatial_cdist`
 - Spellmatch: the degrees of the product graph (used for normalization) no longer
   overflow for cells with many neighbors (8-bit integer products of cell degrees)
 - Spellmatch: no crash when the number of SVD components for the shared-marker
@@ -57,8 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `intensity_all_cca_n_components`, or with `intensity_all_cca_fit_k_most_certain` >
   `intensity_all_cca_fit_k_closest`
 - Spellmatch: no crash for floating point values of `intensity_interp_lmd` larger than 1
-  (e.g. `11.0`); the reported `lambda` is `None` if intensities are not used
-  (previously, the raw parameter value was reported)
+  (e.g. `11.0`); the reported `lambda` is the effective λ (`None` if intensities are not
+  used; previously, the raw parameter value was reported)
 - Spellmatch: no crash with one shared marker, and no degenerate intensity
   cross-distances with two shared markers (the SVD is skipped for up to two shared
   markers)
