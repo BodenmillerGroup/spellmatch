@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spellmatch: `max_spatial_cdist` (d_max) is now a hard constraint; cell pairs farther
   apart are excluded from the optimization and receive a score of zero (previously,
   it only affected the initialization and had no effect on converged scores)
+- Spellmatch: new parameters `intensity_shared_metric` (`correlation`, `cosine`,
+  `reconstructed_correlation`) and `intensity_all_metric` (`correlation`, `cosine`) to
+  select the intensity cross-distance metrics (defaults unchanged)
 
 ### Fixed
 
@@ -30,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the intensity cross-distance (such markers are excluded with a warning)
 - Spellmatch: the degrees of the product graph (used for normalization) no longer
   overflow for cells with many neighbors (8-bit integer products of cell degrees)
+- Spellmatch: no crash when the number of SVD components for the shared-marker
+  intensity cross-distance equals the number of shared markers
 
 ## [0.1.0] - 2022-05-19
 

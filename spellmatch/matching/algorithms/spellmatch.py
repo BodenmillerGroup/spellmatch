@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable, MutableMapping
+from enum import Enum
 from timeit import default_timer as timer
 from typing import Any
 
@@ -36,6 +37,22 @@ def spellmatch_get_mask_matching_algorithm(
 
 
 class Spellmatch(IterativeGraphMatchingAlgorithm):
+    class SharedIntensityMetric(Enum):
+        # Pearson correlation distance across the SVD embedding coordinates
+        CORRELATION = "correlation"
+        # cosine distance between the SVD embeddings (equivalent to the cosine distance
+        # between the rank-k SVD reconstructions)
+        COSINE = "cosine"
+        # Pearson correlation distance across markers between the rank-k SVD
+        # reconstructions (as in Zhu et al.)
+        RECONSTRUCTED_CORRELATION = "reconstructed_correlation"
+
+    class AllIntensityMetric(Enum):
+        # Pearson correlation distance across the CCA embedding coordinates
+        CORRELATION = "correlation"
+        # cosine distance between the CCA embeddings
+        COSINE = "cosine"
+
     def __init__(
         self,
         *,
@@ -59,9 +76,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensity_interp_lmd: int | float = 11,
         intensity_interp_cca_n_components: int = 10,
         intensity_shared_pca_n_components: int = 5,
+        intensity_shared_metric: str | SharedIntensityMetric = "correlation",
         intensity_all_cca_fit_k_closest: int = 500,
         intensity_all_cca_fit_k_most_certain: int = 100,
         intensity_all_cca_n_components: int = 10,
+        intensity_all_metric: str | AllIntensityMetric = "correlation",
         distance_weight: float = 0,
         distance_cdiff_thres: float = 5,
         cca_max_iter: int = 500,
@@ -92,9 +111,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.intensity_interp_lmd = intensity_interp_lmd
         self.intensity_interp_cca_n_components = intensity_interp_cca_n_components
         self.intensity_shared_pca_n_components = intensity_shared_pca_n_components
+        self.intensity_shared_metric = self.SharedIntensityMetric(
+            intensity_shared_metric
+        )
         self.intensity_all_cca_fit_k_closest = intensity_all_cca_fit_k_closest
         self.intensity_all_cca_fit_k_most_certain = intensity_all_cca_fit_k_most_certain
         self.intensity_all_cca_n_components = intensity_all_cca_n_components
+        self.intensity_all_metric = self.AllIntensityMetric(intensity_all_metric)
         self.distance_weight = distance_weight
         self.distance_cdiff_thres = distance_cdiff_thres
         self.cca_max_iter = cca_max_iter
@@ -527,7 +550,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 f"continuing with {n_shared_features} intensity components"
             )
             n_components = n_shared_features
-        svd = TruncatedSVD(n_components=n_components, algorithm="arpack")
+        svd = TruncatedSVD(
+            n_components=n_components,
+            algorithm="arpack"
+            if n_components < n_shared_features
+            else "randomized",  # ARPACK requires n_components < n_features
+            random_state=0,  # reproducibility (randomized solver, ARPACK start vector)
+        )
         svd.fit(intensities_shared)
         logger.debug(
             f"SVD: explained variance={np.sum(svd.explained_variance_ratio_):.3f} "
@@ -535,8 +564,16 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         svd_intensities1 = svd.transform(intensities1[intensities_shared.columns])
         svd_intensities2 = svd.transform(intensities2[intensities_shared.columns])
+        metric = self.intensity_shared_metric.value
+        if (
+            self.intensity_shared_metric
+            == self.SharedIntensityMetric.RECONSTRUCTED_CORRELATION
+        ):
+            svd_intensities1 = svd.inverse_transform(svd_intensities1)
+            svd_intensities2 = svd.inverse_transform(svd_intensities2)
+            metric = "correlation"
         intensity_cdist_shared = 0.5 * np.asarray(
-            distance.cdist(svd_intensities1, svd_intensities2, metric="correlation"),
+            distance.cdist(svd_intensities1, svd_intensities2, metric=metric),
             dtype=self.precision,
         )
         return np.asarray(intensity_cdist_shared, dtype=self.precision)
@@ -605,7 +642,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         cca_intensities1 = cca_intensities1.astype(self.precision)
         cca_intensities2 = cca_intensities2.astype(self.precision)
         intensity_cdist_all = 0.5 * np.asarray(
-            distance.cdist(cca_intensities1, cca_intensities2, metric="correlation"),
+            distance.cdist(
+                cca_intensities1,
+                cca_intensities2,
+                metric=self.intensity_all_metric.value,
+            ),
             dtype=self.precision,
         )
         return intensity_cdist_all

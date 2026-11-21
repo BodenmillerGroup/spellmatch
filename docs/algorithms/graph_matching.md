@@ -54,6 +54,8 @@ while still allowing for matches that may not be captured by the prior. Furtherm
 | `degree_cdiff_thres` | `3` | Degree cross-difference threshold |
 | `shared_intensity...`<br>`pca_n_components` | <br>`5` | Principal components analysis (PCA) configuration for<br>computing the shared intensity feature cross-distance |
 | `full_intensity_...`<br>`cca_fit_k_closest`<br>`fit_k_most_certain`<br>`cca_n_components` | <br>`500`<br>`100`<br>`10` | Canonical Correlation Analysis (CCA) configuration for<br>computing the full intensity feature cross-distance |
+| `intensity_shared_metric` | `correlation` | Distance between SVD-embedded shared intensities:<br>`correlation` (Pearson across SVD components),<br>`cosine` (between SVD embeddings), or<br>`reconstructed_correlation` (Pearson across markers<br>between rank-k SVD reconstructions, as in MARIO) |
+| `intensity_all_metric` | `correlation` | Distance between CCA-embedded intensities:<br>`correlation` (Pearson across CCA components) or `cosine` |
 | `intensity_interp_...`<br>`lmd`<br>`cca_n_components` | <br>`11`<br>`10` | Parameters for shared/full intensity feature<br> cross-distance interpolation (weighting) |
 | `spatial_cdist_`<br>`prior_thres` | | Distance threshold for the spatial cross-distance prior |
 | `max_spatial_cdist` | | Constraint for only matching cells in spatial proximity |
