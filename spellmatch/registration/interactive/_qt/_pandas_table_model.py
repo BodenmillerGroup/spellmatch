@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -9,10 +8,10 @@ from qtpy.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt
 class QPandasTableModel(QAbstractTableModel):
     def __init__(
         self,
-        columns: Optional[Sequence[str]] = None,
-        parent: Optional[QObject] = None,
+        columns: Sequence[str] | None = None,
+        parent: QObject | None = None,
     ) -> None:
-        super(QPandasTableModel, self).__init__(parent)
+        super().__init__(parent)
         self._table = pd.DataFrame(columns=columns)
 
     def append(self, df: pd.DataFrame) -> None:

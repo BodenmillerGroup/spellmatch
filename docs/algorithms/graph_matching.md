@@ -30,7 +30,7 @@ while still allowing for matches that may not be captured by the prior. Furtherm
 
 !!! note "The *Spellmatch* algorithm and the Generalized Assignment Problem (GAP)"
     The `adj_radius` parameter controls the neighborhood radius of a cell. In theory, by
-    setting this parameter to infinity (or to a value larger than the diagonal of the 
+    setting this parameter to infinity (or to a value larger than the diagonal of the
     larger image), the *Spellmatch* algorithm converges to a solver for the
     [generalized assignment problem (GAP)](https://en.wikipedia.org/wiki/Generalized_assignment_problem).
     In other words, the *Spellmatch* algorithm can be seen as a GAP solver, with

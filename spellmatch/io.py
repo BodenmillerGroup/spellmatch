@@ -1,6 +1,5 @@
 from os import PathLike
 from pathlib import Path
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -12,7 +11,7 @@ from ._spellmatch import SpellmatchException
 
 
 def read_panel(
-    panel_file: Union[str, PathLike], panel_name_col: str = "name"
+    panel_file: str | PathLike, panel_name_col: str = "name"
 ) -> pd.DataFrame:
     panel_file = Path(panel_file)
     panel = pd.read_csv(panel_file)
@@ -24,12 +23,12 @@ def read_panel(
 
 
 def read_image(
-    img_file: Union[str, PathLike],
-    panel: Optional[pd.DataFrame] = None,
+    img_file: str | PathLike,
+    panel: pd.DataFrame | None = None,
     panel_name_col: str = "name",
     panel_keep_col: str = "keep",
     scale: float = 1,
-    zscale: Optional[float] = None,
+    zscale: float | None = None,
 ) -> xr.DataArray:
     img_file = Path(img_file)
     img: np.ndarray = tifffile.imread(img_file)
@@ -82,7 +81,9 @@ def read_image(
 
 
 def read_mask(
-    mask_file: Union[str, PathLike], scale: float = 1, zscale: Optional[float] = None,
+    mask_file: str | PathLike,
+    scale: float = 1,
+    zscale: float | None = None,
 ) -> xr.DataArray:
     mask_file = Path(mask_file)
     mask: np.ndarray = tifffile.imread(mask_file)
@@ -101,7 +102,7 @@ def read_mask(
     )
 
 
-def read_transform(transform_file: Union[str, PathLike]) -> ProjectiveTransform:
+def read_transform(transform_file: str | PathLike) -> ProjectiveTransform:
     transform_file = Path(transform_file)
     transform_matrix: np.ndarray = np.load(transform_file, allow_pickle=False)
     if transform_matrix.shape not in ((3, 3), (4, 4)):
@@ -113,21 +114,21 @@ def read_transform(transform_file: Union[str, PathLike]) -> ProjectiveTransform:
 
 
 def write_transform(
-    transform_file: Union[str, PathLike], transform: ProjectiveTransform
+    transform_file: str | PathLike, transform: ProjectiveTransform
 ) -> None:
     transform_file = Path(transform_file)
     np.save(transform_file, transform.params, allow_pickle=False)
 
 
-def read_scores(scores_file: Union[str, PathLike]) -> xr.DataArray:
+def read_scores(scores_file: str | PathLike) -> xr.DataArray:
     return xr.open_dataarray(scores_file, engine="scipy")
 
 
-def write_scores(scores_file: Union[str, PathLike], scores: xr.DataArray) -> None:
+def write_scores(scores_file: str | PathLike, scores: xr.DataArray) -> None:
     scores.to_netcdf(scores_file, format="NETCDF3_CLASSIC", engine="scipy")
 
 
-def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
+def read_assignment(assignment_file: str | PathLike) -> pd.DataFrame:
     assignment_file = Path(assignment_file)
     assignment = pd.read_csv(assignment_file)
     if len(assignment.columns) != 2:
@@ -137,9 +138,7 @@ def read_assignment(assignment_file: Union[str, PathLike]) -> pd.DataFrame:
     return assignment
 
 
-def write_assignment(
-    assignment_file: Union[str, PathLike], assignment: pd.DataFrame
-) -> None:
+def write_assignment(assignment_file: str | PathLike, assignment: pd.DataFrame) -> None:
     assignment_file = Path(assignment_file)
     assert len(assignment.columns) == 2
     assignment.to_csv(assignment_file, index=False)

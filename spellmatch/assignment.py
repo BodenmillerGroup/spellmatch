@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional, Union
 
 import cv2
 import numpy as np
@@ -24,19 +23,19 @@ class AssignmentDirection(Enum):
 
 def assign(
     scores: xr.DataArray,
-    reverse_scores: Optional[xr.DataArray] = None,
+    reverse_scores: xr.DataArray | None = None,
     normalize: bool = False,
-    min_score: Optional[float] = None,
-    min_score_quantile: Optional[float] = None,
-    margin_thres: Optional[float] = None,
-    margin_thres_quantile: Optional[float] = None,
+    min_score: float | None = None,
+    min_score_quantile: float | None = None,
+    margin_thres: float | None = None,
+    margin_thres_quantile: float | None = None,
     max_assignment: bool = False,
     linear_sum_assignment: bool = False,
-    min_post_assignment_score: Optional[float] = None,
-    min_post_assignment_score_quantile: Optional[float] = None,
-    assignment_direction: Union[str, AssignmentDirection] = AssignmentDirection.FORWARD,
+    min_post_assignment_score: float | None = None,
+    min_post_assignment_score_quantile: float | None = None,
+    assignment_direction: str | AssignmentDirection = AssignmentDirection.FORWARD,
     as_matrix: bool = False,
-) -> Union[pd.DataFrame, xr.DataArray]:
+) -> pd.DataFrame | xr.DataArray:
     if isinstance(assignment_direction, str):
         assignment_direction = AssignmentDirection(assignment_direction)
     fwd_scores = None

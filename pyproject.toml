@@ -1,6 +1,121 @@
 [build-system]
-requires = ["setuptools>=42", "setuptools_scm", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools_scm]
-write_to = "spellmatch/_version.py"
+[project]
+name = "spellmatch"
+dynamic = ["version"]
+description = "Spatial cell representation matching"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jonas Windhager", email = "jonas@windhager.io" }]
+requires-python = ">=3.13"
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "click>=8.2",
+    "numpy>=2.2",
+    "opencv-python-headless>=4.11",
+    "pandas>=2.3",
+    "pluggy>=1.6",
+    "pydantic>=2.10",
+    "pyyaml>=6.0",
+    "scikit-image>=0.25",
+    "scikit-learn>=1.6",
+    "scipy>=1.15",
+    "shapely>=2.1",
+    "simpleitk>=2.5",
+    "tifffile>=2024.12.12",
+    "xarray>=2024.10",
+]
+
+[project.optional-dependencies]
+gui = ["napari[all]>=0.6", "pyqtgraph>=0.14", "qtpy>=2.4"]
+# probreg 0.3.8 hard-codes 3D point clouds, breaking 2D registration
+probreg = ["probreg>=0.3.5,<0.3.8"]
+cuda = ["cupy-cuda12x"]
+nonfree = ["opencv-contrib-python-headless>=4.11"]
+all = ["spellmatch[gui,probreg]"]
+
+[project.scripts]
+spellmatch = "spellmatch.__main__:cli"
+
+[project.urls]
+Homepage = "https://github.com/BodenmillerGroup/spellmatch"
+Documentation = "https://bodenmillergroup.github.io/spellmatch"
+Issues = "https://github.com/BodenmillerGroup/spellmatch/issues"
+Changelog = "https://github.com/BodenmillerGroup/spellmatch/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+test = ["pytest>=8", "pytest-cov>=6"]
+lint = ["pre-commit>=4", "ruff>=0.13"]
+# MkDocs 2.0 will remove the plugin system used by mike and mkdocstrings
+docs = [
+    "mike>=2.1",
+    "mkdocs>=1.6,<2",
+    "mkdocs-material>=9.6",
+    "mkdocstrings[python]>=0.30",
+]
+# simutome is not available on PyPI (and direct URL dependencies are not allowed in
+# published extras), so the benchmark dependencies are provided as a dependency group
+benchmark = ["simutome"]
+# analysis notebooks and scripts in data/ (together with the gui extra and the
+# benchmark group); Mesmer segmentation (deepcell) requires a separate environment
+analysis = [
+    "colorcet>=3.1",
+    "datashader>=0.17",
+    "jupyterlab>=4.3",
+    "jupytext>=1.16",
+    "matplotlib>=3.10",
+    "seaborn>=0.13",
+    "tqdm>=4.67",
+]
+dev = [{ include-group = "test" }, { include-group = "lint" }]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+simutome = { git = "https://github.com/BodenmillerGroup/simutome" }
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "spellmatch/_version.py"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "/.github",
+    "/data",
+    "/docs",
+    "/publication",
+    "/mkdocs.yml",
+    "/uv.lock",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["spellmatch"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--cov=spellmatch", "--cov-report=xml"]
+pythonpath = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]

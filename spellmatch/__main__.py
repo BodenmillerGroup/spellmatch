@@ -1,11 +1,11 @@
 import logging
-from collections.abc import Mapping
+from collections import OrderedDict
+from collections.abc import Callable, Mapping
 from functools import partial, wraps
 from pathlib import Path
-from typing import Any, Optional, OrderedDict
+from typing import Any
 
 import click
-import click_log
 import numpy as np
 import yaml
 from skimage.transform import (
@@ -36,7 +36,6 @@ from .registration.intensity_based import (
 )
 from .registration.intensity_based.sitk_metrics import sitk_metric_types
 from .registration.intensity_based.sitk_optimizers import sitk_optimizer_types
-from .registration.interactive import register_interactive
 from .utils import (
     describe_assignment,
     describe_image,
@@ -46,13 +45,43 @@ from .utils import (
     preprocess_image,
 )
 
-# click_log.basic_config(logger=logger)
-logger_handler = click_log.ClickHandler()
+
+class ClickHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            click.echo(self.format(record), err=True)
+        except Exception:
+            self.handleError(record)
+
+
+logger_handler = ClickHandler()
 logger_handler.formatter = logging.Formatter(
     fmt="%(asctime)s %(levelname)s %(name)s - %(message)s"
 )
 logger.handlers = [logger_handler]
 logger.propagate = False
+
+
+def verbosity_option[F: Callable[..., Any]](logger: logging.Logger) -> Callable[[F], F]:
+    def set_level(ctx: click.Context, param: click.Parameter, value: str) -> None:
+        level = logging.getLevelNamesMapping().get(value.upper())
+        if level is None:
+            raise click.BadParameter(
+                f"Must be CRITICAL, ERROR, WARNING, INFO or DEBUG, not {value}"
+            )
+        logger.setLevel(level)
+
+    return click.option(
+        "--verbosity",
+        "-v",
+        default="INFO",
+        metavar="LVL",
+        expose_value=False,
+        is_eager=True,
+        callback=set_level,
+        help="Either CRITICAL, ERROR, WARNING, INFO or DEBUG",
+    )
+
 
 mask_matching_algorithm_names = [
     mask_matching_algorithm_name
@@ -81,7 +110,7 @@ def catch_exception(func=None, *, handle=SpellmatchException):
     return wrapper
 
 
-def glob_sorted(dir: Path, pattern: str, expect: Optional[int] = None) -> list[Path]:
+def glob_sorted(dir: Path, pattern: str, expect: int | None = None) -> list[Path]:
     files = sorted(dir.glob(pattern))
     if expect is not None and len(files) != expect:
         raise click.UsageError(
@@ -93,11 +122,11 @@ def glob_sorted(dir: Path, pattern: str, expect: Optional[int] = None) -> list[P
 class OrderedGroup(click.Group):
     def __init__(
         self,
-        name: Optional[str] = None,
-        commands: Optional[Mapping[str, click.Command]] = None,
+        name: str | None = None,
+        commands: Mapping[str, click.Command] | None = None,
         **kwargs,
     ):
-        super(OrderedGroup, self).__init__(name, commands, **kwargs)
+        super().__init__(name, commands, **kwargs)
         self.commands = commands or OrderedDict()
 
     def list_commands(self, ctx: click.Context) -> Mapping[str, click.Command]:
@@ -108,7 +137,7 @@ class KeywordArgumentsParamType(click.ParamType):
     name = "Keyword arguments"
 
     def convert(
-        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
+        self, value: Any, param: click.Parameter | None, ctx: click.Context | None
     ) -> Any:
         if not isinstance(value, str):
             self.fail(f"{value} is not a string", param=param, ctx=ctx)
@@ -237,19 +266,19 @@ def cli_register() -> None:
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_interactive(
     source_mask_path: Path,
     target_mask_path: Path,
-    source_img_path: Optional[Path],
-    target_img_path: Optional[Path],
+    source_img_path: Path | None,
+    target_img_path: Path | None,
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
-    source_zscale: Optional[float],
+    source_zscale: float | None,
     target_scale: float,
-    target_zscale: Optional[float],
+    target_zscale: float | None,
     transform_type_name: str,
     assignment_path: Path,
     transform_path: Path,
@@ -385,6 +414,9 @@ def cli_register_interactive(
         assignment = None
         if assignment_file.exists():
             assignment = io.read_assignment(assignment_file)
+        # imported here, as napari is an optional dependency (spellmatch[gui])
+        from .registration.interactive import register_interactive
+
         result = register_interactive(
             source_mask,
             target_mask,
@@ -567,7 +599,7 @@ def cli_register_interactive(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_features(
     source_img_path: Path,
@@ -575,17 +607,17 @@ def cli_register_features(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
-    source_zscale: Optional[float],
+    source_zscale: float | None,
     target_scale: float,
-    target_zscale: Optional[float],
-    source_channel: Optional[str],
-    target_channel: Optional[str],
-    source_median_filter_size: Optional[int],
-    target_median_filter_size: Optional[int],
-    source_clipping_quantile: Optional[float],
-    target_clipping_quantile: Optional[float],
-    source_gaussian_filter_sigma: Optional[float],
-    target_gaussian_filter_sigma: Optional[float],
+    target_zscale: float | None,
+    source_channel: str | None,
+    target_channel: str | None,
+    source_median_filter_size: int | None,
+    target_median_filter_size: int | None,
+    source_clipping_quantile: float | None,
+    target_clipping_quantile: float | None,
+    source_gaussian_filter_sigma: float | None,
+    target_gaussian_filter_sigma: float | None,
     cv2_feature_type_name: str,
     cv2_feature_kwargs: Mapping[str, Any],
     cv2_matcher_type_name: str,
@@ -907,7 +939,7 @@ def cli_register_features(
     metavar="TRANSFORM(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_register_intensities(
     source_img_path: Path,
@@ -915,23 +947,23 @@ def cli_register_intensities(
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
-    source_zscale: Optional[float],
+    source_zscale: float | None,
     target_scale: float,
-    target_zscale: Optional[float],
-    source_channel: Optional[str],
-    target_channel: Optional[str],
-    source_median_filter_size: Optional[int],
-    target_median_filter_size: Optional[int],
-    source_clipping_quantile: Optional[float],
-    target_clipping_quantile: Optional[float],
-    source_gaussian_filter_sigma: Optional[float],
-    target_gaussian_filter_sigma: Optional[float],
+    target_zscale: float | None,
+    source_channel: str | None,
+    target_channel: str | None,
+    source_median_filter_size: int | None,
+    target_median_filter_size: int | None,
+    source_clipping_quantile: float | None,
+    target_clipping_quantile: float | None,
+    source_gaussian_filter_sigma: float | None,
+    target_gaussian_filter_sigma: float | None,
     sitk_metric_type_name: str,
     sitk_metric_kwargs: Mapping[str, Any],
     sitk_optimizer_type_name: str,
     sitk_optimizer_kwargs: Mapping[str, Any],
     sitk_transform_type_name: str,
-    initial_transform_path: Optional[Path],
+    initial_transform_path: Path | None,
     show: bool,
     hold: bool,
     transform_path: Path,
@@ -1233,35 +1265,35 @@ def cli_register_intensities(
     metavar="SCORES",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_match(
     source_mask_path: Path,
     target_mask_path: Path,
     mask_matching_algorithm_name: str,
     mask_matching_algorithm_kwargs: Mapping[str, Any],
-    source_img_path: Optional[Path],
-    target_img_path: Optional[Path],
+    source_img_path: Path | None,
+    target_img_path: Path | None,
     source_panel_file: Path,
     target_panel_file: Path,
     source_scale: float,
-    source_zscale: Optional[float],
+    source_zscale: float | None,
     target_scale: float,
-    target_zscale: Optional[float],
-    source_median_filter_size: Optional[int],
-    target_median_filter_size: Optional[int],
-    source_clipping_quantile: Optional[float],
-    target_clipping_quantile: Optional[float],
-    source_gaussian_filter_sigma: Optional[float],
-    target_gaussian_filter_sigma: Optional[float],
-    prior_transform_path: Optional[Path],
+    target_zscale: float | None,
+    source_median_filter_size: int | None,
+    target_median_filter_size: int | None,
+    source_clipping_quantile: float | None,
+    target_clipping_quantile: float | None,
+    source_gaussian_filter_sigma: float | None,
+    target_gaussian_filter_sigma: float | None,
+    prior_transform_path: Path | None,
     reverse: bool,
     scores_path: Path,
 ) -> None:
-    mask_matching_algorithm_types: list[
-        type[MaskMatchingAlgorithm]
-    ] = plugin_manager.hook.spellmatch_get_mask_matching_algorithm(
-        name=mask_matching_algorithm_name
+    mask_matching_algorithm_types: list[type[MaskMatchingAlgorithm]] = (
+        plugin_manager.hook.spellmatch_get_mask_matching_algorithm(
+            name=mask_matching_algorithm_name
+        )
     )
     if len(mask_matching_algorithm_types) > 1:
         raise SpellmatchException(
@@ -1573,29 +1605,29 @@ def cli_match(
     metavar="ASSIGNMENT(S)",
     type=click.Path(path_type=Path),
 )
-@click_log.simple_verbosity_option(logger=logger)
+@verbosity_option(logger)
 @catch_exception(handle=SpellmatchException)
 def cli_assign(
     scores_path: Path,
-    reverse_scores_path: Optional[Path],
+    reverse_scores_path: Path | None,
     normalize: bool,
-    min_score: Optional[float],
-    min_score_quantile: Optional[float],
-    margin_thres: Optional[float],
-    margin_thres_quantile: Optional[float],
+    min_score: float | None,
+    min_score_quantile: float | None,
+    margin_thres: float | None,
+    margin_thres_quantile: float | None,
     max_assignment: bool,
     linear_sum_assignment: bool,
-    min_post_assignment_score: Optional[float],
-    min_post_assignment_score_quantile: Optional[float],
+    min_post_assignment_score: float | None,
+    min_post_assignment_score_quantile: float | None,
     assignment_direction: str,
-    source_mask_path: Optional[Path],
-    target_mask_path: Optional[Path],
+    source_mask_path: Path | None,
+    target_mask_path: Path | None,
     source_scale: float,
-    source_zscale: Optional[float],
+    source_zscale: float | None,
     target_scale: float,
-    target_zscale: Optional[float],
-    show: Optional[int],
-    validation_assignment_path: Optional[Path],
+    target_zscale: float | None,
+    show: int | None,
+    validation_assignment_path: Path | None,
     assignment_path: Path,
 ) -> None:
     if (

@@ -1,37 +1,33 @@
 site_name: spellmatch
+site_url: https://bodenmillergroup.github.io/spellmatch/
+repo_url: https://github.com/BodenmillerGroup/spellmatch
+copyright: Copyright &copy; 2022 University of Zurich
 
 theme:
   name: material
   features:
-  - navigation.tabs
-  - navigation.tabs.sticky
-  - navigation.expand
-  - navigation.top
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.expand
+    - navigation.top
   icon:
     repo: fontawesome/brands/github
   custom_dir: docs/_overrides
 
 plugins:
   - search
-  - mermaid2:
-      version: 8.6.4
-      arguments:
-        securityLevel: 'loose'
-  # - mkdocstrings:
-  #     watch: 
-  #     - spellmatch
-  #     default_handler: python
-  #     handlers:
-  #       python:
-  #         selection:
-  #           filters:
-  #             - "!^_"
-  #           inherited_members: yes
-  #         rendering:
-  #           show_root_heading: yes
-  #           show_if_no_docstring: yes
-  #           show_signature_annotations: yes
-  #           show_source: no
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            filters: ["!^_"]
+            inherited_members: true
+            show_root_heading: true
+            show_if_no_docstring: true
+            show_signature_annotations: true
+            show_source: false
 
 extra:
   generator: false
@@ -44,32 +40,30 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 extra_css:
   - _css/mkdocstrings.css
 
-extra_javascript:
-  - https://unpkg.com/mermaid@8.6.4/dist/mermaid.min.js
-
-copyright: Copyright &copy; 2022 University of Zurich
-
-repo_url: https://github.com/BodenmillerGroup/spellmatch
-
 nav:
   - Documentation:
-    - index.md
-    - installation.md
-    - Usage:
-      - usage/index.md
-      - usage/registration.md
-      - usage/matching.md
-      - usage/assignment.md
-    - contributing.md
-    - changelog.md
-    - license.md
+      - index.md
+      - installation.md
+      - Usage:
+          - usage/index.md
+          - usage/registration.md
+          - usage/matching.md
+          - usage/assignment.md
+      - contributing.md
+      - changelog.md
+      - license.md
   - Algorithms:
-    - algorithms/index.md
-    - algorithms/points_matching.md
-    - algorithms/graph_matching.md
+      - algorithms/index.md
+      - algorithms/points_matching.md
+      - algorithms/graph_matching.md
   - Reference:
-    - reference/index.md
+      - reference/index.md

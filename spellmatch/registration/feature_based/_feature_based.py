@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import cv2
 import numpy as np
@@ -50,8 +50,8 @@ def register_image_features(
     target_img: xr.DataArray,
     cv2_feature: cv2.Feature2D,
     cv2_matcher_type: CV2MatcherType = CV2MatcherType.BRUTEFORCE,
-    keep_matches_frac: Optional[float] = None,
-    ransac_kwargs: Optional[Mapping[str, Any]] = None,
+    keep_matches_frac: float | None = None,
+    ransac_kwargs: Mapping[str, Any] | None = None,
     show: bool = False,
 ) -> ProjectiveTransform:
     if source_img.ndim != 2 or target_img.ndim != 2:

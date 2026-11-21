@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import pluggy
 
@@ -10,6 +10,6 @@ hookspec = pluggy.HookspecMarker("spellmatch")
 
 @hookspec
 def spellmatch_get_mask_matching_algorithm(
-    name: Optional[str],
-) -> Union[Optional[type["MaskMatchingAlgorithm"]], list[str]]:
+    name: str | None,
+) -> type["MaskMatchingAlgorithm"] | None | list[str]:
     pass

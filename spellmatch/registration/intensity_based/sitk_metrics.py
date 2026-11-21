@@ -26,13 +26,13 @@ class ANTSNeighborhoodCorrelationSITKMetric(SITKMetric):
     radius: int
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(ANTSNeighborhoodCorrelationSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsANTSNeighborhoodCorrelation(self.radius)
 
 
 class CorrelationSITKMetric(SITKMetric):
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(CorrelationSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsCorrelation()
 
 
@@ -40,7 +40,7 @@ class DemonsSITKMetric(SITKMetric):
     intensity_diff_thres: float = 0.001
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(DemonsSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsDemons(intensityDifferenceThreshold=self.intensity_diff_thres)
 
 
@@ -49,7 +49,7 @@ class JointHistogramMutualInformationSITKMetric(SITKMetric):
     smoothing_var: float = 1.5
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(JointHistogramMutualInformationSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsJointHistogramMutualInformation(
             numberOfHistogramBins=self.bins,
             varianceForJointPDFSmoothing=self.smoothing_var,
@@ -60,13 +60,13 @@ class MattesMutualInformationSITKMetric(SITKMetric):
     bins: int = 50
 
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(MattesMutualInformationSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsMattesMutualInformation(numberOfHistogramBins=self.bins)
 
 
 class MeanSquaresSITKMetric(SITKMetric):
     def configure(self, r: sitk.ImageRegistrationMethod) -> None:
-        super(MeanSquaresSITKMetric, self).configure(r)
+        super().configure(r)
         r.SetMetricAsMeanSquares()
 
 

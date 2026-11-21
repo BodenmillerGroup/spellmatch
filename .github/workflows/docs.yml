@@ -6,34 +6,39 @@ on:
       - main
     tags:
       - "v*"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike pushes to the gh-pages branch
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Setup Python 3.9
-        uses: actions/setup-python@v2
-        with:
-          python-version: "3.9"
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.4.0
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements_docs.txt
-      - name: Build documentation (latest)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git fetch origin gh-pages
-          mike deploy -u -p latest
-      - name: Build documentation (versioned)
-        if: startsWith(github.ref, 'refs/tags')
+        run: uv sync --locked --no-default-groups --group docs
+      - name: Build documentation
+        run: uv run --no-sync mkdocs build --strict
+      # deploy from the upstream repository only (not from forks)
+      - name: Configure git
+        if: github.repository == 'BodenmillerGroup/spellmatch' && github.event_name != 'pull_request'
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git fetch origin gh-pages
-          mike deploy -p ${GITHUB_REF#refs/tags/}
+          git fetch origin gh-pages --depth=1 || true
+      - name: Deploy documentation (latest)
+        if: github.repository == 'BodenmillerGroup/spellmatch' && github.ref == 'refs/heads/main'
+        run: uv run --no-sync mike deploy --push --update-aliases latest
+      - name: Deploy documentation (versioned)
+        if: github.repository == 'BodenmillerGroup/spellmatch' && startsWith(github.ref, 'refs/tags/v')
+        run: uv run --no-sync mike deploy --push ${GITHUB_REF_NAME}

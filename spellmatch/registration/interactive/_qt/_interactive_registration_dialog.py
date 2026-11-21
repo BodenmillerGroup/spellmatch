@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 from qtpy.QtCore import QModelIndex, QPoint, Qt
@@ -26,9 +24,9 @@ class QInteractiveRegistrationDialog(QDialog):
         target_points: pd.DataFrame,
         transform_type: type[ProjectiveTransform] = AffineTransform,
         label_pairs_columns: tuple[str, str] = ("Source", "Target"),
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
-        super(QInteractiveRegistrationDialog, self).__init__(parent=parent)
+        super().__init__(parent=parent)
         self._source_points = source_points
         self._target_points = target_points
         self._transform_type = transform_type
@@ -107,7 +105,7 @@ class QInteractiveRegistrationDialog(QDialog):
 
     def keyPressEvent(self, event) -> None:
         if event.key() not in (Qt.Key.Key_Enter, Qt.Key.Key_Return):
-            super(QInteractiveRegistrationDialog, self).keyPressEvent(event)
+            super().keyPressEvent(event)
 
     def _on_label_pairs_table_view_custom_context_menu_requested(
         self, pos: QPoint
@@ -132,5 +130,5 @@ class QInteractiveRegistrationDialog(QDialog):
         self._label_pairs_table_model.table = label_pairs
 
     @property
-    def transform(self) -> Optional[ProjectiveTransform]:
+    def transform(self) -> ProjectiveTransform | None:
         return self._transform
