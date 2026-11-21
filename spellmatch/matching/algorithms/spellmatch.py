@@ -12,6 +12,8 @@ import xarray as xr
 from scipy import sparse
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance
+from shapely.geometry import Polygon
+from skimage.transform import ProjectiveTransform
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import TruncatedSVD
 from sklearn.exceptions import ConvergenceWarning
@@ -142,24 +144,32 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             self._warned.add(key)
             logger.warning(message)
 
-    def _prepare_iteration_cache(
-        self, iteration: int, iteration_cache: dict[str, Any], distances_changed: bool
-    ) -> None:
-        super()._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
-        if iteration == 0:
-            self._warned.clear()
-        if iteration > 0 and self.max_spatial_cdist is not None:
-            # transform has been updated --> candidate cell pairs within
-            # max_spatial_cdist (and thus the cached product graph) may have changed
-            iteration_cache.pop("product_graph", None)
-        if iteration > 0 and (self.outlier_dist is not None or distances_changed):
-            # graphs have been updated --> cached degree cross-distance and product
-            # graph are invalid
-            iteration_cache.pop("degree_cdist", None)
-            iteration_cache.pop("product_graph", None)
-        if iteration > 0 and self.outlier_dist is not None:
-            # point filtering has been updated --> cached cross-distances are invalid
-            iteration_cache.pop("intensity_cdist_shared", None)
+    def match_points(
+        self,
+        source_name: str,
+        target_name: str,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_bbox: Polygon | None = None,
+        target_bbox: Polygon | None = None,
+        source_intensities: pd.DataFrame | None = None,
+        target_intensities: pd.DataFrame | None = None,
+        prior_transform: ProjectiveTransform | None = None,
+        cache: MutableMapping[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], xr.DataArray]:
+        self._warned.clear()  # warnings are logged once per matching run
+        return super().match_points(
+            source_name,
+            target_name,
+            source_points,
+            target_points,
+            source_bbox=source_bbox,
+            target_bbox=target_bbox,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            prior_transform=prior_transform,
+            cache=cache,
+        )
 
     def _match_graphs_from_points(
         self,
@@ -169,6 +179,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_source_points = source_points
@@ -180,6 +191,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             target_points,
             source_intensities,
             target_intensities,
+            prior_transform,
             cache,
         )
         self._current_source_points = None
@@ -192,6 +204,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         target_graph: SparseGraph,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         if self.distance_weight > 0 and (
@@ -201,6 +214,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 "Distances are required for computing their cross-distance"
             )
         c = cache if cache is not None else {}
+        if (
+            c.get("cdist_source_graph") is not source_graph
+            or c.get("cdist_target_graph") is not target_graph
+        ):
+            for key in ["degree_cdist", "intensity_cdist_shared", "product_graph"]:
+                c.pop(key, None)
+            c["cdist_source_graph"] = source_graph
+            c["cdist_target_graph"] = target_graph
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
             if self.degree_weight > 0.0:
@@ -240,7 +261,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     "Computing intensity cross-distances on all markers requires "
                     "running Spellmatch in point set registration mode"
                 )
-            if c.get("prior_transform") is None:
+            if prior_transform is None:
                 logger.info(
                     "No spatial transform available, not using the intensity "
                     "cross-distance from all markers in this iteration"
@@ -266,7 +287,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     "Computing spatial cross-distance requires running Spellmatch "
                     "in point set registration or mask matching mode"
                 )
-            if c.get("prior_transform") is None:
+            if prior_transform is None:
                 logger.info(
                     "No spatial transform available, not using the spatial prior "
                     "and the maximum spatial cross-distance in this iteration"
@@ -297,7 +318,9 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             if intensity_cdist_all is not None:
                 intensity_cdist_all = intensity_cdist_all.ravel()[cell_pairs]
             spatial_cdist = spatial_cdist.ravel()[cell_pairs]
-        if "product_graph" not in c:
+        if "product_graph" not in c or not np.array_equal(
+            c["product_graph"].cell_pairs, cell_pairs
+        ):
             logger.debug("Constructing product graph")
             c["product_graph"] = _ProductGraph.build(
                 source_graph,
@@ -828,10 +851,12 @@ class _ProductGraph:
     directly (without the full Kronecker product), together with the distance
     cross-distance term on the same sparsity pattern. To save memory, both share their
     index arrays (indices, indptr); they must not be modified in place (e.g. by
-    sort_indices or eliminate_zeros).
+    sort_indices or eliminate_zeros). ``cell_pairs`` holds the flat indices i * n2 + j
+    of the candidate cell pairs (None: all cell pairs).
     """
 
     adj: sparse.csr_array
+    cell_pairs: np.ndarray | None
     distance_cdist: sparse.csr_array | None
 
     def __len__(self) -> int:
@@ -943,7 +968,7 @@ class _ProductGraph:
                 shape=(n_cell_pairs, n_cell_pairs),
             )
         logger.debug(f"Product graph: {n_cell_pairs} cell pairs, {len(indices)} edges")
-        return _ProductGraph(adj, distance_cdist)
+        return _ProductGraph(adj, cell_pairs, distance_cdist)
 
 
 class _NormalizedSimilarityMatrix:

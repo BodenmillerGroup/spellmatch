@@ -100,6 +100,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         nn = NearestNeighbors(n_neighbors=1)

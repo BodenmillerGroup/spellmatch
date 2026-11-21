@@ -8,6 +8,7 @@ import pandas as pd
 import xarray as xr
 from probreg import bcpd, cpd, filterreg, gmmtree, l2dist_regs
 from probreg.transformation import Transformation
+from skimage.transform import ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
@@ -87,6 +88,7 @@ class _Probreg(PointsMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_iteration = 0
