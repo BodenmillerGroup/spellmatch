@@ -89,6 +89,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Matching: intensities are now aligned to points by cell label instead of row position
   without outlier filtering (Python API)
 - probreg algorithms: no crash when cupy is installed without a working CUDA runtime
+- `assign`: no crash for maximum assignment in reverse direction (`--max
+  --direction=reverse`)
+- `assign`: no crash with margin thresholds and a single source or target cell
+- `assign`: no crash in directory mode without `--validate`
+- `assign --show`: no crash with pandas copy-on-write (read-only arrays); target labels
+  that do not fit the data type of the source mask are no longer displayed in the wrong
+  color
+- `assign --validate`: validation assignments are now matched by column position
+  (source, target); previously, they were merged on shared column names, which could
+  over-count recovered cell pairs
+- CLI: keyword arguments (e.g. `--algorithm-args`) are parsed using the safe YAML loader
 
 ## [0.1.0] - 2022-05-19
 

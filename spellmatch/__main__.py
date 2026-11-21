@@ -155,7 +155,7 @@ class KeywordArgumentsParamType(click.ParamType):
             key_val_pairs.append((key_val_pair[0].strip(), key_val_pair[1].strip()))
         yaml_doc = "\n".join(f"{key}: {value}" for key, value in key_val_pairs)
         try:
-            kwargs = yaml.load(yaml_doc, yaml.Loader)
+            kwargs = yaml.safe_load(yaml_doc)
         except yaml.YAMLError as e:
             self.fail(f"'{value}' cannot be parsed as YAML: {e}", param=param, ctx=ctx)
         return kwargs
@@ -1671,9 +1671,12 @@ def cli_assign(
             )
         else:
             target_mask_files = [None] * len(scores_files)
-        validation_assignment_files = glob_sorted(
-            validation_assignment_path, "*.csv", expect=len(scores_files)
-        )
+        if validation_assignment_path is not None:
+            validation_assignment_files = glob_sorted(
+                validation_assignment_path, "*.csv", expect=len(scores_files)
+            )
+        else:
+            validation_assignment_files = [None] * len(scores_files)
         assignment_path.mkdir(exist_ok=True)
         assignment_files = [
             assignment_path
