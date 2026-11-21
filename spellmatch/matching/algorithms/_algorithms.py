@@ -17,12 +17,12 @@ from skimage.transform import (
     SimilarityTransform,
 )
 
+from ...sparse_graph import SparseGraph
 from ...utils import (
     compute_intensities,
     compute_max2,
     compute_points,
     create_bounding_box,
-    create_graph,
     describe_transform,
     filter_outlier_points,
     get_function_by_name,
@@ -363,22 +363,17 @@ class _GraphMatchingMixin:
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
-        if any(
-            key not in c
-            for key in ["source_adj", "target_adj", "source_dists", "target_dists"]
-        ):
+        if any(key not in c for key in ["source_graph", "target_graph"]):
             logger.debug("Constructing graphs from points")
-            c["source_adj"], c["source_dists"] = create_graph(
-                source_name, source_points, self.adj_radius, "a", "b"
+            c["source_graph"] = SparseGraph.from_points(
+                source_name, source_points, self.adj_radius
             )
-            c["target_adj"], c["target_dists"] = create_graph(
-                target_name, target_points, self.adj_radius, "x", "y"
+            c["target_graph"] = SparseGraph.from_points(
+                target_name, target_points, self.adj_radius
             )
         info, scores = self.match_graphs(
-            c["source_adj"],
-            c["target_adj"],
-            source_dists=c["source_dists"],
-            target_dists=c["target_dists"],
+            c["source_graph"],
+            c["target_graph"],
             source_intensities=source_intensities,
             target_intensities=target_intensities,
             cache=cache,
@@ -387,37 +382,30 @@ class _GraphMatchingMixin:
 
     def match_graphs(
         self,
-        source_adj: xr.DataArray,
-        target_adj: xr.DataArray,
+        source_adj: xr.DataArray | SparseGraph,
+        target_adj: xr.DataArray | SparseGraph,
         source_dists: xr.DataArray | None = None,
         target_dists: xr.DataArray | None = None,
         source_intensities: pd.DataFrame | None = None,
         target_intensities: pd.DataFrame | None = None,
         cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
+        """Match graphs, given as sparse graphs or dense adjacency/distance arrays."""
+        source_graph = source_adj
+        if not isinstance(source_graph, SparseGraph):
+            source_graph = SparseGraph.from_dataarrays(source_adj, source_dists)
+        target_graph = target_adj
+        if not isinstance(target_graph, SparseGraph):
+            target_graph = SparseGraph.from_dataarrays(target_adj, target_dists)
         self._pre_match_graphs(
-            source_adj,
-            target_adj,
-            source_dists,
-            target_dists,
-            source_intensities,
-            target_intensities,
-            cache,
+            source_graph, target_graph, source_intensities, target_intensities, cache
         )
         info, scores = self._match_graphs(
-            source_adj,
-            target_adj,
-            source_dists,
-            target_dists,
-            source_intensities,
-            target_intensities,
-            cache,
+            source_graph, target_graph, source_intensities, target_intensities, cache
         )
         info, scores = self._post_match_graphs(
-            source_adj,
-            target_adj,
-            source_dists,
-            target_dists,
+            source_graph,
+            target_graph,
             source_intensities,
             target_intensities,
             cache,
@@ -428,10 +416,8 @@ class _GraphMatchingMixin:
 
     def _pre_match_graphs(
         self,
-        source_adj: xr.DataArray,
-        target_adj: xr.DataArray,
-        source_dists: xr.DataArray | None,
-        target_dists: xr.DataArray | None,
+        source_graph: SparseGraph,
+        target_graph: SparseGraph,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
         cache: MutableMapping[str, Any] | None,
@@ -441,10 +427,8 @@ class _GraphMatchingMixin:
     @abstractmethod
     def _match_graphs(
         self,
-        source_adj: xr.DataArray,
-        target_adj: xr.DataArray,
-        source_dists: xr.DataArray | None,
-        target_dists: xr.DataArray | None,
+        source_graph: SparseGraph,
+        target_graph: SparseGraph,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
         cache: MutableMapping[str, Any] | None,
@@ -453,10 +437,8 @@ class _GraphMatchingMixin:
 
     def _post_match_graphs(
         self,
-        source_adj: xr.DataArray,
-        target_adj: xr.DataArray,
-        source_dists: xr.DataArray | None,
-        target_dists: xr.DataArray | None,
+        source_graph: SparseGraph,
+        target_graph: SparseGraph,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
         cache: MutableMapping[str, Any] | None,
@@ -787,8 +769,8 @@ class IterativeGraphMatchingAlgorithm(
         super()._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
         if iteration > 0 and (self.outlier_dist is not None or distances_changed):
             # point filtering or source point distances have been updated
-            # --> cached graph is invalid
-            for key in ["source_adj", "target_adj", "source_dists", "target_dists"]:
+            # --> cached graphs are invalid
+            for key in ["source_graph", "target_graph"]:
                 iteration_cache.pop(key, None)
 
     def _match_points(
