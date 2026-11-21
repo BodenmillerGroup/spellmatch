@@ -56,6 +56,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spellmatch: no crash with one shared marker, and no degenerate intensity
   cross-distances with two shared markers (the SVD is skipped for up to two shared
   markers)
+- Spellmatch: no NaN or degenerate intensity cross-distances with only one or two SVD/CCA
+  components; differences thresholded at `intensity_1d_cdiff_thres_sd` (new
+  parameter) standard deviations, or cosine distances, are used instead. CCA
+  convergence warnings are logged with a hint to increase `cca_max_iter`
 
 ## [0.1.0] - 2022-05-19
 

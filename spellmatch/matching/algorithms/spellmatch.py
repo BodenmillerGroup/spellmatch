@@ -1,4 +1,5 @@
 import logging
+import warnings
 from collections.abc import Callable, MutableMapping
 from enum import Enum
 from timeit import default_timer as timer
@@ -12,6 +13,7 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import TruncatedSVD
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
@@ -81,6 +83,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensity_all_cca_fit_k_most_certain: int = 100,
         intensity_all_cca_n_components: int = 10,
         intensity_all_metric: str = "cosine",
+        intensity_1d_cdiff_thres_sd: float = 2.0,
         distance_weight: float = 0,
         distance_cdiff_thres: float = 5,
         cca_max_iter: int = 500,
@@ -118,6 +121,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.intensity_all_cca_fit_k_most_certain = intensity_all_cca_fit_k_most_certain
         self.intensity_all_cca_n_components = intensity_all_cca_n_components
         self.intensity_all_metric = self.AllIntensityMetric(intensity_all_metric)
+        self.intensity_1d_cdiff_thres_sd = intensity_1d_cdiff_thres_sd
         self.distance_weight = distance_weight
         self.distance_cdiff_thres = distance_cdiff_thres
         self.cca_max_iter = cca_max_iter
@@ -356,12 +360,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 )
                 nonzero_mask = current_scores_data[row_ind, col_ind] > 0
                 row_ind, col_ind = row_ind[nonzero_mask], col_ind[nonzero_mask]
-                cca = CCA(
-                    n_components=n_components,
-                    max_iter=self.cca_max_iter,
-                    tol=self.cca_tol,
-                )
-                cca_intensities1, cca_intensities2 = cca.fit_transform(
+                cca, cca_intensities1, cca_intensities2 = self._fit_cca(
+                    n_components,
                     source_intensities.iloc[row_ind, :],
                     target_intensities.iloc[col_ind, :],
                 )
@@ -561,10 +561,24 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         intensities1 = (intensities1 - intensities1.mean()) / intensities1_std
         intensities2 = (intensities2 - intensities2.mean()) / intensities2_std
         n_shared_features = len(intensities1.columns)
-        if n_shared_features <= 2:
-            # the SVD and the Pearson correlation are degenerate for one or two
-            # features (the correlation of two values is always +/-1)
-            return self._compute_intensity_cdist_few_shared(intensities1, intensities2)
+        metric = self.intensity_shared_metric
+        if n_shared_features == 1:
+            logger.warning(
+                "Only one shared marker, using thresholded differences instead of "
+                f"{metric.value} distances for the intensity cross-distance"
+            )
+            return self._compute_cdist_1d(
+                intensities1.to_numpy(), intensities2.to_numpy()
+            )
+        elif n_shared_features == 2:
+            if metric != self.SharedIntensityMetric.COSINE:
+                logger.warning(
+                    "Only two shared markers, using cosine distances instead of "
+                    f"{metric.value} distances for the intensity cross-distance"
+                )
+            return self._compute_cdist_2d(
+                intensities1.to_numpy(), intensities2.to_numpy()
+            )
         intensities_shared = pd.concat((intensities1, intensities2), ignore_index=True)
         n_components = self.intensity_shared_pca_n_components
         if n_components > n_shared_features:
@@ -589,45 +603,90 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         )
         svd_intensities1 = svd.transform(intensities1)
         svd_intensities2 = svd.transform(intensities2)
-        metric = self.intensity_shared_metric.value
-        if (
-            self.intensity_shared_metric
-            == self.SharedIntensityMetric.RECONSTRUCTED_CORRELATION
-        ):
-            svd_intensities1 = svd.inverse_transform(svd_intensities1)
-            svd_intensities2 = svd.inverse_transform(svd_intensities2)
-            metric = "correlation"
-        intensity_cdist_shared = 0.5 * np.asarray(
-            distance.cdist(svd_intensities1, svd_intensities2, metric=metric),
-            dtype=self.precision,
-        )
-        return np.asarray(intensity_cdist_shared, dtype=self.precision)
-
-    def _compute_intensity_cdist_few_shared(
-        self, intensities1: pd.DataFrame, intensities2: pd.DataFrame
-    ) -> np.ndarray:
-        x1 = intensities1.to_numpy()
-        x2 = intensities2.to_numpy()
-        if x1.shape[1] == 1:
+        if n_components == 1:
             logger.warning(
-                "Only one shared marker, computing the intensity cross-distance from "
-                "absolute differences of standardized intensities (scaled to [0, 1]) "
-                f"instead of using the {self.intensity_shared_metric.value} metric"
+                "Only one SVD component, using thresholded differences instead of "
+                f"{metric.value} distances for the intensity cross-distance"
             )
-            intensity_cdist_shared = np.abs(np.subtract.outer(x1[:, 0], x2[:, 0]))
-            max_intensity_cdist_shared = np.amax(intensity_cdist_shared)
-            if max_intensity_cdist_shared > 0:
-                intensity_cdist_shared /= max_intensity_cdist_shared
+            return self._compute_cdist_1d(svd_intensities1, svd_intensities2)
+        elif n_components == 2:
+            if metric != self.SharedIntensityMetric.COSINE:
+                logger.warning(
+                    "Only two SVD components, using cosine distances instead of "
+                    f"{metric.value} distances for the intensity cross-distance"
+                )
+            return self._compute_cdist_2d(svd_intensities1, svd_intensities2)
         else:
+            if metric == self.SharedIntensityMetric.RECONSTRUCTED_CORRELATION:
+                return self._compute_cdist(
+                    svd.inverse_transform(svd_intensities1),
+                    svd.inverse_transform(svd_intensities2),
+                    "correlation",
+                )
+            return self._compute_cdist(svd_intensities1, svd_intensities2, metric.value)
+
+    def _compute_cdist_1d(self, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
+        """Cross-distance between one-dimensional cell embeddings, in [0, 1].
+
+        The Pearson correlation is undefined and the cosine distance is binary (sign
+        only) for one dimension; instead, the squared difference relative to
+        intensity_1d_cdiff_thres_sd (pooled) standard deviations, clamped to [0, 1], is
+        computed.
+        """
+        # threshold relative to the pooled standard deviation (much less sensitive to
+        # outliers than, e.g., the maximum difference)
+        thres = self.intensity_1d_cdiff_thres_sd * np.std(
+            np.concatenate((x1[:, 0], x2[:, 0]))
+        )
+        cdist = np.subtract.outer(x1[:, 0], x2[:, 0]).astype(self.precision)
+        if thres > 0:
+            cdist /= self.precision(thres)
+            np.square(cdist, out=cdist)
+            np.clip(cdist, 0, 1, out=cdist)
+        else:
+            cdist[:] = 0  # constant values: no information
+        return cdist
+
+    def _compute_cdist_2d(self, x1: np.ndarray, x2: np.ndarray) -> np.ndarray:
+        """Cross-distance between two-dimensional cell embeddings, in [0, 1].
+
+        The Pearson correlation of two values is always +/-1; instead, the cosine
+        distance (scaled to [0, 1]) is computed.
+        """
+        with np.errstate(invalid="ignore", divide="ignore"):
+            cdist = 0.5 * distance.cdist(x1, x2, metric="cosine")
+        # zero vectors (e.g. standardized intensities at the mean) have no direction;
+        # assign the uninformative distance of orthogonal vectors
+        cdist[np.isnan(cdist)] = 0.5
+        return np.asarray(cdist, dtype=self.precision)
+
+    def _compute_cdist(self, x1: np.ndarray, x2: np.ndarray, metric: str) -> np.ndarray:
+        """Cross-distance between cell embeddings, in [0, 1].
+
+        The specified (cosine or correlation) distance, which lies in [0, 2], is scaled
+        to [0, 1].
+        """
+        cdist = 0.5 * distance.cdist(x1, x2, metric=metric)
+        return np.asarray(cdist, dtype=self.precision)
+
+    def _fit_cca(
+        self, n_components: int, x: pd.DataFrame, y: pd.DataFrame
+    ) -> tuple[CCA, np.ndarray, np.ndarray]:
+        cca = CCA(
+            n_components=n_components, max_iter=self.cca_max_iter, tol=self.cca_tol
+        )
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always", ConvergenceWarning)
+            cca_x, cca_y = cca.fit_transform(x, y)
+        if any(issubclass(w.category, ConvergenceWarning) for w in caught_warnings):
             logger.warning(
-                "Only two shared markers, computing the intensity cross-distance from "
-                "cosine distances of standardized intensities instead of using the "
-                f"{self.intensity_shared_metric.value} metric"
+                f"CCA did not converge after {self.cca_max_iter} iterations; consider "
+                "increasing cca_max_iter"
             )
-            with np.errstate(invalid="ignore", divide="ignore"):
-                intensity_cdist_shared = 0.5 * distance.cdist(x1, x2, metric="cosine")
-            intensity_cdist_shared[np.isnan(intensity_cdist_shared)] = 0.5
-        return np.asarray(intensity_cdist_shared, dtype=self.precision)
+        for w in caught_warnings:
+            if not issubclass(w.category, ConvergenceWarning):
+                warnings.warn_explicit(w.message, w.category, w.filename, w.lineno)
+        return cca, cca_x, cca_y
 
     def _compute_intensity_cdist_all(
         self,
@@ -702,11 +761,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 f"continuing with {n_fit_cells} intensity components"
             )
             n_components = n_fit_cells
-        cca = CCA(
-            n_components=n_components, max_iter=self.cca_max_iter, tol=self.cca_tol
-        )
-        cca_intensities1, cca_intensities2 = cca.fit_transform(
-            intensities1.iloc[ind1, :], intensities2.iloc[nn2_ind[:, 0], :]
+        cca, cca_intensities1, cca_intensities2 = self._fit_cca(
+            n_components,
+            intensities1.iloc[ind1, :],
+            intensities2.iloc[nn2_ind[:, 0], :],
         )
         cca_intensities1 = cca_intensities1.astype(self.precision)
         cca_intensities2 = cca_intensities2.astype(self.precision)
@@ -720,15 +778,22 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         cca_intensities1, cca_intensities2 = cca.transform(intensities1, intensities2)
         cca_intensities1 = cca_intensities1.astype(self.precision)
         cca_intensities2 = cca_intensities2.astype(self.precision)
-        intensity_cdist_all = 0.5 * np.asarray(
-            distance.cdist(
-                cca_intensities1,
-                cca_intensities2,
-                metric=self.intensity_all_metric.value,
-            ),
-            dtype=self.precision,
-        )
-        return intensity_cdist_all
+        metric = self.intensity_all_metric
+        if n_components == 1:
+            logger.warning(
+                "Only one CCA component, using thresholded differences instead of "
+                f"{metric.value} distances for the intensity cross-distance"
+            )
+            return self._compute_cdist_1d(cca_intensities1, cca_intensities2)
+        elif n_components == 2:
+            if metric != self.AllIntensityMetric.COSINE:
+                logger.warning(
+                    "Only two CCA components, using cosine distances instead of "
+                    f"{metric.value} distances for the intensity cross-distance"
+                )
+            return self._compute_cdist_2d(cca_intensities1, cca_intensities2)
+        else:
+            return self._compute_cdist(cca_intensities1, cca_intensities2, metric.value)
 
     def _compute_distance_cdist(
         self,
