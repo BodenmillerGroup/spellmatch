@@ -126,36 +126,6 @@ def run_parallel(
     queue_size: int = None,
     worker_timeout: int = 1,
 ) -> Generator[RunConfig, None, pd.DataFrame]:
-    class WorkerProcess(mp.Process):
-        def __init__(
-            self,
-            run_config_queue: mp.Queue,
-            scores_info_queue: mp.Queue,
-            scores_dir: Path,
-            timeout: int,
-            **kwargs: Any,
-        ) -> None:
-            super(WorkerProcess, self).__init__(**kwargs)
-            self.run_config_queue = run_config_queue
-            self.scores_info_queue = scores_info_queue
-            self.scores_dir = scores_dir
-            self.timeout = timeout
-            self.stop_event = mp.Event()
-
-        def run(self) -> None:
-            while not self.stop_event.is_set() or not self.run_config_queue.empty():
-                try:
-                    i, run_config = self.run_config_queue.get(timeout=self.timeout)
-                    scores_info, scores, reverse_scores = run(
-                        run_config,
-                        self.scores_dir / f"scores{i:06d}.nc",
-                        reverse_scores_file=self.scores_dir
-                        / f"scores{i:06d}_reverse.nc",
-                    )
-                    self.scores_info_queue.put(scores_info)
-                except queue.Empty:
-                    pass
-
     scores_dir = Path(scores_dir)
     scores_dir.mkdir(exist_ok=True)
     if n_processes is None:
@@ -165,7 +135,7 @@ def run_parallel(
     run_config_queue = mp.Queue(maxsize=queue_size)
     scores_info_queue = mp.Queue()
     workers = [
-        WorkerProcess(
+        _WorkerProcess(
             run_config_queue,
             scores_info_queue,
             scores_dir,
@@ -187,3 +157,35 @@ def run_parallel(
     for worker in workers:
         worker.join()
     return pd.DataFrame(data=[scores_info_queue.get() for _ in range(n)])
+
+
+# defined at module level to support the spawn/forkserver start methods
+class _WorkerProcess(mp.Process):
+    def __init__(
+        self,
+        run_config_queue: mp.Queue,
+        scores_info_queue: mp.Queue,
+        scores_dir: Path,
+        timeout: int,
+        **kwargs: Any,
+    ) -> None:
+        super(_WorkerProcess, self).__init__(**kwargs)
+        self.run_config_queue = run_config_queue
+        self.scores_info_queue = scores_info_queue
+        self.scores_dir = scores_dir
+        self.timeout = timeout
+        self.stop_event = mp.Event()
+
+    def run(self) -> None:
+        while not self.stop_event.is_set() or not self.run_config_queue.empty():
+            try:
+                i, run_config = self.run_config_queue.get(timeout=self.timeout)
+                scores_info, scores, reverse_scores = run(
+                    run_config,
+                    self.scores_dir / f"scores{i:06d}.nc",
+                    reverse_scores_file=self.scores_dir
+                    / f"scores{i:06d}_reverse.nc",
+                )
+                self.scores_info_queue.put(scores_info)
+            except queue.Empty:
+                pass

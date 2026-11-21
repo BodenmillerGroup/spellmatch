@@ -4,7 +4,6 @@ from typing import Optional, Union
 import numpy as np
 import SimpleITK as sitk
 import xarray as xr
-from qtpy.QtCore import QObject, QThread, Signal
 from skimage.transform import ProjectiveTransform
 
 from ...utils import show_image
@@ -95,10 +94,15 @@ def register_image_intensities(
             if update_current_index:
                 imv.setCurrentIndex(len(composite_imgs) - 1)
 
+        # imported here, as Qt is an optional dependency (spellmatch[gui])
+        from qtpy.QtCore import QThread
+
+        from ._qt import QSITKRegistrationWorker
+
         imv, imv_loop = show_image(None, window_title="spellmatch registration")
         append_composite_image()
 
-        worker = _QSITKRegistrationWorker(moving_img, fixed_img, method)
+        worker = QSITKRegistrationWorker(moving_img, fixed_img, method)
         worker.iteration.connect(append_composite_image)
         worker.register_commands()
 
@@ -129,30 +133,3 @@ def _log_on_iteration(method: sitk.ImageRegistrationMethod) -> None:
     logger.info(
         f"Iteration {optimizer_iteration:03d}: {metric_value:.9f} {optimizer_position}"
     )
-
-
-class _QSITKRegistrationWorker(QObject):
-    iteration = Signal()
-    finished = Signal()
-
-    def __init__(
-        self,
-        moving_img: sitk.Image,
-        fixed_img: sitk.Image,
-        method: sitk.ImageRegistrationMethod,
-    ) -> None:
-        super(_QSITKRegistrationWorker, self).__init__()
-        self.moving_img = moving_img
-        self.fixed_img = fixed_img
-        self.method = method
-        self.sitk_transform: Optional[sitk.Transform] = None
-
-    def register_commands(self) -> None:
-        self.method.AddCommand(sitk.sitkIterationEvent, self.iteration_command)
-
-    def run(self) -> None:
-        self.sitk_transform = self.method.Execute(self.fixed_img, self.moving_img)
-        self.finished.emit()
-
-    def iteration_command(self) -> None:
-        self.iteration.emit()

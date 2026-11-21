@@ -10,7 +10,14 @@ import pandas as pd
 import xarray as xr
 import yaml
 from pydantic import BaseModel
-from simutome import Simutome
+
+try:
+    from simutome import Simutome
+except ImportError as e:
+    raise ImportError(
+        "The semi-synthetic benchmark requires simutome, which can be installed from "
+        "https://github.com/BodenmillerGroup/simutome"
+    ) from e
 from sklearn.model_selection import ParameterGrid
 
 from ..io import read_scores
@@ -25,8 +32,8 @@ class SemisyntheticBenchmarkConfig(BaseModel):
         algorithm_is_directed: bool = False
 
     points_file_names: list[str]
-    intensities_file_names: Optional[list[str]]
-    clusters_file_names: Optional[list[str]]
+    intensities_file_names: Optional[list[str]] = None
+    clusters_file_names: Optional[list[str]] = None
     simutome_kwargs: dict[str, Any]
     simutome_param_grid: dict[str, list[dict[str, Any]]]
     n_simutome_sections: int
@@ -219,7 +226,7 @@ class SemisyntheticBenchmark:
         return self.results_info
 
     def save(self) -> None:
-        config_dict = self.config.dict()
+        config_dict = self.config.model_dump()
         with self.config_file.open("w") as f:
             yaml.dump(config_dict, f, sort_keys=False)
 
@@ -228,7 +235,7 @@ class SemisyntheticBenchmark:
         config_file = Path(benchmark_dir) / "config.yml"
         with config_file.open("r") as f:
             config_dict = yaml.load(f, yaml.SafeLoader())
-        config = SemisyntheticBenchmarkConfig.parse_obj(config_dict)
+        config = SemisyntheticBenchmarkConfig.model_validate(config_dict)
         return SemisyntheticBenchmark(config, benchmark_dir)
 
     def _generate_run_configs_for_batch(

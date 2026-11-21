@@ -160,8 +160,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         c = cache if cache is not None else {}
         n1 = len(source_adj)
         n2 = len(target_adj)
-        adj1 = source_adj.to_numpy().astype(np.bool8)
-        adj2 = target_adj.to_numpy().astype(np.bool8)
+        adj1 = source_adj.to_numpy().astype(np.bool_)
+        adj2 = target_adj.to_numpy().astype(np.bool_)
         adj_csr = sparse.csr_array(sparse.kron(adj1, adj2, format="csr"))
         deg1 = np.sum(adj1, axis=1, dtype=np.uint8)
         deg2 = np.sum(adj2, axis=1, dtype=np.uint8)
