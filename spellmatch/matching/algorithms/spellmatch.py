@@ -263,20 +263,47 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     ),
                     dtype=self.precision,
                 )
+        degree_cdist = c["degree_cdist"]
+        intensity_cdist_shared = c["intensity_cdist_shared"]
+        intensity_cdist_all = c["intensity_cdist_all"]
+        distance_cdist_csr = c["distance_cdist_csr"]
+        spatial_cdist = c["spatial_cdist"]
+        candidates = None
+        if self.max_spatial_cdist is not None:
+            assert spatial_cdist is not None
+            candidates = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
+            if len(candidates) == 0:
+                raise SpellmatchException(
+                    "No candidate cell pairs within the maximum spatial cross-distance"
+                )
+            logger.info(
+                f"Restricting to {len(candidates)} of {n1 * n2} candidate cell pairs"
+            )
+            adj_csr = adj_csr[candidates][:, candidates]
+            if degree_cdist is not None:
+                degree_cdist = degree_cdist.ravel()[candidates]
+            if intensity_cdist_shared is not None:
+                intensity_cdist_shared = intensity_cdist_shared.ravel()[candidates]
+            if intensity_cdist_all is not None:
+                intensity_cdist_all = intensity_cdist_all.ravel()[candidates]
+            if distance_cdist_csr is not None:
+                distance_cdist_csr = distance_cdist_csr[candidates][:, candidates]
+            spatial_cdist = spatial_cdist.ravel()[candidates]
         if (
-            c["intensity_cdist_shared"] is None
-            or c["intensity_cdist_all"] is None
+            intensity_cdist_shared is None
+            or intensity_cdist_all is None
             or 0 <= self.intensity_interp_lmd <= 1
         ):
             info, scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
+                candidates,
                 adj_csr,
-                c["degree_cdist"],
-                c["intensity_cdist_shared"],
-                c["intensity_cdist_all"],
-                c["distance_cdist_csr"],
-                c["spatial_cdist"],
+                degree_cdist,
+                intensity_cdist_shared,
+                intensity_cdist_all,
+                distance_cdist_csr,
+                spatial_cdist,
                 self.intensity_interp_lmd,
             )
         else:
@@ -308,12 +335,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 current_info, current_scores_data = self._match_graphs_for_lambda(
                     n1,
                     n2,
+                    candidates,
                     adj_csr,
-                    c["degree_cdist"],
-                    c["intensity_cdist_shared"],
-                    c["intensity_cdist_all"],
-                    c["distance_cdist_csr"],
-                    c["spatial_cdist"],
+                    degree_cdist,
+                    intensity_cdist_shared,
+                    intensity_cdist_all,
+                    distance_cdist_csr,
+                    spatial_cdist,
                     current_lmd,
                 )
                 row_ind, col_ind = linear_sum_assignment(
@@ -356,6 +384,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         n1: int,
         n2: int,
+        candidates: np.ndarray | None,
         adj_csr: sparse.csr_array,
         degree_cdist: np.ndarray | None,
         intensity_cdist_shared: np.ndarray | None,
@@ -379,25 +408,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             intensity_cdist = None
         logger.info("Initializing")
-        n = n1 * n2
-        candidates = None
-        if self.max_spatial_cdist is not None:
-            assert spatial_cdist is not None
-            candidates = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
-            if len(candidates) == 0:
-                raise SpellmatchException(
-                    "No candidate cell pairs within the maximum spatial cross-distance"
-                )
-            logger.info(f"Restricting to {len(candidates)} of {n} candidate cell pairs")
-            n = len(candidates)
-            adj_csr = adj_csr[candidates][:, candidates]
-            if degree_cdist is not None:
-                degree_cdist = degree_cdist.ravel()[candidates]
-            if intensity_cdist is not None:
-                intensity_cdist = intensity_cdist.ravel()[candidates]
-            if distance_cdist_csr is not None:
-                distance_cdist_csr = distance_cdist_csr[candidates][:, candidates]
-            spatial_cdist = spatial_cdist.ravel()[candidates]
+        n = adj_csr.shape[0]  # number of (candidate) cell pairs
         w_csr = sparse.csr_array((n, n), dtype=self.precision)
         total_weight = 0
         if self.degree_weight > 0:
@@ -537,11 +548,9 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
         intensities1 = (intensities1 - intensities1.mean()) / intensities1_std
         intensities2 = (intensities2 - intensities2.mean()) / intensities2_std
-        intensities_shared = pd.concat(
-            (intensities1, intensities2), join="inner", ignore_index=True
-        )
+        intensities_shared = pd.concat((intensities1, intensities2), ignore_index=True)
         n_components = self.intensity_shared_pca_n_components
-        n_shared_features = len(intensities_shared.columns)
+        n_shared_features = len(intensities1.columns)
         if n_components > n_shared_features:
             logger.warning(
                 "Requested number of intensity components for computing the intensity "
@@ -562,8 +571,8 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             f"SVD: explained variance={np.sum(svd.explained_variance_ratio_):.3f} "
             f"{tuple(np.around(r, decimals=3) for r in svd.explained_variance_ratio_)}"
         )
-        svd_intensities1 = svd.transform(intensities1[intensities_shared.columns])
-        svd_intensities2 = svd.transform(intensities2[intensities_shared.columns])
+        svd_intensities1 = svd.transform(intensities1)
+        svd_intensities2 = svd.transform(intensities2)
         metric = self.intensity_shared_metric.value
         if (
             self.intensity_shared_metric
