@@ -228,14 +228,20 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                         "Computing intensity cross-distances on all markers requires "
                         "running Spellmatch in point set registration mode"
                     )
-                logger.info("Computing intensity cross-distance (all markers)")
-                c["intensity_cdist_all"] = self._compute_intensity_cdist_all(
-                    self._current_source_points,
-                    self._current_target_points,
-                    source_intensities,
-                    target_intensities,
-                )
-                assert c["intensity_cdist_all"].dtype == self.precision
+                if c.get("prior_transform") is None:
+                    logger.info(
+                        "No spatial transform available, not using the intensity "
+                        "cross-distance from all markers in this iteration"
+                    )
+                else:
+                    logger.info("Computing intensity cross-distance (all markers)")
+                    c["intensity_cdist_all"] = self._compute_intensity_cdist_all(
+                        self._current_source_points,
+                        self._current_target_points,
+                        source_intensities,
+                        target_intensities,
+                    )
+                    assert c["intensity_cdist_all"].dtype == self.precision
         if "distance_cdist_csr" not in c:
             c["distance_cdist_csr"] = None
             if self.distance_weight > 0:
@@ -264,22 +270,27 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                         "Computing spatial cross-distance requires running Spellmatch "
                         "in point set registration or mask matching mode"
                     )
-                logger.info("Computing spatial cross-distance")
-                c["spatial_cdist"] = np.asarray(
-                    distance.cdist(
-                        self._current_source_points.to_numpy().astype(self.precision),
-                        self._current_target_points.to_numpy().astype(self.precision),
-                    ),
-                    dtype=self.precision,
-                )
+                if c.get("prior_transform") is None:
+                    logger.info(
+                        "No spatial transform available, not using the spatial prior "
+                        "and the maximum spatial cross-distance in this iteration"
+                    )
+                else:
+                    logger.info("Computing spatial cross-distance")
+                    c["spatial_cdist"] = np.asarray(
+                        distance.cdist(
+                            self._current_source_points.to_numpy(self.precision),
+                            self._current_target_points.to_numpy(self.precision),
+                        ),
+                        dtype=self.precision,
+                    )
         degree_cdist = c["degree_cdist"]
         intensity_cdist_shared = c["intensity_cdist_shared"]
         intensity_cdist_all = c["intensity_cdist_all"]
         distance_cdist_csr = c["distance_cdist_csr"]
         spatial_cdist = c["spatial_cdist"]
         candidates = None
-        if self.max_spatial_cdist is not None:
-            assert spatial_cdist is not None
+        if self.max_spatial_cdist is not None and spatial_cdist is not None:
             candidates = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
             if len(candidates) == 0:
                 raise SpellmatchException(
@@ -303,6 +314,15 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             or intensity_cdist_all is None
             or 0 <= self.intensity_interp_lmd <= 1
         ):
+            # effective lambda (None if intensities are not used)
+            if intensity_cdist_shared is not None and intensity_cdist_all is not None:
+                lmd = self.intensity_interp_lmd
+            elif intensity_cdist_shared is not None:
+                lmd = 1.0  # shared markers only
+            elif intensity_cdist_all is not None:
+                lmd = 0.0  # all markers only
+            else:
+                lmd = None
             info, scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
@@ -313,9 +333,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 intensity_cdist_all,
                 distance_cdist_csr,
                 spatial_cdist,
-                self.intensity_interp_lmd
-                if intensity_cdist_shared is not None or intensity_cdist_all is not None
-                else None,
+                lmd,
             )
         else:
             lmd = None
@@ -429,8 +447,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             )
             total_weight += 2 * self.degree_weight
             assert w_csr.dtype == self.precision
-        if self.intensity_weight > 0:
-            assert intensity_cdist is not None
+        if self.intensity_weight > 0 and intensity_cdist is not None:
             intensity_cdist = intensity_cdist.ravel()
             w_csr += adj_csr * (
                 self.precision(self.intensity_weight) * intensity_cdist[:, np.newaxis]
@@ -464,8 +481,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         w_csr: sparse.csr_array = d_dia @ (adj_csr - w_csr) @ d_dia
         assert w_csr.dtype == self.precision
         del d, d_dia
-        if self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None:
-            assert spatial_cdist is not None
+        if (
+            self.alpha != 1.0
+            and self.spatial_cdist_prior_thres is not None
+            and spatial_cdist is not None
+        ):
             h = np.ravel(
                 1 - np.clip((spatial_cdist / self.spatial_cdist_prior_thres) ** 2, 0, 1)
             )

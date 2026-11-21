@@ -29,6 +29,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   intensities using the cosine distance between CCA embeddings (previously: Pearson
   correlation across CCA components). Set both parameters to `correlation` to restore
   the previous behavior.
+- Spellmatch: without a prior transform, the spatial prior (`spatial_cdist_prior_thres`),
+  the maximum spatial cross-distance (`max_spatial_cdist`) and the intensity
+  cross-distance from all markers (CCA fitted on spatially close cells) are used from
+  the first estimated transform on; previously, the untransformed cell coordinates were
+  used, i.e. the images were implicitly assumed to be aligned. Pass an identity
+  transform as prior transform to restore the previous behavior
 
 ### Fixed
 

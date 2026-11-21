@@ -218,6 +218,7 @@ class _PointsMatchingMixin:
         cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
+        c["prior_transform"] = prior_transform
         if "transformed_source_points" not in c:
             c["transformed_source_points"] = source_points
             if prior_transform is not None:
