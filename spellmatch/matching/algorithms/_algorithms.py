@@ -142,7 +142,7 @@ class _PointsMatchingMixin:
                 "target_intensities",
             ]
         ):
-            logger.info("Extracting points from masks")
+            logger.debug("Extracting points from masks")
             source_regions = regionprops(
                 source_mask.to_numpy(),
                 intensity_image=np.moveaxis(
@@ -222,7 +222,7 @@ class _PointsMatchingMixin:
         if "transformed_source_points" not in c:
             c["transformed_source_points"] = source_points
             if prior_transform is not None:
-                logger.info("Transforming source points")
+                logger.debug("Transforming source points")
                 c["transformed_source_points"] = transform_points(
                     source_points, prior_transform
                 )
@@ -360,7 +360,7 @@ class _GraphMatchingMixin:
             key not in c
             for key in ["source_adj", "target_adj", "source_dists", "target_dists"]
         ):
-            logger.info("Constructing graphs from points")
+            logger.debug("Constructing graphs from points")
             c["source_adj"], c["source_dists"] = create_graph(
                 source_name, source_points, self.adj_radius, "a", "b"
             )
@@ -694,7 +694,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             scores_loss = np.linalg.norm(current_scores - last_scores)
             if self.scores_tol is not None and scores_loss < self.scores_tol:
                 converged = True
-        logger.info(f"Scores loss: {scores_loss:.9f}")
+            logger.info(f"Scores loss: {scores_loss:.9f}")
         transform_loss = float("inf")
         if current_transform is not None and updated_transform is not None:
             transform_loss = np.linalg.norm(
@@ -702,7 +702,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             )
             if self.transform_tol is not None and transform_loss < self.transform_tol:
                 converged = True
-        logger.info(f"Transform loss: {transform_loss:.9f}")
+            logger.info(f"Transform loss: {transform_loss:.9f}")
         return converged
 
 

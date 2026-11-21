@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transform as prior transform to restore the previous behavior
 - Spellmatch: `alpha` must be smaller than 1; without a spatial prior (`alpha=1`), the
   fixed point iteration is ill-defined (documented, no change in behavior)
+- Spellmatch: less verbose log output; per-step and per-λ messages are logged at the
+  `DEBUG` level (`--verbosity DEBUG`), and repeated warnings once per matching run
 
 ### Fixed
 
