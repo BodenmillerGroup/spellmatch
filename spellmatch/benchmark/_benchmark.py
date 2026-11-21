@@ -123,9 +123,19 @@ def run_parallel(
     scores_dir: str | PathLike,
     offset: int = 0,
     n_processes: int | None = None,
-    queue_size: int = None,
+    queue_size: int | None = None,
     worker_timeout: int = 1,
 ) -> Generator[RunConfig, None, pd.DataFrame]:
+    """Run benchmark configurations in parallel worker processes.
+
+    Note that the memory requirements of a single run can be substantial (e.g.
+    several GB for Spellmatch with thousands of cells), so ``n_processes`` (default:
+    number of CPUs) may have to be reduced to the available memory.
+
+    ``worker_timeout`` is the interval (in seconds) for checking whether worker
+    processes are still alive; if worker processes terminate unexpectedly (e.g. killed
+    by the out-of-memory killer), a ``RuntimeError`` is raised instead of blocking.
+    """
     scores_dir = Path(scores_dir)
     scores_dir.mkdir(exist_ok=True)
     if n_processes is None:
@@ -139,7 +149,6 @@ def run_parallel(
             run_config_queue,
             scores_info_queue,
             scores_dir,
-            worker_timeout,
             daemon=True,
             name=f"W{worker_number:03d}",
         )
@@ -149,14 +158,38 @@ def run_parallel(
         worker.start()
     n = 0
     for i, run_config in enumerate(run_configs, start=offset):
-        run_config_queue.put((i, run_config))
+        _put(run_config_queue, (i, run_config), workers, worker_timeout)
         yield run_config
         n += 1
-    for worker in workers:
-        worker.stop_event.set()
+    for _ in workers:
+        _put(run_config_queue, None, workers, worker_timeout)
+    # results are collected before joining the workers, as a process that has put
+    # items on a queue only terminates once they have been consumed
+    scores_infos = [_get(scores_info_queue, workers, worker_timeout) for _ in range(n)]
     for worker in workers:
         worker.join()
-    return pd.DataFrame(data=[scores_info_queue.get() for _ in range(n)])
+    return pd.DataFrame(data=scores_infos)
+
+
+def _put(q: mp.Queue, item: Any, workers: list[mp.Process], timeout: int) -> None:
+    while True:
+        try:
+            q.put(item, timeout=timeout)
+            return
+        except queue.Full:
+            if not any(worker.is_alive() for worker in workers):
+                raise RuntimeError("Worker processes terminated unexpectedly") from None
+
+
+def _get(q: mp.Queue, workers: list[mp.Process], timeout: int) -> Any:
+    while True:
+        # checked before waiting, as terminated workers may have sent results
+        workers_alive = any(worker.is_alive() for worker in workers)
+        try:
+            return q.get(timeout=timeout)
+        except queue.Empty:
+            if not workers_alive:
+                raise RuntimeError("Worker processes terminated unexpectedly") from None
 
 
 # defined at module level to support the spawn/forkserver start methods
@@ -166,25 +199,22 @@ class _WorkerProcess(mp.Process):
         run_config_queue: mp.Queue,
         scores_info_queue: mp.Queue,
         scores_dir: Path,
-        timeout: int,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.run_config_queue = run_config_queue
         self.scores_info_queue = scores_info_queue
         self.scores_dir = scores_dir
-        self.timeout = timeout
-        self.stop_event = mp.Event()
 
     def run(self) -> None:
-        while not self.stop_event.is_set() or not self.run_config_queue.empty():
+        # each worker receives one None (sentinel) after all run configurations
+        for i, run_config in iter(self.run_config_queue.get, None):
             try:
-                i, run_config = self.run_config_queue.get(timeout=self.timeout)
-                scores_info, scores, reverse_scores = run(
+                scores_info, _, _ = run(
                     run_config,
                     self.scores_dir / f"scores{i:06d}.nc",
                     reverse_scores_file=self.scores_dir / f"scores{i:06d}_reverse.nc",
                 )
-                self.scores_info_queue.put(scores_info)
-            except queue.Empty:
-                pass
+            except Exception as e:  # exactly one result per run configuration
+                scores_info = {**run_config.info, "error": str(e)}
+            self.scores_info_queue.put(scores_info)
