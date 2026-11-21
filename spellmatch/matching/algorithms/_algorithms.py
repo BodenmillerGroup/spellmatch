@@ -568,10 +568,18 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             logger.info(f"Initial transform: {describe_transform(prior_transform)}")
         else:
             logger.info("Initial transform: None")
+        # transform under which the cached graphs were built
+        graph_transform = current_transform
         for iteration in range(self.max_iter):
             start = timer()
             logger.info(f"Iterative algorithm iteration {iteration + 1}")
-            self._prepare_iteration_cache(iteration, iteration_cache)
+            distances_changed = False
+            if iteration > 0 and not _preserves_distances(
+                graph_transform, current_transform
+            ):
+                distances_changed = True
+                graph_transform = current_transform
+            self._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
             info, scores = super().match_points(
                 source_name,
                 target_name,
@@ -614,7 +622,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         return info, scores
 
     def _prepare_iteration_cache(
-        self, iteration: int, iteration_cache: dict[str, Any]
+        self, iteration: int, iteration_cache: dict[str, Any], distances_changed: bool
     ) -> None:
         if iteration > 0:
             # transform has been updated --> cached point transform/filtering is invalid
@@ -770,11 +778,12 @@ class IterativeGraphMatchingAlgorithm(
         self._init_graph_matching(adj_radius=adj_radius)
 
     def _prepare_iteration_cache(
-        self, iteration: int, iteration_cache: dict[str, Any]
+        self, iteration: int, iteration_cache: dict[str, Any], distances_changed: bool
     ) -> None:
-        super()._prepare_iteration_cache(iteration, iteration_cache)
-        if iteration > 0 and self.outlier_dist is not None:
-            # point filtering has been updated --> cached graph is invalid
+        super()._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
+        if iteration > 0 and (self.outlier_dist is not None or distances_changed):
+            # point filtering or source point distances have been updated
+            # --> cached graph is invalid
             for key in ["source_adj", "target_adj", "source_dists", "target_dists"]:
                 iteration_cache.pop(key, None)
 
@@ -797,6 +806,32 @@ class IterativeGraphMatchingAlgorithm(
             target_intensities,
             cache,
         )
+
+
+def _preserves_distances(
+    transform1: ProjectiveTransform | None,
+    transform2: ProjectiveTransform | None,
+    atol: float = 1e-6,
+) -> bool:
+    """Check whether pairwise distances are the same under both transforms."""
+    if transform1 is transform2:
+        return True
+    params1 = transform1.params if transform1 is not None else None
+    params2 = transform2.params if transform2 is not None else None
+    ndim = (params1 if params1 is not None else params2).shape[0] - 1
+    if params1 is None:
+        params1 = np.eye(ndim + 1)
+    if params2 is None:
+        params2 = np.eye(ndim + 1)
+    if np.allclose(params1, params2, atol=atol):
+        return True  # same transform (incl. projective transforms)
+    for params in (params1, params2):
+        if not np.allclose(params[-1, :], np.eye(ndim + 1)[-1, :], atol=atol):
+            return False  # projective
+    # pairwise distances under an affine transform with linear part L are determined
+    # by the metric tensor L^T L (no inversion needed, also for singular L)
+    linear1, linear2 = params1[:-1, :-1], params2[:-1, :-1]
+    return np.allclose(linear1.T @ linear1, linear2.T @ linear2, atol=atol)
 
 
 class SpellmatchMatchingAlgorithmException(SpellmatchMatchingException):

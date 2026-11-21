@@ -62,19 +62,19 @@ Parameters (symbols refer to the manuscript, where applicable):
 | `transform_tol` | | | Convergence tolerance (Frobenius norm) for changes in the spatial transform matrix between iterations |
 | `filter_outliers` | | `True` | Whether to exclude cells outside of the overlapping image region (bounding boxes, extended by `adj_radius`) from matching |
 | `adj_radius` | r<sub>adj</sub> | `15` | Physical radius in which cells are considered neighbors |
-| `alpha` | α | `0.8` | Regularization parameter (`0`: spatial prior only, `1`: no spatial prior) |
+| `alpha` | α | `0.8` | Regularization parameter in `[0, 1)` (`0`: spatial prior only; the closer to `1`, the smaller the influence of the spatial prior) |
 | `spatial_cdist_prior_thres` | θ<sub>prior</sub> | | Spatial cell cross-distance threshold for the spatial prior (soft constraint); if not specified, a uniform prior is used |
 | `max_spatial_cdist` | d<sub>max</sub> | | Maximum spatial cell cross-distance for matching cells (hard constraint); if not specified, all cell pairs are considered |
 | `degree_weight` | w<sub>degree</sub> | `0` | Relative importance of cell degrees (number of neighbors) |
 | `degree_cdiff_thres` | θ<sub>degree</sub> | `3` | Cell degree difference threshold |
 | `intensity_weight` | w<sub>intensity</sub> | `0` | Relative importance of cell intensities |
-| `intensity_interp_lmd` | λ, n<sup>(try)</sup><sub>λ-sel</sub> | `11` | Weight of the shared-marker intensity cross-distance relative to the all-marker one: a number in `[0, 1]` specifies λ; an integer larger than `1` specifies the number of regularly spaced λ values to evaluate for automatic selection |
+| `intensity_interp_lmd` | λ, n<sup>(try)</sup><sub>λ-sel</sub> | `11` | Weight of the shared-marker intensity cross-distance relative to the all-marker one: a number in `[0, 1]` specifies λ; an integer larger than `1` specifies the number of regularly spaced λ values to evaluate for automatic selection (the selected λ is reported in the scores info; `None` if intensities are not used) |
 | `intensity_interp_cca_n_components` | n<sup>(cancor)</sup><sub>λ-sel</sub> | `10` | Number of canonical correlations used for automatic λ selection |
-| `intensity_shared_pca_n_components` | k<sub>SVD</sub> | `5` | Number of SVD components for the shared-marker intensity cross-distance |
+| `intensity_shared_pca_n_components` | k<sub>SVD</sub> | `5` | Number of SVD components for the shared-marker intensity cross-distance. Shared-marker intensities are standardized per dataset; markers without variance in either dataset are excluded. With only one (two) shared marker(s), the SVD is skipped and the absolute difference (cosine distance) of standardized intensities is used instead |
 | `intensity_shared_metric` | | `reconstructed_correlation` | Distance between SVD-embedded shared-marker intensities: `reconstructed_correlation` (Pearson correlation across markers between rank-k SVD reconstructions, as in MARIO), `cosine` (cosine distance between SVD embeddings), or `correlation` (Pearson correlation across SVD components; default of spellmatch 0.1) |
-| `intensity_all_cca_fit_k_closest` | n<sup>(closest)</sup><sub>CCA</sub> | `500` | Number of spatially closest cell pairs considered for fitting the CCA (all-marker intensity cross-distance) |
-| `intensity_all_cca_fit_k_most_certain` | n<sup>(most certain)</sup><sub>CCA</sub> | `100` | Number of most certain cell pairs (largest spatial margins) used for fitting the CCA |
-| `intensity_all_cca_n_components` | k<sub>CCA</sub> | `10` | Number of CCA components for the all-marker intensity cross-distance |
+| `intensity_all_cca_fit_k_closest` | n<sup>(closest)</sup><sub>CCA</sub> | `500` | Number of spatially closest cell pairs considered for fitting the CCA (all-marker intensity cross-distance); limited to the number of source cells |
+| `intensity_all_cca_fit_k_most_certain` | n<sup>(most certain)</sup><sub>CCA</sub> | `100` | Number of most certain cell pairs (largest spatial margins) used for fitting the CCA; limited to n<sup>(closest)</sup><sub>CCA</sub> |
+| `intensity_all_cca_n_components` | k<sub>CCA</sub> | `10` | Number of CCA components for the all-marker intensity cross-distance; limited to the number of cells used for fitting the CCA |
 | `intensity_all_metric` | | `cosine` | Distance between CCA-embedded intensities: `cosine` (cosine distance between CCA embeddings) or `correlation` (Pearson correlation across CCA components; default of spellmatch 0.1) |
 | `distance_weight` | w<sub>distance</sub> | `0` | Relative importance of spatial cell-cell distances |
 | `distance_cdiff_thres` | θ<sub>distance</sub> | `5` | Spatial cell-cell distance difference threshold |
