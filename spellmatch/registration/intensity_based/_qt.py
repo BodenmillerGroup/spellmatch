@@ -1,5 +1,3 @@
-from typing import Optional
-
 import SimpleITK as sitk
 from qtpy.QtCore import QObject, Signal
 
@@ -14,11 +12,11 @@ class QSITKRegistrationWorker(QObject):
         fixed_img: sitk.Image,
         method: sitk.ImageRegistrationMethod,
     ) -> None:
-        super(QSITKRegistrationWorker, self).__init__()
+        super().__init__()
         self.moving_img = moving_img
         self.fixed_img = fixed_img
         self.method = method
-        self.sitk_transform: Optional[sitk.Transform] = None
+        self.sitk_transform: sitk.Transform | None = None
 
     def register_commands(self) -> None:
         self.method.AddCommand(sitk.sitkIterationEvent, self.iteration_command)

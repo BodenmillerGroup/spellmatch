@@ -1,7 +1,7 @@
 import builtins
 import importlib
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -65,7 +65,7 @@ def describe_scores(scores: xr.DataArray) -> str:
 
 
 def describe_assignment(
-    assignment: pd.DataFrame, recovered: Optional[float] = None
+    assignment: pd.DataFrame, recovered: float | None = None
 ) -> str:
     text = f"{len(assignment.index)} cell pairs"
     if recovered is not None:
@@ -75,11 +75,11 @@ def describe_assignment(
 
 def preprocess_image(
     img: xr.DataArray,
-    median_filter_size: Optional[int] = None,
-    clipping_quantile: Optional[float] = None,
-    gaussian_filter_sigma: Optional[float] = None,
+    median_filter_size: int | None = None,
+    clipping_quantile: float | None = None,
+    gaussian_filter_sigma: float | None = None,
     inplace=False,
-) -> Optional[xr.DataArray]:
+) -> xr.DataArray | None:
     if not inplace:
         img = img.copy()
     if median_filter_size is not None:
@@ -95,7 +95,7 @@ def preprocess_image(
 
 
 def compute_points(
-    mask: xr.DataArray, regions: Optional[list] = None, point_feature: str = "centroid"
+    mask: xr.DataArray, regions: list | None = None, point_feature: str = "centroid"
 ) -> pd.DataFrame:
     if regions is None:
         regions = regionprops(mask.to_numpy())
@@ -116,9 +116,9 @@ def compute_points(
 def compute_intensities(
     img: xr.DataArray,
     mask: xr.DataArray,
-    regions: Optional[list] = None,
+    regions: list | None = None,
     intensity_feature: str = "intensity_mean",
-    intensity_transform: Optional[Callable[[np.ndarray], np.ndarray]] = None,
+    intensity_transform: Callable[[np.ndarray], np.ndarray] | None = None,
 ) -> pd.DataFrame:
     if regions is None:
         intensity_image = np.moveaxis(img.to_numpy(), 1 if img.ndim == 4 else 0, -1)
@@ -152,7 +152,7 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
 
 def transform_points(
     points: pd.DataFrame, transform: ProjectiveTransform, inplace: bool = False
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     if not inplace:
         points = points.copy()
     points[:] = transform(points.to_numpy())
@@ -203,7 +203,7 @@ def create_graph(
 
 
 def show_image(
-    img: Optional[np.ndarray], window_title: Optional[str] = None
+    img: np.ndarray | None, window_title: str | None = None
 ) -> tuple["pg.ImageView", "QEventLoop"]:
     import pyqtgraph as pg
     from qtpy.QtCore import QEventLoop, Qt

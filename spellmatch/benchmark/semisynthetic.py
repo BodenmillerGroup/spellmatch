@@ -1,9 +1,10 @@
 import math
 import sys
+from collections.abc import Callable, Generator, Mapping
 from functools import cached_property
 from os import PathLike
 from pathlib import Path
-from typing import Any, Callable, Generator, Mapping, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -32,8 +33,8 @@ class SemisyntheticBenchmarkConfig(BaseModel):
         algorithm_is_directed: bool = False
 
     points_file_names: list[str]
-    intensities_file_names: Optional[list[str]] = None
-    clusters_file_names: Optional[list[str]] = None
+    intensities_file_names: list[str] | None = None
+    clusters_file_names: list[str] | None = None
     simutome_kwargs: dict[str, Any]
     simutome_param_grid: dict[str, list[dict[str, Any]]]
     n_simutome_sections: int
@@ -46,7 +47,7 @@ class SemisyntheticBenchmark:
     MetricFunction = Callable[[np.ndarray, np.ndarray, np.ndarray], float]
 
     def __init__(
-        self, benchmark_dir: Union[str, PathLike], config: SemisyntheticBenchmarkConfig
+        self, benchmark_dir: str | PathLike, config: SemisyntheticBenchmarkConfig
     ) -> None:
         self.benchmark_dir = Path(benchmark_dir)
         self.benchmark_dir.mkdir(exist_ok=True, parents=True)
@@ -57,13 +58,13 @@ class SemisyntheticBenchmark:
 
     def run_sequential(
         self,
-        points_dir: Union[str, PathLike],
-        intensities_dir: Union[str, PathLike, None] = None,
-        clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: str | PathLike,
+        intensities_dir: str | PathLike | None = None,
+        clusters_dir: str | PathLike | None = None,
         batch_index: int = 0,
         n_batches: int = 1,
     ) -> Generator[
-        tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]],
+        tuple[dict[str, Any], xr.DataArray | None, xr.DataArray | None],
         None,
         pd.DataFrame,
     ]:
@@ -84,12 +85,12 @@ class SemisyntheticBenchmark:
 
     def run_parallel(
         self,
-        points_dir: Union[str, PathLike],
-        intensities_dir: Union[str, PathLike, None] = None,
-        clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: str | PathLike,
+        intensities_dir: str | PathLike | None = None,
+        clusters_dir: str | PathLike | None = None,
         batch_index: int = 0,
         n_batches: int = 1,
-        n_processes: Optional[int] = None,
+        n_processes: int | None = None,
         queue_size: int = None,
         worker_timeout: int = 1,
     ) -> Generator[RunConfig, None, pd.DataFrame]:
@@ -113,12 +114,12 @@ class SemisyntheticBenchmark:
 
     def generate_run_configs(
         self,
-        points_dir: Union[str, PathLike],
-        intensities_dir: Union[str, PathLike, None] = None,
-        clusters_dir: Union[str, PathLike, None] = None,
+        points_dir: str | PathLike,
+        intensities_dir: str | PathLike | None = None,
+        clusters_dir: str | PathLike | None = None,
         batch_index: int = 0,
         n_batches: int = 1,
-    ) -> Generator[RunConfig, None, None]:
+    ) -> Generator[RunConfig]:
         points_dir = Path(points_dir)
         if intensities_dir is not None:
             intensities_dir = Path(intensities_dir)
@@ -147,7 +148,7 @@ class SemisyntheticBenchmark:
     def get_evaluation_length(
         self,
         assignment_functions: Mapping[str, AssignmentFunction],
-        metric_functions: Optional[Mapping[str, MetricFunction]],
+        metric_functions: Mapping[str, MetricFunction] | None,
     ) -> int:
         return (
             np.sum(self.scores_info["scores_file"].notna())
@@ -231,7 +232,7 @@ class SemisyntheticBenchmark:
             yaml.dump(config_dict, f, sort_keys=False)
 
     @staticmethod
-    def load(benchmark_dir: Union[str, PathLike]) -> "SemisyntheticBenchmark":
+    def load(benchmark_dir: str | PathLike) -> "SemisyntheticBenchmark":
         config_file = Path(benchmark_dir) / "config.yml"
         with config_file.open("r") as f:
             config_dict = yaml.load(f, yaml.SafeLoader())
@@ -241,12 +242,12 @@ class SemisyntheticBenchmark:
     def _generate_run_configs_for_batch(
         self,
         points_dir: Path,
-        intensities_dir: Optional[Path],
-        clusters_dir: Optional[Path],
+        intensities_dir: Path | None,
+        clusters_dir: Path | None,
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
-    ) -> Generator[RunConfig, None, None]:
+    ) -> Generator[RunConfig]:
         offset = 0
         file_set_start = math.floor((start - offset) / self.n_runs_per_file_set)
         file_set_stop = math.ceil((stop - offset) / self.n_runs_per_file_set)
@@ -298,12 +299,12 @@ class SemisyntheticBenchmark:
         self,
         file_set_index: int,
         points: pd.DataFrame,
-        intensities: Optional[pd.DataFrame],
-        clusters: Optional[pd.Series],
+        intensities: pd.DataFrame | None,
+        clusters: pd.Series | None,
         simutome_seeds: np.ndarray,
         start: int,
         stop: int,
-    ) -> Generator[RunConfig, None, None]:
+    ) -> Generator[RunConfig]:
         offset = file_set_index * self.n_runs_per_file_set
         simutome_params_start = math.floor(
             (start - offset) / self.n_runs_per_simutome_params
@@ -366,12 +367,12 @@ class SemisyntheticBenchmark:
         file_set_index: int,
         simutome_params_index: int,
         points: pd.DataFrame,
-        intensities: Optional[pd.DataFrame],
-        clusters: Optional[pd.Series],
+        intensities: pd.DataFrame | None,
+        clusters: pd.Series | None,
         simutome: Simutome,
         start: int,
         stop: int,
-    ) -> Generator[RunConfig, None, None]:
+    ) -> Generator[RunConfig]:
         offset = (
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params
@@ -468,7 +469,7 @@ class SemisyntheticBenchmark:
         simutome_sections_index: int,
         start: int,
         stop: int,
-    ) -> Generator[RunConfig, None, None]:
+    ) -> Generator[RunConfig]:
         offset = (
             file_set_index * self.n_runs_per_file_set
             + simutome_params_index * self.n_runs_per_simutome_params

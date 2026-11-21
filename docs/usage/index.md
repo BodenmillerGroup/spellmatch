@@ -29,7 +29,7 @@ flowchart TB
 
     subgraph Spatial cell matching
         matching[Automatic cell matching]
-        transform_update["Transform estimation<br>(iterative algorithms)"]        
+        transform_update["Transform estimation<br>(iterative algorithms)"]
 
         matching -->|cell alignment scores| transform_update
         transform_update -->|updated transform| matching
@@ -38,7 +38,7 @@ flowchart TB
     initial_registration -->|"partial assignment<br>(for validation, optional)"| assignment
     matching -->|alignment scores| assignment
     assignment["Cell assignment"]
-    
+
     assignment --> cell_pairs[("Cell assignment")]
 ```
 
@@ -73,7 +73,7 @@ consist of:
 
 - Cell masks (TIFF files of any data type)
 - Single- or multichannel images (TIFF files of any data type, optional)
-- For multichannel images: panel with channel information (CSV files, in channel order)  
+- For multichannel images: panel with channel information (CSV files, in channel order)
   Column headers: `name` (channel name, unique), `keep` (`0` or `1`, optional)
 
 Images and corresponding cell masks have to match in size. For multichannel images, the
@@ -101,11 +101,11 @@ following pages.
 
 Spellmatch produces the following output data:
 
-- Projective transformations (3x3 numpy array, stored as numpy `.npy` files)  
+- Projective transformations (3x3 numpy array, stored as numpy `.npy` files)
   *Note: geometric transforms are computed from centered masks/images*
-- Cell alignment scores (xarray DataArray, stored as netCDF `.nc` files)  
+- Cell alignment scores (xarray DataArray, stored as netCDF `.nc` files)
   Shape: source labels x target labels, data type: floating point
-- Cell assignments (CSV files holding cell label pairs)  
+- Cell assignments (CSV files holding cell label pairs)
   Column headers: `Source` (source cell label), `Target` (target cell label)
 
 By default, all files are named `{source}_to_{target}.{suffix}`, where `{source}`

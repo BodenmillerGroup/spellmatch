@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, MutableMapping
 from enum import Enum
 from timeit import default_timer as timer
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -42,10 +42,10 @@ class _MaskMatchingMixin:
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray] = None,
-        target_img: Optional[xr.DataArray] = None,
-        prior_transform: Optional[ProjectiveTransform] = None,
-        cache: Optional[MutableMapping[str, Any]] = None,
+        source_img: xr.DataArray | None = None,
+        target_img: xr.DataArray | None = None,
+        prior_transform: ProjectiveTransform | None = None,
+        cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._pre_match_masks(
             source_mask, target_mask, source_img, target_img, prior_transform, cache
@@ -69,10 +69,10 @@ class _MaskMatchingMixin:
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray],
-        target_img: Optional[xr.DataArray],
-        prior_transform: Optional[ProjectiveTransform],
-        cache: Optional[MutableMapping[str, Any]],
+        source_img: xr.DataArray | None,
+        target_img: xr.DataArray | None,
+        prior_transform: ProjectiveTransform | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> None:
         pass
 
@@ -81,10 +81,10 @@ class _MaskMatchingMixin:
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray],
-        target_img: Optional[xr.DataArray],
-        prior_transform: Optional[ProjectiveTransform],
-        cache: Optional[MutableMapping[str, Any]],
+        source_img: xr.DataArray | None,
+        target_img: xr.DataArray | None,
+        prior_transform: ProjectiveTransform | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         raise NotImplementedError()
 
@@ -92,10 +92,10 @@ class _MaskMatchingMixin:
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray],
-        target_img: Optional[xr.DataArray],
-        prior_transform: Optional[ProjectiveTransform],
-        cache: Optional[MutableMapping[str, Any]],
+        source_img: xr.DataArray | None,
+        target_img: xr.DataArray | None,
+        prior_transform: ProjectiveTransform | None,
+        cache: MutableMapping[str, Any] | None,
         info: dict[str, Any],
         scores: xr.DataArray,
     ) -> tuple[dict[str, Any], xr.DataArray]:
@@ -106,10 +106,10 @@ class _PointsMatchingMixin:
     def _init_points_matching(
         self,
         *,
-        outlier_dist: Optional[float],
+        outlier_dist: float | None,
         point_feature: str,
         intensity_feature: str,
-        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
     ) -> None:
         if isinstance(intensity_transform, str):
             try:
@@ -127,10 +127,10 @@ class _PointsMatchingMixin:
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray],
-        target_img: Optional[xr.DataArray],
-        prior_transform: Optional[ProjectiveTransform],
-        cache: Optional[MutableMapping[str, Any]],
+        source_img: xr.DataArray | None,
+        target_img: xr.DataArray | None,
+        prior_transform: ProjectiveTransform | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
         if any(
@@ -210,12 +210,12 @@ class _PointsMatchingMixin:
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_bbox: Optional[Polygon] = None,
-        target_bbox: Optional[Polygon] = None,
-        source_intensities: Optional[pd.DataFrame] = None,
-        target_intensities: Optional[pd.DataFrame] = None,
-        prior_transform: Optional[ProjectiveTransform] = None,
-        cache: Optional[MutableMapping[str, Any]] = None,
+        source_bbox: Polygon | None = None,
+        target_bbox: Polygon | None = None,
+        source_intensities: pd.DataFrame | None = None,
+        target_intensities: pd.DataFrame | None = None,
+        prior_transform: ProjectiveTransform | None = None,
+        cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
         if "transformed_source_points" not in c:
@@ -306,9 +306,9 @@ class _PointsMatchingMixin:
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> None:
         pass
 
@@ -319,9 +319,9 @@ class _PointsMatchingMixin:
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         raise NotImplementedError()
 
@@ -331,9 +331,9 @@ class _PointsMatchingMixin:
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
         info: dict[str, Any],
         scores: xr.DataArray,
     ) -> tuple[dict[str, Any], xr.DataArray]:
@@ -350,9 +350,9 @@ class _GraphMatchingMixin:
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
         if any(
@@ -381,11 +381,11 @@ class _GraphMatchingMixin:
         self,
         source_adj: xr.DataArray,
         target_adj: xr.DataArray,
-        source_dists: Optional[xr.DataArray] = None,
-        target_dists: Optional[xr.DataArray] = None,
-        source_intensities: Optional[pd.DataFrame] = None,
-        target_intensities: Optional[pd.DataFrame] = None,
-        cache: Optional[MutableMapping[str, Any]] = None,
+        source_dists: xr.DataArray | None = None,
+        target_dists: xr.DataArray | None = None,
+        source_intensities: pd.DataFrame | None = None,
+        target_intensities: pd.DataFrame | None = None,
+        cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._pre_match_graphs(
             source_adj,
@@ -422,11 +422,11 @@ class _GraphMatchingMixin:
         self,
         source_adj: xr.DataArray,
         target_adj: xr.DataArray,
-        source_dists: Optional[xr.DataArray],
-        target_dists: Optional[xr.DataArray],
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_dists: xr.DataArray | None,
+        target_dists: xr.DataArray | None,
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> None:
         pass
 
@@ -435,11 +435,11 @@ class _GraphMatchingMixin:
         self,
         source_adj: xr.DataArray,
         target_adj: xr.DataArray,
-        source_dists: Optional[xr.DataArray],
-        target_dists: Optional[xr.DataArray],
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_dists: xr.DataArray | None,
+        target_dists: xr.DataArray | None,
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         raise NotImplementedError()
 
@@ -447,11 +447,11 @@ class _GraphMatchingMixin:
         self,
         source_adj: xr.DataArray,
         target_adj: xr.DataArray,
-        source_dists: Optional[xr.DataArray],
-        target_dists: Optional[xr.DataArray],
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_dists: xr.DataArray | None,
+        target_dists: xr.DataArray | None,
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
         info: dict[str, Any],
         scores: xr.DataArray,
     ) -> tuple[dict[str, Any], xr.DataArray]:
@@ -464,7 +464,7 @@ class MatchingAlgorithm(ABC):
 
 class MaskMatchingAlgorithm(MatchingAlgorithm, _MaskMatchingMixin):
     def __init__(self) -> None:
-        super(MaskMatchingAlgorithm, self).__init__()
+        super().__init__()
         self._init_mask_matching()
 
 
@@ -472,12 +472,12 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
     def __init__(
         self,
         *,
-        outlier_dist: Optional[float],
+        outlier_dist: float | None,
         point_feature: str,
         intensity_feature: str,
-        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
     ) -> None:
-        super(PointsMatchingAlgorithm, self).__init__()
+        super().__init__()
         self._init_points_matching(
             outlier_dist=outlier_dist,
             point_feature=point_feature,
@@ -489,10 +489,10 @@ class PointsMatchingAlgorithm(MaskMatchingAlgorithm, _PointsMatchingMixin):
         self,
         source_mask: xr.DataArray,
         target_mask: xr.DataArray,
-        source_img: Optional[xr.DataArray],
-        target_img: Optional[xr.DataArray],
-        prior_transform: Optional[ProjectiveTransform],
-        cache: Optional[MutableMapping[str, Any]],
+        source_img: xr.DataArray | None,
+        target_img: xr.DataArray | None,
+        prior_transform: ProjectiveTransform | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         return self._match_points_from_masks(
             source_mask,
@@ -518,22 +518,22 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
     def __init__(
         self,
         *,
-        outlier_dist: Optional[float],
+        outlier_dist: float | None,
         point_feature: str,
         intensity_feature: str,
-        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        transform_type: Union[str, type[ProjectiveTransform]],
-        transform_estim_type: Union[str, TransformEstimationType],
-        transform_estim_k_best: Optional[int],
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
+        transform_type: str | type[ProjectiveTransform],
+        transform_estim_type: str | TransformEstimationType,
+        transform_estim_k_best: int | None,
         max_iter: int,
-        scores_tol: Optional[float],
-        transform_tol: Optional[float],
+        scores_tol: float | None,
+        transform_tol: float | None,
     ) -> None:
         if isinstance(transform_type, str):
             transform_type = self.TRANSFORM_TYPES[transform_type]
         if isinstance(transform_estim_type, str):
             transform_estim_type = self.TransformEstimationType(transform_estim_type)
-        super(IterativePointsMatchingAlgorithm, self).__init__(
+        super().__init__(
             outlier_dist=outlier_dist,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
@@ -552,12 +552,12 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_bbox: Optional[Polygon] = None,
-        target_bbox: Optional[Polygon] = None,
-        source_intensities: Optional[pd.DataFrame] = None,
-        target_intensities: Optional[pd.DataFrame] = None,
-        prior_transform: Optional[ProjectiveTransform] = None,
-        cache: Optional[MutableMapping[str, Any]] = None,
+        source_bbox: Polygon | None = None,
+        target_bbox: Polygon | None = None,
+        source_intensities: pd.DataFrame | None = None,
+        target_intensities: pd.DataFrame | None = None,
+        prior_transform: ProjectiveTransform | None = None,
+        cache: MutableMapping[str, Any] | None = None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         seconds = 0
         converged = False
@@ -572,7 +572,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
             start = timer()
             logger.info(f"Iterative algorithm iteration {iteration + 1}")
             self._prepare_iteration_cache(iteration, iteration_cache)
-            info, scores = super(IterativePointsMatchingAlgorithm, self).match_points(
+            info, scores = super().match_points(
                 source_name,
                 target_name,
                 source_points,
@@ -632,7 +632,7 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
         scores: xr.DataArray,
-    ) -> Optional[ProjectiveTransform]:
+    ) -> ProjectiveTransform | None:
         if self.transform_estim_type == self.TransformEstimationType.MAX_SCORE:
             max_score_ind = np.argmax(scores.to_numpy(), axis=1)
             max_scores = np.take_along_axis(
@@ -674,10 +674,10 @@ class IterativePointsMatchingAlgorithm(PointsMatchingAlgorithm):
 
     def _check_convergence(
         self,
-        last_scores: Optional[xr.DataArray],
+        last_scores: xr.DataArray | None,
         current_scores: xr.DataArray,
-        current_transform: Optional[ProjectiveTransform],
-        updated_transform: Optional[ProjectiveTransform],
+        current_transform: ProjectiveTransform | None,
+        updated_transform: ProjectiveTransform | None,
     ) -> bool:
         converged = False
         scores_loss = float("inf")
@@ -703,11 +703,11 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
         *,
         point_feature: str,
         intensity_feature: str,
-        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
         filter_outliers: bool,
         adj_radius: float,
     ) -> None:
-        super(GraphMatchingAlgorithm, self).__init__(
+        super().__init__(
             outlier_dist=adj_radius if filter_outliers else None,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
@@ -721,9 +721,9 @@ class GraphMatchingAlgorithm(PointsMatchingAlgorithm, _GraphMatchingMixin):
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         return self._match_graphs_from_points(
             source_name,
@@ -744,19 +744,18 @@ class IterativeGraphMatchingAlgorithm(
         *,
         point_feature: str,
         intensity_feature: str,
-        intensity_transform: Union[str, Callable[[np.ndarray], np.ndarray], None],
-        transform_type: Union[str, type[ProjectiveTransform]],
-        transform_estim_type: Union[
-            str, IterativePointsMatchingAlgorithm.TransformEstimationType
-        ],
-        transform_estim_k_best: Optional[int],
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
+        transform_type: str | type[ProjectiveTransform],
+        transform_estim_type: str
+        | IterativePointsMatchingAlgorithm.TransformEstimationType,
+        transform_estim_k_best: int | None,
         max_iter: int,
-        scores_tol: Optional[float],
-        transform_tol: Optional[float],
+        scores_tol: float | None,
+        transform_tol: float | None,
         filter_outliers: bool,
         adj_radius: float,
     ) -> None:
-        super(IterativeGraphMatchingAlgorithm, self).__init__(
+        super().__init__(
             outlier_dist=adj_radius if filter_outliers else None,
             point_feature=point_feature,
             intensity_feature=intensity_feature,
@@ -773,9 +772,7 @@ class IterativeGraphMatchingAlgorithm(
     def _prepare_iteration_cache(
         self, iteration: int, iteration_cache: dict[str, Any]
     ) -> None:
-        super(IterativeGraphMatchingAlgorithm, self)._prepare_iteration_cache(
-            iteration, iteration_cache
-        )
+        super()._prepare_iteration_cache(iteration, iteration_cache)
         if iteration > 0 and self.outlier_dist is not None:
             # point filtering has been updated --> cached graph is invalid
             for key in ["source_adj", "target_adj", "source_dists", "target_dists"]:
@@ -787,9 +784,9 @@ class IterativeGraphMatchingAlgorithm(
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         return self._match_graphs_from_points(
             source_name,

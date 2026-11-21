@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable, MutableMapping
 from timeit import default_timer as timer
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 @hookimpl
 def spellmatch_get_mask_matching_algorithm(
-    name: Optional[str],
-) -> Union[Optional[type[MaskMatchingAlgorithm]], list[str]]:
+    name: str | None,
+) -> type[MaskMatchingAlgorithm] | None | list[str]:
     algorithms = {
         "spellmatch": Spellmatch,
     }
@@ -41,24 +41,22 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         *,
         point_feature: str = "centroid",
         intensity_feature: str = "intensity_mean",
-        intensity_transform: Union[
-            str, Callable[[np.ndarray], np.ndarray], None
-        ] = None,
+        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None = None,
         transform_type: str = "rigid",
         transform_estim_type: str = "max_score",
         transform_estim_k_best: int = 50,
         max_iter: int = 50,
-        scores_tol: Optional[float] = None,
-        transform_tol: Optional[float] = None,
+        scores_tol: float | None = None,
+        transform_tol: float | None = None,
         filter_outliers: bool = True,
         adj_radius: float = 15,
         alpha: float = 0.8,
-        spatial_cdist_prior_thres: Optional[float] = None,
-        max_spatial_cdist: Optional[float] = None,
+        spatial_cdist_prior_thres: float | None = None,
+        max_spatial_cdist: float | None = None,
         degree_weight: float = 0,
         degree_cdiff_thres: int = 3,
         intensity_weight: float = 0,
-        intensity_interp_lmd: Union[int, float] = 11,
+        intensity_interp_lmd: int | float = 11,
         intensity_interp_cca_n_components: int = 10,
         intensity_shared_pca_n_components: int = 5,
         intensity_all_cca_fit_k_closest: int = 500,
@@ -72,7 +70,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         opt_tol: float = 1e-6,
         precision: str = "float32",
     ) -> None:
-        super(Spellmatch, self).__init__(
+        super().__init__(
             point_feature=point_feature,
             intensity_feature=intensity_feature,
             intensity_transform=intensity_transform,
@@ -104,13 +102,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self.opt_max_iter = opt_max_iter
         self.opt_tol = opt_tol
         self.precision = np.dtype(precision).type
-        self._current_source_points: Optional[pd.DataFrame] = None
-        self._current_target_points: Optional[pd.DataFrame] = None
+        self._current_source_points: pd.DataFrame | None = None
+        self._current_target_points: pd.DataFrame | None = None
 
     def _prepare_iteration_cache(
         self, iteration: int, iteration_cache: dict[str, Any]
     ) -> None:
-        super(Spellmatch, self)._prepare_iteration_cache(iteration, iteration_cache)
+        super()._prepare_iteration_cache(iteration, iteration_cache)
         if iteration > 0:
             # transform has been updated --> cached spatial cross-distance is invalid
             iteration_cache.pop("spatial_cdist", None)
@@ -128,13 +126,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         target_name: str,
         source_points: pd.DataFrame,
         target_points: pd.DataFrame,
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_source_points = source_points
         self._current_target_points = target_points
-        info, scores = super(Spellmatch, self)._match_graphs_from_points(
+        info, scores = super()._match_graphs_from_points(
             source_name,
             target_name,
             source_points,
@@ -151,11 +149,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         source_adj: xr.DataArray,
         target_adj: xr.DataArray,
-        source_dists: Optional[xr.DataArray],
-        target_dists: Optional[xr.DataArray],
-        source_intensities: Optional[pd.DataFrame],
-        target_intensities: Optional[pd.DataFrame],
-        cache: Optional[MutableMapping[str, Any]],
+        source_dists: xr.DataArray | None,
+        target_dists: xr.DataArray | None,
+        source_intensities: pd.DataFrame | None,
+        target_intensities: pd.DataFrame | None,
+        cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         c = cache if cache is not None else {}
         n1 = len(source_adj)
@@ -340,11 +338,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         n2: int,
         adj_csr: sparse.csr_array,
         deg: np.ndarray,
-        degree_cdist: Optional[np.ndarray],
-        intensity_cdist_shared: Optional[np.ndarray],
-        intensity_cdist_all: Optional[np.ndarray],
-        distance_cdist_csr: Optional[sparse.csr_array],
-        spatial_cdist: Optional[np.ndarray],
+        degree_cdist: np.ndarray | None,
+        intensity_cdist_shared: np.ndarray | None,
+        intensity_cdist_all: np.ndarray | None,
+        distance_cdist_csr: sparse.csr_array | None,
+        spatial_cdist: np.ndarray | None,
         lmd: float,
     ) -> tuple[dict[str, Any], np.ndarray]:
         if intensity_cdist_shared is not None and intensity_cdist_all is not None:

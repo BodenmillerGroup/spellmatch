@@ -96,3 +96,11 @@ packages = ["spellmatch"]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--cov=spellmatch", "--cov-report=xml"]
 pythonpath = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]

@@ -11,7 +11,7 @@ There are three main types of matching algorithms implemented in spellmatch:
   The two masks (images) are expected to approximately align (co-register) in physical
   space; their physical alignment can be specified using a projective *transform*.
 
-- **Points matching algorithms** take pairs of *points* (i.e., sets of spatial cell 
+- **Points matching algorithms** take pairs of *points* (i.e., sets of spatial cell
   coordinates) and, optionally, corresponding single-cell *intensities* to produce cell
   alignment scores. The two sets of points are expected to approximately align
   (co-register) in physical space; their physical alignment can be specified using a

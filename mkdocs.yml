@@ -18,7 +18,7 @@ plugins:
       arguments:
         securityLevel: 'loose'
   # - mkdocstrings:
-  #     watch: 
+  #     watch:
   #     - spellmatch
   #     default_handler: python
   #     handlers:

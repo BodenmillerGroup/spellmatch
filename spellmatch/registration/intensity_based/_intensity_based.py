@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Union
 
 import numpy as np
 import SimpleITK as sitk
@@ -10,9 +9,9 @@ from ...utils import show_image
 from .sitk_metrics import SITKMetric
 from .sitk_optimizers import SITKOptimizer
 
-SITKProjectiveTransform = Union[
-    sitk.Euler2DTransform, sitk.Similarity2DTransform, sitk.AffineTransform
-]
+SITKProjectiveTransform = (
+    sitk.Euler2DTransform | sitk.Similarity2DTransform | sitk.AffineTransform
+)
 
 logger = logging.getLogger(__name__.rpartition(".")[0])
 
@@ -29,7 +28,7 @@ def register_image_intensities(
     sitk_metric: SITKMetric,
     sitk_optimizer: SITKOptimizer,
     sitk_transform_type: type[SITKProjectiveTransform] = sitk.AffineTransform,
-    initial_transform: Optional[ProjectiveTransform] = None,
+    initial_transform: ProjectiveTransform | None = None,
     show: bool = False,
     hold: bool = False,
 ) -> ProjectiveTransform:

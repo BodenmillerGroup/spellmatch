@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -16,11 +14,11 @@ from ._qt import QInteractiveRegistrationDialog
 def register_interactive(
     source_mask: xr.DataArray,
     target_mask: xr.DataArray,
-    source_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
-    target_img: Optional[Union[np.ndarray, xr.DataArray]] = None,
+    source_img: np.ndarray | xr.DataArray | None = None,
+    target_img: np.ndarray | xr.DataArray | None = None,
     transform_type: type[ProjectiveTransform] = AffineTransform,
-    assignment: Optional[pd.DataFrame] = None,
-) -> Optional[tuple[pd.DataFrame, Optional[ProjectiveTransform]]]:
+    assignment: pd.DataFrame | None = None,
+) -> tuple[pd.DataFrame, ProjectiveTransform | None] | None:
     if source_mask.ndim != 2 or target_mask.ndim != 2:
         raise NotImplementedError("3D registration is not supported")
     if source_img is not None and source_img.shape[-2:] != source_mask.shape:
@@ -95,8 +93,8 @@ def register_interactive(
 
 
 def _create_viewer(
-    title: str, mask: xr.DataArray, img: Optional[xr.DataArray] = None
-) -> tuple[Viewer, Labels, Optional[list[Image]]]:
+    title: str, mask: xr.DataArray, img: xr.DataArray | None = None
+) -> tuple[Viewer, Labels, list[Image] | None]:
     if img is not None and img.name is not None:
         title += f": {img.name}"
     viewer = Viewer(title=title, axis_labels=("y", "x"), show=False)

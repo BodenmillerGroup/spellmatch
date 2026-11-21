@@ -1,10 +1,10 @@
 import multiprocessing as mp
 import queue
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from os import PathLike, cpu_count
 from pathlib import Path
 from timeit import default_timer as timer
-from typing import Any, Generator, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -27,19 +27,19 @@ class RunConfig(BaseModel):
 
 def run(
     run_config: RunConfig,
-    scores_file: Union[str, PathLike],
-    reverse_scores_file: Union[str, PathLike, None] = None,
-) -> tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]]:
+    scores_file: str | PathLike,
+    reverse_scores_file: str | PathLike | None = None,
+) -> tuple[dict[str, Any], xr.DataArray | None, xr.DataArray | None]:
     scores_file = Path(scores_file)
     if reverse_scores_file is not None:
         reverse_scores_file = Path(reverse_scores_file)
     scores_info = run_config.info.copy()
     algorithm = None
     try:
-        algorithm_types: list[
-            type[PointsMatchingAlgorithm]
-        ] = plugin_manager.hook.spellmatch_get_mask_matching_algorithm(
-            name=run_config.algorithm_name
+        algorithm_types: list[type[PointsMatchingAlgorithm]] = (
+            plugin_manager.hook.spellmatch_get_mask_matching_algorithm(
+                name=run_config.algorithm_name
+            )
         )
         assert len(algorithm_types) == 1
         algorithm_type = algorithm_types[0]
@@ -97,10 +97,10 @@ def run(
 
 def run_sequential(
     run_configs: Iterable[RunConfig],
-    scores_dir: Union[str, PathLike],
+    scores_dir: str | PathLike,
     offset: int = 0,
 ) -> Generator[
-    tuple[dict[str, Any], Optional[xr.DataArray], Optional[xr.DataArray]],
+    tuple[dict[str, Any], xr.DataArray | None, xr.DataArray | None],
     None,
     pd.DataFrame,
 ]:
@@ -120,9 +120,9 @@ def run_sequential(
 
 def run_parallel(
     run_configs: Iterable[RunConfig],
-    scores_dir: Union[str, PathLike],
+    scores_dir: str | PathLike,
     offset: int = 0,
-    n_processes: Optional[int] = None,
+    n_processes: int | None = None,
     queue_size: int = None,
     worker_timeout: int = 1,
 ) -> Generator[RunConfig, None, pd.DataFrame]:
@@ -169,7 +169,7 @@ class _WorkerProcess(mp.Process):
         timeout: int,
         **kwargs: Any,
     ) -> None:
-        super(_WorkerProcess, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.run_config_queue = run_config_queue
         self.scores_info_queue = scores_info_queue
         self.scores_dir = scores_dir
@@ -183,8 +183,7 @@ class _WorkerProcess(mp.Process):
                 scores_info, scores, reverse_scores = run(
                     run_config,
                     self.scores_dir / f"scores{i:06d}.nc",
-                    reverse_scores_file=self.scores_dir
-                    / f"scores{i:06d}_reverse.nc",
+                    reverse_scores_file=self.scores_dir / f"scores{i:06d}_reverse.nc",
                 )
                 self.scores_info_queue.put(scores_info)
             except queue.Empty:
