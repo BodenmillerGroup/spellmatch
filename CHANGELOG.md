@@ -73,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `nonfree` extra: the OpenCV packages on PyPI (including
   `opencv-contrib-python-headless`) do not include patented algorithms such as SURF,
   which require an OpenCV build with `OPENCV_ENABLE_NONFREE`
+- `spellmatch.utils.create_graph` (dense adjacency and distance matrices); use
+  `SparseGraph.from_points` instead
 
 ### Fixed
 
