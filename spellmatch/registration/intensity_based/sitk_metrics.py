@@ -8,7 +8,7 @@ from pydantic import BaseModel
 class SITKMetric(BaseModel, ABC):
     sampling_percentage: float = 1
     sampling_strategy: str = "NONE"
-    sampling_seed: int = sitk.sitkWallClock
+    sampling_seed: int = 42  # reproducibility; set to sitk.sitkWallClock (0) for random
 
     class SamplingStrategy(Enum):
         NONE = sitk.ImageRegistrationMethod.NONE

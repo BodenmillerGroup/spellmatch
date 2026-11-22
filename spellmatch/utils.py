@@ -86,12 +86,17 @@ def preprocess_image(
     if not inplace:
         img = img.copy()
     if median_filter_size is not None:
-        img[:] = median_filter(img.to_numpy(), size=median_filter_size)
+        size = [1 if dim == "c" else median_filter_size for dim in img.dims]
+        img[:] = median_filter(img.to_numpy(), size=size)
     if clipping_quantile is not None:
-        clipping_max = np.quantile(img.to_numpy(), clipping_quantile)
+        spatial_axes = tuple(i for i, dim in enumerate(img.dims) if dim != "c")
+        clipping_max = np.quantile(
+            img.to_numpy(), clipping_quantile, axis=spatial_axes, keepdims=True
+        )
         img[:] = np.clip(img.to_numpy(), None, clipping_max)
     if gaussian_filter_sigma is not None:
-        img[:] = gaussian_filter(img.to_numpy(), gaussian_filter_sigma)
+        sigma = [0 if dim == "c" else gaussian_filter_sigma for dim in img.dims]
+        img[:] = gaussian_filter(img.to_numpy(), sigma)
     if not inplace:
         return img
     return None
@@ -108,7 +113,7 @@ def compute_points(
         + 0.5
     )[:, ::-1]
     if "scale" in mask.attrs:
-        points *= np.expand_dims(mask.attrs["scale"], 0)
+        points *= np.expand_dims(np.asarray(mask.attrs["scale"])[::-1], 0)
     return pd.DataFrame(
         data=points,
         index=pd.Index(data=[r["label"] for r in regions], name="cell"),
@@ -149,7 +154,7 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
         ]
     )
     if "scale" in mask.attrs:
-        bbox_shell *= np.expand_dims(mask.attrs["scale"], 0)
+        bbox_shell *= np.expand_dims(np.asarray(mask.attrs["scale"])[::-1], 0)
     return Polygon(shell=bbox_shell)
 
 
