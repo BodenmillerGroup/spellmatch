@@ -1,3 +1,5 @@
+"""Matching algorithms based on the registration algorithms in ``_vendor``."""
+
 import logging
 from abc import abstractmethod
 from collections.abc import Callable, MutableMapping
@@ -9,17 +11,17 @@ import xarray as xr
 from skimage.transform import ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
-from ..._spellmatch import hookimpl
-from ._algorithms import MaskMatchingAlgorithm, PointsMatchingAlgorithm
-from ._probreg import bcpd, cpd, l2dist_regs
-from ._probreg.transformation import NormalizedTransformation, Transformation
+from ...._spellmatch import hookimpl
+from .._algorithms import MaskMatchingAlgorithm, PointsMatchingAlgorithm
+from ._vendor import bcpd, cpd, l2dist_regs
+from ._vendor.transformation import NormalizedTransformation, Transformation
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
     cp = None
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__.rpartition(".")[0])
 
 
 def _cuda_available() -> bool:

@@ -34,7 +34,7 @@ Implementation based on [simpleICP](https://github.com/pglira/simpleICP)
 The following algorithms are adapted from
 [probreg](https://github.com/neka-nat/probreg) 0.3.8 (MIT License, Copyright (c) 2019
 neka-nat) and are included in spellmatch as pure Python code. Compared to probreg, they
-support 2D point sets and fix several bugs (see `spellmatch/matching/algorithms/_probreg`).
+support 2D point sets and fix several bugs (see `spellmatch/matching/algorithms/probreg/_vendor`).
 GMMReg, SVR and BCPD operate on normalized point sets (common centroid and standard
 deviation), i.e., their parameters are relative to the extent of the point sets. After
 registering the point sets, each source cell is matched to its closest target cell.
