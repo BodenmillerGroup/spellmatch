@@ -121,11 +121,14 @@ def write_transform(
 
 
 def read_scores(scores_file: str | PathLike) -> xr.DataArray:
-    return xr.open_dataarray(scores_file, engine="scipy")
+    with xr.open_dataarray(scores_file) as scores:
+        return scores.load()
 
 
 def write_scores(scores_file: str | PathLike, scores: xr.DataArray) -> None:
-    scores.to_netcdf(scores_file, format="NETCDF3_CLASSIC", engine="scipy")
+    scores = scores.copy(deep=False)
+    scores.encoding = {**scores.encoding, "compression": "gzip"}
+    scores.to_netcdf(scores_file, format="NETCDF4", engine="h5netcdf")
 
 
 def read_assignment(assignment_file: str | PathLike) -> pd.DataFrame:

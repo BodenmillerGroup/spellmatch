@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `match_graphs` also accepts `SparseGraph` objects (see `SparseGraph.from_points`)
 - Restored scores (outlier filtering) keep the precision of the algorithm (float32 for
   Spellmatch) instead of float64
+- Scores files are written as compressed NETCDF4 (requires h5netcdf/h5py) instead of
+  NETCDF3_CLASSIC, which limited score matrices to 2 GiB; NETCDF3 files written by
+  previous versions can still be read
+- ICP now defaults to `scores_tol=1e-6`, i.e., it stops once the assignments no longer
+  change (previously, it always ran `max_iter=200` iterations); results are unchanged
 
 ### Removed
 

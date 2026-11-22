@@ -36,7 +36,7 @@ class IterativeClosestPoints(IterativePointsMatchingAlgorithm):
         intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None = None,
         transform_type: str | type[ProjectiveTransform] = "rigid",
         max_iter: int = 200,
-        scores_tol: float | None = None,
+        scores_tol: float | None = 1e-6,
         transform_tol: float | None = None,
         filter_outliers: bool = True,
         max_dist: float | None = None,
