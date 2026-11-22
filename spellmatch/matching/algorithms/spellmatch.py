@@ -1,6 +1,7 @@
 import logging
 import warnings
 from collections.abc import Callable, MutableMapping
+from dataclasses import dataclass
 from enum import Enum
 from timeit import default_timer as timer
 from typing import Any
@@ -11,12 +12,15 @@ import xarray as xr
 from scipy import sparse
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import distance
+from shapely.geometry import Polygon
+from skimage.transform import ProjectiveTransform
 from sklearn.cross_decomposition import CCA
 from sklearn.decomposition import TruncatedSVD
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
+from ...sparse_graph import SparseGraph
 from ...utils import make_unique_names
 from ._algorithms import (
     IterativeGraphMatchingAlgorithm,
@@ -140,25 +144,32 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             self._warned.add(key)
             logger.warning(message)
 
-    def _prepare_iteration_cache(
-        self, iteration: int, iteration_cache: dict[str, Any], distances_changed: bool
-    ) -> None:
-        super()._prepare_iteration_cache(iteration, iteration_cache, distances_changed)
-        if iteration == 0:
-            self._warned.clear()
-        if iteration > 0:
-            # transform has been updated --> cached spatial cross-distance and
-            # all-marker intensity cross-distance (fitted on nearest neighbors under
-            # the current transform) are invalid
-            iteration_cache.pop("spatial_cdist", None)
-            iteration_cache.pop("intensity_cdist_all", None)
-        if iteration > 0 and (self.outlier_dist is not None or distances_changed):
-            # graphs have been updated --> cached graph cross-distances are invalid
-            iteration_cache.pop("degree_cdist", None)
-            iteration_cache.pop("distance_cdist_csr", None)
-        if iteration > 0 and self.outlier_dist is not None:
-            # point filtering has been updated --> cached cross-distances are invalid
-            iteration_cache.pop("intensity_cdist_shared", None)
+    def match_points(
+        self,
+        source_name: str,
+        target_name: str,
+        source_points: pd.DataFrame,
+        target_points: pd.DataFrame,
+        source_bbox: Polygon | None = None,
+        target_bbox: Polygon | None = None,
+        source_intensities: pd.DataFrame | None = None,
+        target_intensities: pd.DataFrame | None = None,
+        prior_transform: ProjectiveTransform | None = None,
+        cache: MutableMapping[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], xr.DataArray]:
+        self._warned.clear()  # warnings are logged once per matching run
+        return super().match_points(
+            source_name,
+            target_name,
+            source_points,
+            target_points,
+            source_bbox=source_bbox,
+            target_bbox=target_bbox,
+            source_intensities=source_intensities,
+            target_intensities=target_intensities,
+            prior_transform=prior_transform,
+            cache=cache,
+        )
 
     def _match_graphs_from_points(
         self,
@@ -168,6 +179,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         target_points: pd.DataFrame,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
         self._current_source_points = source_points
@@ -179,6 +191,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             target_points,
             source_intensities,
             target_intensities,
+            prior_transform,
             cache,
         )
         self._current_source_points = None
@@ -187,30 +200,38 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
 
     def _match_graphs(
         self,
-        source_adj: xr.DataArray,
-        target_adj: xr.DataArray,
-        source_dists: xr.DataArray | None,
-        target_dists: xr.DataArray | None,
+        source_graph: SparseGraph,
+        target_graph: SparseGraph,
         source_intensities: pd.DataFrame | None,
         target_intensities: pd.DataFrame | None,
+        prior_transform: ProjectiveTransform | None,
         cache: MutableMapping[str, Any] | None,
     ) -> tuple[dict[str, Any], xr.DataArray]:
+        if self.distance_weight > 0 and (
+            source_graph.dists is None or target_graph.dists is None
+        ):
+            raise SpellmatchException(
+                "Distances are required for computing their cross-distance"
+            )
         c = cache if cache is not None else {}
-        n1 = len(source_adj)
-        n2 = len(target_adj)
-        adj1 = source_adj.to_numpy().astype(np.bool_)
-        adj2 = target_adj.to_numpy().astype(np.bool_)
-        adj_csr = sparse.csr_array(
-            sparse.kron(sparse.csr_array(adj1), sparse.csr_array(adj2), format="csr")
-        )
-        deg1 = np.sum(adj1, axis=1, dtype=self.precision)
-        deg2 = np.sum(adj2, axis=1, dtype=self.precision)
+        if (
+            c.get("cdist_source_graph") is not source_graph
+            or c.get("cdist_target_graph") is not target_graph
+        ):
+            for key in ["degree_cdist", "intensity_cdist_shared", "product_graph"]:
+                c.pop(key, None)
+            c["cdist_source_graph"] = source_graph
+            c["cdist_target_graph"] = target_graph
         if "degree_cdist" not in c:
             c["degree_cdist"] = None
             if self.degree_weight > 0.0:
                 logger.debug("Computing degree cross-distance")
-                c["degree_cdist"] = self._compute_degree_cdist(deg1, deg2)
+                c["degree_cdist"] = self._compute_degree_cdist(
+                    source_graph.degrees.astype(self.precision),
+                    target_graph.degrees.astype(self.precision),
+                )
                 assert c["degree_cdist"].dtype == self.precision
+        degree_cdist = c["degree_cdist"]
         if "intensity_cdist_shared" not in c:
             c["intensity_cdist_shared"] = None
             if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 0.0:
@@ -223,102 +244,92 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     source_intensities, target_intensities
                 )
                 assert c["intensity_cdist_shared"].dtype == self.precision
-        if "intensity_cdist_all" not in c:
-            c["intensity_cdist_all"] = None
-            if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 1.0:
-                if source_intensities is None or target_intensities is None:
-                    raise SpellmatchException(
-                        "Intensities are required for computing their cross-distance"
-                    )
-                if (
-                    self._current_source_points is None
-                    or self._current_target_points is None
-                ):
-                    raise SpellmatchException(
-                        "Computing intensity cross-distances on all markers requires "
-                        "running Spellmatch in point set registration mode"
-                    )
-                if c.get("prior_transform") is None:
-                    logger.info(
-                        "No spatial transform available, not using the intensity "
-                        "cross-distance from all markers in this iteration"
-                    )
-                else:
-                    logger.debug("Computing intensity cross-distance (all markers)")
-                    c["intensity_cdist_all"] = self._compute_intensity_cdist_all(
-                        self._current_source_points,
-                        self._current_target_points,
-                        source_intensities,
-                        target_intensities,
-                    )
-                    assert c["intensity_cdist_all"].dtype == self.precision
-        if "distance_cdist_csr" not in c:
-            c["distance_cdist_csr"] = None
-            if self.distance_weight > 0:
-                if source_dists is None or target_dists is None:
-                    raise SpellmatchException(
-                        "Distances are required for computing their cross-distance"
-                    )
-                logger.debug("Computing distance cross-distance")
-                c["distance_cdist_csr"] = self._compute_distance_cdist(
-                    adj1,
-                    adj2,
-                    source_dists.to_numpy().astype(self.precision),
-                    target_dists.to_numpy().astype(self.precision),
-                )
-                assert c["distance_cdist_csr"].dtype == self.precision
-        if "spatial_cdist" not in c:
-            c["spatial_cdist"] = None
-            if (
-                self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None
-            ) or self.max_spatial_cdist is not None:
-                if (
-                    self._current_source_points is None
-                    or self._current_target_points is None
-                ):
-                    raise SpellmatchException(
-                        "Computing spatial cross-distance requires running Spellmatch "
-                        "in point set registration or mask matching mode"
-                    )
-                if c.get("prior_transform") is None:
-                    logger.info(
-                        "No spatial transform available, not using the spatial prior "
-                        "and the maximum spatial cross-distance in this iteration"
-                    )
-                else:
-                    logger.debug("Computing spatial cross-distance")
-                    c["spatial_cdist"] = np.asarray(
-                        distance.cdist(
-                            self._current_source_points.to_numpy(self.precision),
-                            self._current_target_points.to_numpy(self.precision),
-                        ),
-                        dtype=self.precision,
-                    )
-        degree_cdist = c["degree_cdist"]
         intensity_cdist_shared = c["intensity_cdist_shared"]
-        intensity_cdist_all = c["intensity_cdist_all"]
-        distance_cdist_csr = c["distance_cdist_csr"]
-        spatial_cdist = c["spatial_cdist"]
-        candidates = None
+        n1 = len(source_graph)
+        n2 = len(target_graph)
+        intensity_cdist_all = None
+        if self.intensity_weight > 0.0 and self.intensity_interp_lmd != 1.0:
+            if source_intensities is None or target_intensities is None:
+                raise SpellmatchException(
+                    "Intensities are required for computing their cross-distance"
+                )
+            if (
+                self._current_source_points is None
+                or self._current_target_points is None
+            ):
+                raise SpellmatchException(
+                    "Computing intensity cross-distances on all markers requires "
+                    "running Spellmatch in point set registration mode"
+                )
+            if prior_transform is None:
+                logger.info(
+                    "No spatial transform available, not using the intensity "
+                    "cross-distance from all markers in this iteration"
+                )
+            else:
+                logger.debug("Computing intensity cross-distance (all markers)")
+                intensity_cdist_all = self._compute_intensity_cdist_all(
+                    self._current_source_points,
+                    self._current_target_points,
+                    source_intensities,
+                    target_intensities,
+                )
+                assert intensity_cdist_all.dtype == self.precision
+        spatial_cdist = None
+        if (
+            self.alpha != 1.0 and self.spatial_cdist_prior_thres is not None
+        ) or self.max_spatial_cdist is not None:
+            if (
+                self._current_source_points is None
+                or self._current_target_points is None
+            ):
+                raise SpellmatchException(
+                    "Computing spatial cross-distance requires running Spellmatch "
+                    "in point set registration or mask matching mode"
+                )
+            if prior_transform is None:
+                logger.info(
+                    "No spatial transform available, not using the spatial prior "
+                    "and the maximum spatial cross-distance in this iteration"
+                )
+            else:
+                logger.debug("Computing spatial cross-distance")
+                spatial_cdist = np.asarray(
+                    distance.cdist(
+                        self._current_source_points.to_numpy(self.precision),
+                        self._current_target_points.to_numpy(self.precision),
+                    ),
+                    dtype=self.precision,
+                )
+        cell_pairs = None
         if self.max_spatial_cdist is not None and spatial_cdist is not None:
-            candidates = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
-            if len(candidates) == 0:
+            cell_pairs = np.flatnonzero(spatial_cdist <= self.max_spatial_cdist)
+            if len(cell_pairs) == 0:
                 raise SpellmatchException(
                     "No candidate cell pairs within the maximum spatial cross-distance"
                 )
             logger.info(
-                f"Restricting to {len(candidates)} of {n1 * n2} candidate cell pairs"
+                f"Restricting to {len(cell_pairs)} of {n1 * n2} candidate cell pairs"
             )
-            adj_csr = adj_csr[candidates][:, candidates]
             if degree_cdist is not None:
-                degree_cdist = degree_cdist.ravel()[candidates]
+                degree_cdist = degree_cdist.ravel()[cell_pairs]
             if intensity_cdist_shared is not None:
-                intensity_cdist_shared = intensity_cdist_shared.ravel()[candidates]
+                intensity_cdist_shared = intensity_cdist_shared.ravel()[cell_pairs]
             if intensity_cdist_all is not None:
-                intensity_cdist_all = intensity_cdist_all.ravel()[candidates]
-            if distance_cdist_csr is not None:
-                distance_cdist_csr = distance_cdist_csr[candidates][:, candidates]
-            spatial_cdist = spatial_cdist.ravel()[candidates]
+                intensity_cdist_all = intensity_cdist_all.ravel()[cell_pairs]
+            spatial_cdist = spatial_cdist.ravel()[cell_pairs]
+        if "product_graph" not in c or not np.array_equal(
+            c["product_graph"].cell_pairs, cell_pairs
+        ):
+            logger.debug("Constructing product graph")
+            c["product_graph"] = _ProductGraph.build(
+                source_graph,
+                target_graph,
+                cell_pairs,
+                self.precision,
+                self.distance_cdiff_thres if self.distance_weight > 0 else None,
+            )
+        product_graph = c["product_graph"]
         if (
             intensity_cdist_shared is None
             or intensity_cdist_all is None
@@ -336,12 +347,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             info, scores_data = self._match_graphs_for_lambda(
                 n1,
                 n2,
-                candidates,
-                adj_csr,
+                cell_pairs,
+                product_graph,
                 degree_cdist,
                 intensity_cdist_shared,
                 intensity_cdist_all,
-                distance_cdist_csr,
                 spatial_cdist,
                 lmd,
             )
@@ -376,12 +386,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 current_info, current_scores_data = self._match_graphs_for_lambda(
                     n1,
                     n2,
-                    candidates,
-                    adj_csr,
+                    cell_pairs,
+                    product_graph,
                     degree_cdist,
                     intensity_cdist_shared,
                     intensity_cdist_all,
-                    distance_cdist_csr,
                     spatial_cdist,
                     current_lmd,
                 )
@@ -409,14 +418,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     cancor_mean = current_cancor_mean
             logger.info(f"Best lambda={lmd:.3g} (CC mean={cancor_mean:.6f})")
         source_name, target_name = make_unique_names(
-            source_adj.name or "source", target_adj.name or "target"
+            source_graph.name or "source", target_graph.name or "target"
         )
         scores = xr.DataArray(
             data=scores_data,
-            coords={
-                source_name: source_adj.coords["a"].to_numpy(),
-                target_name: target_adj.coords["x"].to_numpy(),
-            },
+            coords={source_name: source_graph.labels, target_name: target_graph.labels},
         )
         return info, scores
 
@@ -424,12 +430,11 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         self,
         n1: int,
         n2: int,
-        candidates: np.ndarray | None,
-        adj_csr: sparse.csr_array,
+        cell_pairs: np.ndarray | None,
+        product_graph: "_ProductGraph",
         degree_cdist: np.ndarray | None,
         intensity_cdist_shared: np.ndarray | None,
         intensity_cdist_all: np.ndarray | None,
-        distance_cdist_csr: sparse.csr_array | None,
         spatial_cdist: np.ndarray | None,
         lmd: float | None,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -448,52 +453,46 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             intensity_cdist = None
         logger.debug("Initializing")
-        n = adj_csr.shape[0]  # number of (candidate) cell pairs
-        w_csr = sparse.csr_array((n, n), dtype=self.precision)
+        # weighted cross-distances of the cell pairs (degree, intensity); unlike the
+        # distance cross-distance (one value per pair of neighboring cell pairs), they
+        # are applied as vector operations by _NormalizedSimilarityMatrix
+        cell_pair_cdist = None
         total_weight = 0
         if self.degree_weight > 0:
             assert degree_cdist is not None
-            degree_cdist = degree_cdist.ravel()
-            w_csr += adj_csr * (
-                self.precision(self.degree_weight) * degree_cdist[:, np.newaxis]
+            weighted_degree_cdist = (
+                self.precision(self.degree_weight) * degree_cdist.ravel()
             )
-            w_csr += adj_csr * (
-                self.precision(self.degree_weight) * degree_cdist[np.newaxis, :]
+            cell_pair_cdist = (
+                weighted_degree_cdist
+                if cell_pair_cdist is None
+                else cell_pair_cdist + weighted_degree_cdist
             )
+            del weighted_degree_cdist
             total_weight += 2 * self.degree_weight
-            assert w_csr.dtype == self.precision
         if self.intensity_weight > 0 and intensity_cdist is not None:
-            intensity_cdist = intensity_cdist.ravel()
-            w_csr += adj_csr * (
-                self.precision(self.intensity_weight) * intensity_cdist[:, np.newaxis]
+            weighted_intensity_cdist = (
+                self.precision(self.intensity_weight) * intensity_cdist.ravel()
             )
-            w_csr += adj_csr * (
-                self.precision(self.intensity_weight) * intensity_cdist[np.newaxis, :]
+            cell_pair_cdist = (
+                weighted_intensity_cdist
+                if cell_pair_cdist is None
+                else cell_pair_cdist + weighted_intensity_cdist
             )
+            del weighted_intensity_cdist
             total_weight += 2 * self.intensity_weight
-            assert w_csr.dtype == self.precision
         if self.distance_weight > 0:
-            assert distance_cdist_csr is not None
-            w_csr += adj_csr * (
-                self.precision(self.distance_weight) * distance_cdist_csr
-            )
             total_weight += self.distance_weight
-            assert w_csr.dtype == self.precision
-        if total_weight > 0:
-            w_csr /= self.precision(total_weight)
-            assert w_csr.dtype == self.precision
-        else:
+        if total_weight == 0:
             logger.info("No cross-distances used, matching graph topology only")
-        # degrees of the (restricted) product graph, i.e., its row sums: in CSR format,
-        # the entries of row i are stored at positions indptr[i] to indptr[i + 1] - 1,
-        # so np.diff(indptr) is the number of entries per row; since all entries of the
-        # adjacency matrix are one, this equals the row sums
-        d = np.diff(adj_csr.indptr).astype(self.precision)
-        d[d != 0] = d[d != 0] ** (-0.5)
-        d_dia = sparse.dia_array((d, [0]), shape=(n, n))
-        w_csr: sparse.csr_array = d_dia @ (adj_csr - w_csr) @ d_dia
-        assert w_csr.dtype == self.precision
-        del d, d_dia
+        w_tilde = _NormalizedSimilarityMatrix(
+            product_graph,
+            cell_pair_cdist,
+            self.distance_weight,
+            total_weight,
+            self.precision,
+        )
+        n_cell_pairs = len(product_graph)
         if (
             self.alpha != 1.0
             and self.spatial_cdist_prior_thres is not None
@@ -506,13 +505,13 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                 raise SpellmatchException(
                     "No candidate cell pairs within the spatial prior threshold"
                 )
-            h = np.asarray(h / np.sum(h), dtype=self.precision)[:, np.newaxis]
+            h = np.asarray(h / np.sum(h), dtype=self.precision)
         else:
-            h = np.ones((n, 1), dtype=self.precision)
-            h /= self.precision(n)
+            h = np.ones(n_cell_pairs, dtype=self.precision)
+            h /= self.precision(n_cell_pairs)
         assert h.dtype == self.precision
-        s = np.ones((n, 1), dtype=self.precision)
-        s /= self.precision(n)
+        s = np.ones(n_cell_pairs, dtype=self.precision)
+        s /= self.precision(n_cell_pairs)
         assert s.dtype == self.precision
         logger.debug("Optimizing")
         opt_converged = False
@@ -520,10 +519,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         for opt_iteration in range(self.opt_max_iter):
             start = timer()
             s_new: np.ndarray = (
-                self.precision(self.alpha) * (w_csr @ s)
+                self.precision(self.alpha) * (w_tilde @ s)
                 + self.precision(1.0 - self.alpha) * h
             )
-            opt_loss = float(np.linalg.norm(s[:, 0] - s_new[:, 0]))
+            opt_loss = float(np.linalg.norm(s - s_new))
             assert s_new.dtype == self.precision
             s = s_new
             stop = timer()
@@ -549,10 +548,10 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
             "opt_iterations": opt_iteration + 1,
             "opt_converged": opt_converged,
         }
-        scores_data = s[:, 0]
-        if candidates is not None:
+        scores_data = s
+        if cell_pairs is not None:
             scores_data = np.zeros(n1 * n2, dtype=self.precision)
-            scores_data[candidates] = s[:, 0]
+            scores_data[cell_pairs] = s
         return info, scores_data.reshape((n1, n2))
 
     def _compute_degree_cdist(self, deg1: np.ndarray, deg2: np.ndarray) -> np.ndarray:
@@ -843,26 +842,172 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         else:
             return self._compute_cdist(cca_intensities1, cca_intensities2, metric.value)
 
-    def _compute_distance_cdist(
-        self,
-        adj1: np.ndarray,
-        adj2: np.ndarray,
-        dists1: np.ndarray,
-        dists2: np.ndarray,
-    ) -> sparse.csr_array:
-        adj1_csr = sparse.csr_array(adj1)
-        adj2_csr = sparse.csr_array(adj2)
-        m_csr = sparse.csr_array(
-            abs(
-                # CSR for subtraction
-                sparse.kron(sparse.csr_array(adj1 * dists1), adj2_csr, format="csr")
-                - sparse.kron(adj1_csr, sparse.csr_array(adj2 * dists2), format="csr")
+
+@dataclass(eq=False)
+class _ProductGraph:
+    """Product graph of two spatial cell graphs, restricted to candidate cell pairs.
+
+    The adjacency A = (A1 ⊗ A2)[C, C] of the candidate cell pairs C is constructed
+    directly (without the full Kronecker product), together with the distance
+    cross-distance term on the same sparsity pattern. To save memory, both share their
+    index arrays (indices, indptr); they must not be modified in place (e.g. by
+    sort_indices or eliminate_zeros). ``cell_pairs`` holds the flat indices i * n2 + j
+    of the candidate cell pairs (None: all cell pairs).
+    """
+
+    adj: sparse.csr_array
+    cell_pairs: np.ndarray | None
+    distance_cdist: sparse.csr_array | None
+
+    def __len__(self) -> int:
+        return self.adj.shape[0]
+
+    @property
+    def degrees(self) -> np.ndarray:
+        """Number of adjacent (candidate) cell pairs of each (candidate) cell pair."""
+        return np.diff(self.adj.indptr)
+
+    @staticmethod
+    def build(
+        graph1: SparseGraph,
+        graph2: SparseGraph,
+        cell_pairs: np.ndarray | None,
+        precision: type,
+        distance_cdiff_thres: float | None,
+        chunk_size: int = 2**16,
+    ) -> "_ProductGraph":
+        """Build the product graph for the given cell pairs (all cell pairs if None).
+
+        Cell pairs (i, j) and (k, l) are adjacent if i and k are adjacent in graph1 and
+        j and l are adjacent in graph2. For each cell pair, all such neighbor pairs
+        (k, l) are enumerated, and only those that are cell pairs themselves are kept.
+        This is done in chunks of at most chunk_size neighbor pairs (but at least one
+        cell pair per chunk) to bound temporary memory (2**16 was fastest in
+        benchmarks, as the temporary arrays fit in the CPU cache).
+        """
+        n1, n2 = len(graph1), len(graph2)
+        adj1, adj2 = graph1.adj, graph2.adj
+        deg1, deg2 = graph1.degrees, graph2.degrees
+        if cell_pairs is not None:
+            n_cell_pairs = len(cell_pairs)
+            ind1, ind2 = np.divmod(cell_pairs, n2)
+        else:
+            n_cell_pairs = n1 * n2
+            ind1 = np.repeat(np.arange(n1), n2)
+            ind2 = np.tile(np.arange(n2), n1)
+        if distance_cdiff_thres is not None:
+            assert graph1.dists is not None and graph2.dists is not None
+            dists1 = graph1.dists.data.astype(precision)
+            dists2 = graph2.dists.data.astype(precision)
+        # number of neighbor pairs of each cell pair
+        counts = deg1[ind1].astype(np.int64) * deg2[ind2]
+        max_count = max(int(counts.max()), 1)
+        max_index = max(n_cell_pairs, int(counts.sum()))
+        index_dtype = np.int32 if max_index < np.iinfo(np.int32).max else np.int64
+        chunk_len = max(chunk_size // max_count, 1)
+        indices_chunks = []
+        distance_cdist_chunks = []
+        degrees = np.zeros(n_cell_pairs, dtype=np.int64)
+        for chunk_start in range(0, n_cell_pairs, chunk_len):
+            chunk_stop = min(chunk_start + chunk_len, n_cell_pairs)
+            chunk_counts = counts[chunk_start:chunk_stop]
+            # enumerate the neighbor pairs (k, l) of each cell pair (i, j), i.e. row:
+            # the index of a neighbor pair within its row is decoded row-major into the
+            # positions of the edges (i, k) and (j, l) in the CSR arrays of graph1 and
+            # graph2, e.g. for neighbors k0, k1 of i and l0, l1, l2 of j into
+            # (k0, l0), (k0, l1), (k0, l2), (k1, l0), (k1, l1), (k1, l2)
+            rows = np.repeat(np.arange(chunk_start, chunk_stop), chunk_counts)
+            neighbor_pair_ind = np.arange(len(rows)) - np.repeat(
+                np.cumsum(chunk_counts) - chunk_counts, chunk_counts
             )
+            row_deg2 = deg2[ind2[rows]]
+            edges1 = adj1.indptr[ind1[rows]] + neighbor_pair_ind // row_deg2
+            edges2 = adj2.indptr[ind2[rows]] + neighbor_pair_ind % row_deg2
+            # neighbor pairs (k, l) as flat indices, and their product graph columns
+            neighbor_cell_pairs = (
+                adj1.indices[edges1].astype(np.int64) * n2 + adj2.indices[edges2]
+            )
+            if cell_pairs is None:
+                cols = neighbor_cell_pairs
+            else:
+                # keep neighbor pairs that are cell pairs themselves
+                cols = np.searchsorted(cell_pairs, neighbor_cell_pairs)
+                np.minimum(cols, n_cell_pairs - 1, out=cols)
+                keep = cell_pairs[cols] == neighbor_cell_pairs
+                rows, cols, edges1, edges2 = (
+                    rows[keep],
+                    cols[keep],
+                    edges1[keep],
+                    edges2[keep],
+                )
+            degrees[chunk_start:chunk_stop] = np.bincount(
+                rows - chunk_start, minlength=chunk_stop - chunk_start
+            )
+            indices_chunks.append(cols.astype(index_dtype))
+            if distance_cdiff_thres is not None:
+                chunk_distance_cdist = np.abs(dists1[edges1] - dists2[edges2])
+                chunk_distance_cdist /= precision(distance_cdiff_thres)
+                np.square(chunk_distance_cdist, out=chunk_distance_cdist)
+                np.clip(chunk_distance_cdist, 0, 1, out=chunk_distance_cdist)
+                distance_cdist_chunks.append(chunk_distance_cdist)
+        indices = np.concatenate(indices_chunks)
+        del indices_chunks
+        distance_cdist_data = None
+        if distance_cdiff_thres is not None:
+            distance_cdist_data = np.concatenate(distance_cdist_chunks)
+            del distance_cdist_chunks
+        indptr = np.concatenate(([0], np.cumsum(degrees))).astype(index_dtype)
+        adj = sparse.csr_array(
+            (np.ones(len(indices), dtype=precision), indices, indptr),
+            shape=(n_cell_pairs, n_cell_pairs),
         )
-        m_csr.data = (m_csr.data / self.precision(self.distance_cdiff_thres)) ** 2
-        np.clip(m_csr.data, 0, 1, out=m_csr.data)
-        assert m_csr.dtype == self.precision
-        return m_csr
+        distance_cdist = None
+        if distance_cdist_data is not None:
+            distance_cdist = sparse.csr_array(
+                (distance_cdist_data, indices, indptr),
+                shape=(n_cell_pairs, n_cell_pairs),
+            )
+        logger.debug(f"Product graph: {n_cell_pairs} cell pairs, {len(indices)} edges")
+        return _ProductGraph(adj, cell_pairs, distance_cdist)
+
+
+class _NormalizedSimilarityMatrix:
+    """Matrix-free W~ = D^(-1/2) (A - W) D^(-1/2).
+
+    W = A * (c_v + c_w + w_d * M_vw) / T, where c are the weighted cross-distances of
+    the cell pairs (degree, intensity), M the distance cross-distances between
+    neighboring cell pairs with weight w_d, and T the total weight. Since the cell pair
+    terms are separable, W~ s = D^(-1/2) (A - W) u with u = D^(-1/2) s and
+    (A - W) u = (1 - c / T) * (A u) - A (c * u) / T - w_d / T * (M u).
+    """
+
+    def __init__(
+        self,
+        product_graph: _ProductGraph,
+        cell_pair_cdist: np.ndarray | None,
+        distance_weight: float,
+        total_weight: float,
+        precision: type,
+    ) -> None:
+        self.product_graph = product_graph
+        deg = product_graph.degrees.astype(precision)
+        self.deg_inv_sqrt = np.power(deg, -0.5, out=np.zeros_like(deg), where=deg != 0)
+        self.rel_cell_pair_cdist = None
+        if cell_pair_cdist is not None:
+            self.rel_cell_pair_cdist = cell_pair_cdist / precision(total_weight)
+        self.rel_distance_weight = None
+        if product_graph.distance_cdist is not None:
+            self.rel_distance_weight = precision(distance_weight / total_weight)
+
+    def __matmul__(self, s: np.ndarray) -> np.ndarray:
+        u = self.deg_inv_sqrt * s
+        result = self.product_graph.adj @ u
+        if self.rel_cell_pair_cdist is not None:
+            result *= 1 - self.rel_cell_pair_cdist
+            result -= self.product_graph.adj @ (self.rel_cell_pair_cdist * u)
+        if self.rel_distance_weight is not None:
+            result -= self.rel_distance_weight * (self.product_graph.distance_cdist @ u)
+        return result * self.deg_inv_sqrt
 
 
 class SpellmatchException(SpellmatchMatchingAlgorithmException):

@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from scipy.ndimage import gaussian_filter, median_filter
-from scipy.spatial import distance
 from shapely.geometry import Point, Polygon
 from skimage.measure import regionprops
 from skimage.transform import AffineTransform, ProjectiveTransform
@@ -212,7 +211,9 @@ def restore_outlier_scores(
     source_labels: np.ndarray, target_labels: np.ndarray, filtered_scores: xr.DataArray
 ) -> xr.DataArray:
     scores = xr.DataArray(
-        data=np.zeros((len(source_labels), len(target_labels))),
+        data=np.zeros(
+            (len(source_labels), len(target_labels)), dtype=filtered_scores.dtype
+        ),
         coords={
             filtered_scores.dims[0]: source_labels,
             filtered_scores.dims[1]: target_labels,
@@ -220,21 +221,6 @@ def restore_outlier_scores(
     )
     scores.loc[filtered_scores.coords] = filtered_scores
     return scores
-
-
-def create_graph(
-    name: str, points: pd.DataFrame, adj_radius: float, xdim: str, ydim: str
-) -> tuple[xr.DataArray, xr.DataArray]:
-    dists_data = distance.squareform(distance.pdist(points.to_numpy()))
-    dists = xr.DataArray(
-        data=dists_data,
-        coords={xdim: points.index.to_numpy(), ydim: points.index.to_numpy()},
-        name=name,
-    )
-    adj_data = dists_data <= adj_radius
-    np.fill_diagonal(adj_data, False)
-    adj = dists.copy(data=adj_data)
-    return adj, dists
 
 
 def show_image(

@@ -52,12 +52,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   start method), and versions with wheels for Python 3.14 (numpy 2.3.2, pandas 2.3.3,
   pydantic 2.12, PyYAML 6.0.3, scikit-learn 1.7.2, scipy 1.16.1, shapely 2.1.2); the
   lower bounds are now tested in CI
+- Spellmatch performance: the product graph is constructed directly for candidate cell
+  pairs (without the full Kronecker product), the normalized similarity matrix is
+  applied matrix-free, and the product graph is reused across lambda values (and across
+  iterations, unless the graphs or the candidate cell pairs change); spatial graphs are
+  constructed using scikit-learn's `radius_neighbors_graph`. Results are unchanged up to
+  floating point rounding, which may change near-ties (e.g. cell distances equal to
+  `adj_radius`, or nearly equal scores)
+- `match_graphs` also accepts `SparseGraph` objects (see `SparseGraph.from_points`)
+- Restored scores (outlier filtering) keep the precision of the algorithm (float32 for
+  Spellmatch) instead of float64
+- Scores files are written as compressed NETCDF4 (requires h5netcdf/h5py) instead of
+  NETCDF3_CLASSIC, which limited score matrices to 2 GiB; NETCDF3 files written by
+  previous versions can still be read
+- ICP now defaults to `scores_tol=1e-6`, i.e., it stops once the assignments no longer
+  change (previously, it always ran `max_iter=200` iterations); results are unchanged
 
 ### Removed
 
 - The `nonfree` extra: the OpenCV packages on PyPI (including
   `opencv-contrib-python-headless`) do not include patented algorithms such as SURF,
   which require an OpenCV build with `OPENCV_ENABLE_NONFREE`
+- `spellmatch.utils.create_graph` (dense adjacency and distance matrices); use
+  `SparseGraph.from_points` instead
 
 ### Fixed
 

@@ -23,7 +23,7 @@ Implementation based on [simpleICP](https://github.com/pglira/simpleICP)
 | --- | --- | --- |
 | `transform_type` | `rigid` | Spatial transform model (`rigid`, `similarity`, `affine`) |
 | `max_iter` | `200` | Maximum number of iterations |
-| `scores_tol` | | Convergence tolerance for the relative change in the cell alignment scores between iterations (Frobenius norm of the change, divided by the Frobenius norm of the current scores) |
+| `scores_tol` | `1e-6` | Convergence tolerance for the relative change in the cell alignment scores between iterations (Frobenius norm of the change, divided by the Frobenius norm of the current scores); the default stops once the assignments no longer change; if `None`, `max_iter` iterations are performed |
 | `transform_tol` | | Convergence tolerance (Frobenius norm) for changes in the spatial transform matrix between iterations |
 | `max_dist` | | Maximum distance between matched (closest) cells |
 | `filter_outliers` | `True` | Whether to exclude cells outside of the overlapping image region (bounding boxes, extended by `max_dist`) from matching; only effective if `max_dist` is specified |
