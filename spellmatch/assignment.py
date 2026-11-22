@@ -11,7 +11,7 @@ from skimage.segmentation import relabel_sequential
 from skimage.util import img_as_ubyte
 
 from ._spellmatch import SpellmatchException
-from .utils import show_image
+from .utils import compute_max2, show_image
 
 
 class AssignmentDirection(Enum):
@@ -82,11 +82,11 @@ def assign(
             del max_rev_scores, min_max_rev_score
     if margin_thres is not None or margin_thres_quantile is not None:
         if fwd_scores is not None:
-            max2_fwd_scores = -np.partition(-fwd_scores, 1, axis=1)[:, :2]
+            max2_fwd_scores = compute_max2(fwd_scores, axis=1)
             fwd_margins = max2_fwd_scores[:, 0] - max2_fwd_scores[:, 1]
             del max2_fwd_scores
         if rev_scores is not None:
-            max2_rev_scores = -np.partition(-rev_scores, 1, axis=0)[:2, :]
+            max2_rev_scores = compute_max2(rev_scores, axis=0)
             rev_margins = max2_rev_scores[0, :] - max2_rev_scores[1, :]
             del max2_rev_scores
         if margin_thres is not None:
@@ -113,7 +113,7 @@ def assign(
             del new_fwd_scores, row_ind, col_ind
         if rev_scores is not None:
             row_ind = np.argmax(rev_scores, axis=0)
-            col_ind = np.arange(fwd_scores.shape[1])
+            col_ind = np.arange(rev_scores.shape[1])
             new_rev_scores = np.zeros_like(rev_scores)
             new_rev_scores[row_ind, col_ind] = rev_scores[row_ind, col_ind]
             rev_scores = new_rev_scores
@@ -177,6 +177,7 @@ def assign(
 def validate_assignment(
     assignment: pd.DataFrame, validation_assignment: pd.DataFrame
 ) -> float:
+    validation_assignment = validation_assignment.set_axis(assignment.columns, axis=1)
     merged_assignment = pd.merge(assignment, validation_assignment)
     return len(merged_assignment.index) / len(validation_assignment.index)
 
@@ -196,8 +197,9 @@ def show_assignment(
         ~np.isin(filtered_target_mask, assignment.iloc[:, 1].to_numpy())
     ] = 0
     relabeled_filtered_source_mask, fw, _ = relabel_sequential(filtered_source_mask)
-    lut = np.zeros(fw.out_values.max() + 1, dtype=fw.out_values.dtype)
-    lut[fw[assignment.iloc[:, 0].to_numpy()]] = assignment.iloc[:, 1].to_numpy()
+    lut = np.zeros(fw.out_values.max() + 1, dtype=filtered_target_mask.dtype)
+    relabeled_source_labels = fw[assignment.iloc[:, 0].to_numpy(copy=True)]
+    lut[relabeled_source_labels] = assignment.iloc[:, 1].to_numpy()
     matched_filtered_source_mask = lut[relabeled_filtered_source_mask]
     img1 = img_as_ubyte(label2rgb(matched_filtered_source_mask)[:, :, ::-1])
     img2 = img_as_ubyte(label2rgb(filtered_target_mask)[:, :, ::-1])

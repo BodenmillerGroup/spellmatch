@@ -1,5 +1,6 @@
 import builtins
 import importlib
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +16,8 @@ from skimage.transform import AffineTransform, ProjectiveTransform
 if TYPE_CHECKING:
     import pyqtgraph as pg
     from qtpy.QtCore import QEventLoop
+
+logger = logging.getLogger(__name__)
 
 
 def describe_image(img: xr.DataArray) -> str:
@@ -58,7 +61,7 @@ def describe_transform(transform: ProjectiveTransform) -> str:
 
 
 def describe_scores(scores: xr.DataArray) -> str:
-    max2_scores = -np.partition(-scores.to_numpy(), 1, axis=-1)[:, :2]
+    max2_scores = compute_max2(scores.to_numpy(), axis=1)
     mean_score = np.mean(max2_scores[:, 0])
     mean_margin = np.mean(max2_scores[:, 0] - max2_scores[:, 1])
     return f"mean score: {mean_score:.6f}, mean margin: {mean_margin:.6f}"
@@ -148,6 +151,31 @@ def create_bounding_box(mask: xr.DataArray) -> Polygon:
     if "scale" in mask.attrs:
         bbox_shell *= np.expand_dims(mask.attrs["scale"], 0)
     return Polygon(shell=bbox_shell)
+
+
+def compute_max2(data: np.ndarray, axis: int) -> np.ndarray:
+    """Return the two largest values along an axis, in descending order.
+
+    If the axis has a single element, the second-largest value is zero (scores are
+    non-negative).
+    """
+    data = np.moveaxis(data, axis, -1)
+    if data.shape[-1] >= 2:
+        max2 = -np.partition(-data, 1, axis=-1)[..., :2]
+    else:
+        max2 = np.concatenate((data, np.zeros_like(data)), axis=-1)
+    return np.moveaxis(max2, -1, axis)
+
+
+def make_unique_names(source_name: str, target_name: str) -> tuple[str, str]:
+    """Make source and target names unique, as they are used as dimension names."""
+    if source_name == target_name:
+        logger.warning(
+            f"Source and target have the same name ({source_name}), using "
+            f"'{source_name} (source)' and '{target_name} (target)' instead"
+        )
+        return f"{source_name} (source)", f"{target_name} (target)"
+    return source_name, target_name
 
 
 def transform_points(

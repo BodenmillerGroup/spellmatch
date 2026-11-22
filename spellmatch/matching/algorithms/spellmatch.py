@@ -17,6 +17,7 @@ from sklearn.exceptions import ConvergenceWarning
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
+from ...utils import make_unique_names
 from ._algorithms import (
     IterativeGraphMatchingAlgorithm,
     MaskMatchingAlgorithm,
@@ -65,7 +66,7 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
         transform_estim_type: str = "max_score",
         transform_estim_k_best: int = 50,
         max_iter: int = 50,
-        scores_tol: float | None = None,
+        scores_tol: float | None = 1e-3,
         transform_tol: float | None = None,
         filter_outliers: bool = True,
         adj_radius: float = 15,
@@ -407,11 +408,14 @@ class Spellmatch(IterativeGraphMatchingAlgorithm):
                     scores_data = current_scores_data
                     cancor_mean = current_cancor_mean
             logger.info(f"Best lambda={lmd:.3g} (CC mean={cancor_mean:.6f})")
+        source_name, target_name = make_unique_names(
+            source_adj.name or "source", target_adj.name or "target"
+        )
         scores = xr.DataArray(
             data=scores_data,
             coords={
-                source_adj.name or "source": source_adj.coords["a"].to_numpy(),
-                target_adj.name or "target": target_adj.coords["x"].to_numpy(),
+                source_name: source_adj.coords["a"].to_numpy(),
+                target_name: target_adj.coords["x"].to_numpy(),
             },
         )
         return info, scores
