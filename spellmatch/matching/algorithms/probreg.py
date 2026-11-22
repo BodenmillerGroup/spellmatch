@@ -6,13 +6,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import xarray as xr
-from probreg import bcpd, cpd, filterreg, gmmtree, l2dist_regs
-from probreg.transformation import Transformation
 from skimage.transform import ProjectiveTransform
 from sklearn.neighbors import NearestNeighbors
 
 from ..._spellmatch import hookimpl
 from ._algorithms import MaskMatchingAlgorithm, PointsMatchingAlgorithm
+from ._probreg import bcpd, cpd, l2dist_regs
+from ._probreg.transformation import NormalizedTransformation, Transformation
 
 try:
     import cupy as cp  # type: ignore
@@ -32,6 +32,15 @@ def _cuda_available() -> bool:
         return False
 
 
+def _get_normalization(
+    source: np.ndarray, target: np.ndarray
+) -> tuple[np.ndarray, float]:
+    """Common centroid and scale (standard deviation) of both point sets."""
+    points = np.concatenate((source, target))
+    scale = float(np.std(points - np.mean(points, axis=0)))
+    return np.mean(points, axis=0), scale if scale > 0 else 1.0
+
+
 def _asnumpy(data: Any) -> np.ndarray:
     """Like cupy.asnumpy: copy CuPy arrays (GPU) to the host, if CuPy is installed."""
     if cp is not None and isinstance(data, cp.ndarray):
@@ -48,13 +57,10 @@ def spellmatch_get_mask_matching_algorithm(
         "affine_cpd": AffineCoherentPointDrift,
         "nonrigid_cpd": NonRigidCoherentPointDrift,
         "combined_bcpd": CombinedBayesianCoherentPointDrift,
-        "rigid_filterreg": RigidFilterReg,
-        "deformable_kinematic_filterreg": DeformableKinematicFilterReg,
         "rigid_gmmreg": RigidGMMReg,
         "tps_gmmreg": TPSGMMReg,
         "rigid_svr": RigidSVR,
         "tps_svr": TPSSVR,
-        "gmmtree": GMMTree,
     }
     if name is not None:
         return algorithms.get(name)
@@ -296,15 +302,17 @@ class _BayesianCoherentPointDrift(_Probreg):
     def _register_points(
         self, source: np.ndarray, target: np.ndarray
     ) -> Transformation:
-        instance = self._get_instance(source)
+        # parameters are defined relative to the scale of the (normalized) point sets
+        centroid, scale = _get_normalization(source, target)
+        instance = self._get_instance((source - centroid) / scale)
         instance.set_callbacks([self._instance_callback])
         result_transformation = instance.registration(
-            target, w=self.w, maxiter=self.maxiter, tol=self.tol
+            (target - centroid) / scale, w=self.w, maxiter=self.maxiter, tol=self.tol
         )
-        return result_transformation
+        return NormalizedTransformation(result_transformation, centroid, scale)
 
     @abstractmethod
-    def _get_instance(self, source: np.ndarray) -> bcpd.BayesianCoherentPointDrift:
+    def _get_instance(self, source: np.ndarray) -> bcpd.CombinedBCPD:
         raise NotImplementedError()
 
     def _instance_callback(self, transformation: Transformation) -> None:
@@ -323,7 +331,8 @@ class CombinedBayesianCoherentPointDrift(_BayesianCoherentPointDrift):
         w: float = 0,
         maxiter: int = 50,
         tol: float = 0.001,
-        lmd: float = 2,
+        lmd: float = 50,
+        beta: float = 2,
         k: float = 1e20,
         gamma: float = 1,
     ) -> None:
@@ -338,129 +347,14 @@ class CombinedBayesianCoherentPointDrift(_BayesianCoherentPointDrift):
             tol=tol,
         )
         self.lmd = lmd
+        self.beta = beta
         self.k = k
         self.gamma = gamma
 
-    def _get_instance(self, source: np.ndarray) -> bcpd.BayesianCoherentPointDrift:
+    def _get_instance(self, source: np.ndarray) -> bcpd.CombinedBCPD:
         return bcpd.CombinedBCPD(
-            source=source, lmd=self.lmd, k=self.k, gamma=self.gamma
+            source, lmd=self.lmd, beta=self.beta, k=self.k, gamma=self.gamma
         )
-
-
-class _FilterReg(_Probreg):
-    def __init__(
-        self,
-        *,
-        outlier_dist: float | None,
-        point_feature: str,
-        intensity_feature: str,
-        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None,
-        max_dist: float | None,
-        w: float,
-        maxiter: int,
-        tol: float,
-        min_sigma2: float,
-    ) -> None:
-        super().__init__(
-            outlier_dist=outlier_dist,
-            point_feature=point_feature,
-            intensity_feature=intensity_feature,
-            intensity_transform=intensity_transform,
-            max_dist=max_dist,
-        )
-        self.w = w
-        self.maxiter = maxiter
-        self.tol = tol
-        self.min_sigma2 = min_sigma2
-
-    def _register_points(
-        self, source: np.ndarray, target: np.ndarray
-    ) -> Transformation:
-        instance = self._get_instance(source)
-        instance.set_callbacks([self._instance_callback])
-        result = instance.registration(
-            target,
-            w=self.w,
-            maxiter=self.maxiter,
-            tol=self.tol,
-            min_sigma2=self.min_sigma2,
-        )
-        return result.transformation
-
-    @abstractmethod
-    def _get_instance(self, source: np.ndarray) -> filterreg.FilterReg:
-        raise NotImplementedError()
-
-    def _instance_callback(self, transformation: Transformation) -> None:
-        self._callback(transformation)
-
-
-class RigidFilterReg(_FilterReg):
-    def __init__(
-        self,
-        *,
-        outlier_dist: float | None = None,
-        point_feature: str = "centroid",
-        intensity_feature: str = "intensity_mean",
-        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None = None,
-        max_dist: float | None = None,
-        w: float = 0,
-        maxiter: int = 50,
-        tol: float = 0.001,
-        min_sigma2: float = 1e-4,
-        sigma2: float | None = None,
-        update_sigma2: bool = False,
-    ) -> None:
-        super().__init__(
-            outlier_dist=outlier_dist,
-            point_feature=point_feature,
-            intensity_feature=intensity_feature,
-            intensity_transform=intensity_transform,
-            max_dist=max_dist,
-            w=w,
-            maxiter=maxiter,
-            tol=tol,
-            min_sigma2=min_sigma2,
-        )
-        self.sigma2 = sigma2
-        self.update_sigma2 = update_sigma2
-
-    def _get_instance(self, source: np.ndarray) -> filterreg.FilterReg:
-        return filterreg.RigidFilterReg(
-            source=source, sigma2=self.sigma2, update_sigma2=self.update_sigma2
-        )
-
-
-class DeformableKinematicFilterReg(_FilterReg):
-    def __init__(
-        self,
-        *,
-        outlier_dist: float | None = None,
-        point_feature: str = "centroid",
-        intensity_feature: str = "intensity_mean",
-        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None = None,
-        max_dist: float | None = None,
-        w: float = 0,
-        maxiter: int = 50,
-        tol: float = 0.001,
-        min_sigma2: float = 1e-4,
-        sigma2: float | None = None,
-    ) -> None:
-        super().__init__(
-            outlier_dist=outlier_dist,
-            point_feature=point_feature,
-            intensity_feature=intensity_feature,
-            intensity_transform=intensity_transform,
-            max_dist=max_dist,
-            w=w,
-            maxiter=maxiter,
-            tol=tol,
-            min_sigma2=min_sigma2,
-        )
-        self.sigma2 = sigma2
-
-    def _get_instance(self, source: np.ndarray) -> filterreg.FilterReg:
-        return filterreg.DeformableKinematicFilterReg(source=source, sigma2=self.sigma2)
 
 
 class _L2DistReg(_Probreg):
@@ -492,16 +386,19 @@ class _L2DistReg(_Probreg):
     def _register_points(
         self, source: np.ndarray, target: np.ndarray
     ) -> Transformation:
-        instance = self._get_instance(source)
+        # normalized point sets (the 2D thin plate spline kernel r^2 log(r) is
+        # numerically unstable for unnormalized coordinates)
+        centroid, scale = _get_normalization(source, target)
+        instance = self._get_instance((source - centroid) / scale)
         instance.set_callbacks([self._instance_callback])
         result_transformation = instance.registration(
-            target,
+            (target - centroid) / scale,
             maxiter=self.maxiter,
             tol=self.tol,
             opt_maxiter=self.opt_maxiter,
             opt_tol=self.opt_tol,
         )
-        return result_transformation
+        return NormalizedTransformation(result_transformation, centroid, scale)
 
     @abstractmethod
     def _get_instance(self, source: np.ndarray) -> l2dist_regs.L2DistRegistration:
@@ -670,7 +567,7 @@ class TPSSVR(_L2DistReg):
         gamma: float = 0.5,
         nu: float = 0.1,
         alpha: float = 1,
-        beta: float = 0.1,
+        beta: float = 10,  # probreg: 0.1 (unstable for normalized point sets)
         use_estimated_sigma: bool = True,
     ) -> None:
         super().__init__(
@@ -703,48 +600,3 @@ class TPSSVR(_L2DistReg):
             beta=self.beta,
             use_estimated_sigma=self.use_estimated_sigma,
         )
-
-
-class GMMTree(_Probreg):
-    def __init__(
-        self,
-        *,
-        outlier_dist: float | None = None,
-        point_feature: str = "centroid",
-        intensity_feature: str = "intensity_mean",
-        intensity_transform: str | Callable[[np.ndarray], np.ndarray] | None = None,
-        max_dist: float | None = None,
-        tree_level: int = 2,
-        lambda_c: float = 0.01,
-        lambda_s: float = 0.001,
-        maxiter: int = 20,
-        tol: float = 1e-4,
-    ) -> None:
-        super().__init__(
-            outlier_dist=outlier_dist,
-            point_feature=point_feature,
-            intensity_feature=intensity_feature,
-            intensity_transform=intensity_transform,
-            max_dist=max_dist,
-        )
-        self.tree_level = tree_level
-        self.lambda_c = lambda_c
-        self.lambda_s = lambda_s
-        self.maxiter = maxiter
-        self.tol = tol
-
-    def _register_points(
-        self, source: np.ndarray, target: np.ndarray
-    ) -> Transformation:
-        instance = gmmtree.GMMTree(
-            source,
-            tree_level=self.tree_level,
-            lambda_c=self.lambda_c,
-            lambda_s=self.lambda_s,
-        )
-        instance.set_callbacks(self._instance_callback)
-        result = instance.registration(target, maxiter=self.maxiter, tol=self.tol)
-        return result.transformation
-
-    def _instance_callback(self, transformation: Transformation) -> None:
-        self._callback(transformation)

@@ -14,8 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark configurations (`SemisyntheticBenchmarkConfig`) are validated using
   pydantic 2, which is stricter in type coercion (e.g. numbers are no longer converted
   to strings); hand-written configurations may need to be adapted
-- Make napari/Qt (`gui`) and probreg (`probreg`) optional dependencies; install
-  `spellmatch[all]` for the previous set of features
+- Make napari/Qt (`gui`) an optional dependency; install `spellmatch[all]` for the
+  previous set of features
+- The point set registration algorithms from probreg (CPD, BCPD, GMMReg, SVR) are now
+  included as pure Python code (adapted from probreg 0.3.8); probreg and its
+  dependencies (open3d, compiled extensions) are no longer required. Changed defaults:
+  BCPD `lmd=50` and new parameter `beta=2` (Gaussian kernel), TPS-SVR `beta=10`
+- The `cuda` extra installs prebuilt CuPy for CUDA 12 including the CUDA toolkit
+  libraries and headers (`cupy-cuda12x[ctk]`), instead of `cupy` (built from source,
+  requiring a CUDA toolkit installation)
 - Migrate packaging to `pyproject.toml` (hatchling, hatch-vcs) and development tooling
   to uv and ruff
 - Publish to PyPI using trusted publishing
@@ -75,6 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which require an OpenCV build with `OPENCV_ENABLE_NONFREE`
 - `spellmatch.utils.create_graph` (dense adjacency and distance matrices); use
   `SparseGraph.from_points` instead
+- The FilterReg (`rigid_filterreg`, `deformable_kinematic_filterreg`) and GMMTree
+  (`gmmtree`) algorithms, which only supported 3D point sets in probreg
 
 ### Fixed
 
@@ -154,10 +163,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metric failed for a single source or target cell
 - `run_parallel`: deadlock when many results were queued, and indefinite blocking when
   worker processes terminated unexpectedly (now raises a `RuntimeError`)
+- Point set registration algorithms adapted from probreg: rigid CPD without scale
+  estimation (`update_scale=False`) overestimated the variance (registration failed for
+  partially overlapping point sets); rigid GMMReg/SVR only supported 3D point sets;
+  TPS-SVR diverged for 2D point sets; BCPD failed (NaN) for partially overlapping point
+  sets and used incorrect covariance/scale updates; GMMReg/SVR used half of the
+  gradient and an incorrect quaternion derivative (3D); GMMReg results were not
+  reproducible; GMMReg failed if the target point set had fewer points than GMM
+  components; CPD on the GPU (CuPy) failed when transforming the cells
 - GUI features (`register interactive`, `--show`) now report that the optional `gui`
   dependencies are missing, instead of failing with a `ModuleNotFoundError`
-- A broken probreg installation (e.g. missing system libraries required by open3d) no
-  longer breaks the entire CLI; the probreg algorithms are skipped with a warning
 
 ## [0.1.0] - 2022-05-19
 

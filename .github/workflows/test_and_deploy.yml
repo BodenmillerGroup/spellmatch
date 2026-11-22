@@ -44,7 +44,7 @@ jobs:
             python-version: "3.14"
             extras: ""
             sync: "--resolution lowest-direct"
-          # probreg is only available as source distribution (requires compilation)
+          # all optional dependencies and the benchmark dependency group
           - platform: ubuntu-latest
             python-version: "3.14"
             extras: "--extra all --group benchmark"

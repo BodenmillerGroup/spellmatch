@@ -30,17 +30,12 @@ installed. Additional functionality can be enabled by installing optional depend
 | Extra     | Functionality                                                        |
 | --------- | -------------------------------------------------------------------- |
 | `gui`     | Interactive cell matching (napari) and live registration progress    |
-| `probreg` | Point set registration algorithms from probreg (CPD, FilterReg, ...) |
-| `all`     | All of the above                                                     |
-| `cuda`    | GPU acceleration for probreg algorithms (requires CUDA 12)           |
+| `all`     | All optional dependencies except `cuda`                              |
+| `cuda`    | GPU acceleration for the CPD algorithms (requires a CUDA 12 driver)  |
 
 For example, to install spellmatch with all optional dependencies:
 
     pip install "spellmatch[all]"
-
-!!! note "Installing probreg"
-    The probreg package is only available as source distribution and requires a C++
-    compiler for installation.
 
 !!! note "Feature-based registration"
     SIFT and ORB features are included in the default OpenCV installation. SURF is
