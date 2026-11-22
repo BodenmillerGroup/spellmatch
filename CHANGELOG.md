@@ -115,6 +115,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   centroids; Save is only enabled with enough cell pairs for the transform type
 - `register intensities`: metric sampling (`RANDOM`/`REGULAR` sampling strategies) is now
   reproducible by default (`sampling_seed=42`; set to `0` for wall-clock seeding)
+- Semi-synthetic benchmark: `algorithm_is_directed` was ignored when generating run
+  configurations, so reverse matching was never performed for directed algorithms
+  (e.g. ICP, CPD)
+- Semi-synthetic benchmark: `SemisyntheticBenchmark.load` failed (YAML loader, swapped
+  arguments, and `config.yml` instead of `config.yaml` written by `save`)
+- Semi-synthetic benchmark: missing reverse scores files are detected robustly
+- Benchmark metrics: the entropy metric could return NaN, normalizing metrics modified
+  the scores in-place (shared with subsequent assignments/metrics), and the margin
+  metric failed for a single source or target cell
+- `run_parallel`: deadlock when many results were queued, and indefinite blocking when
+  worker processes terminated unexpectedly (now raises a `RuntimeError`)
 
 ## [0.1.0] - 2022-05-19
 

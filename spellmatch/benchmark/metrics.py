@@ -3,6 +3,8 @@ from functools import partial
 
 import numpy as np
 
+from ..utils import compute_max2
+
 
 def precision(
     scores_arr: np.ndarray,
@@ -54,7 +56,7 @@ def uncertainty(
     normalize: bool = True,
 ) -> float:
     if normalize and scores_arr.max() != 0:
-        scores_arr /= scores_arr.max()
+        scores_arr = scores_arr / scores_arr.max()
     fwd_uncertainties = 1.0 - np.amax(scores_arr, axis=1)
     rev_uncertainties = 1.0 - np.amax(scores_arr, axis=0)
     uncertainties = np.concatenate((fwd_uncertainties, rev_uncertainties))
@@ -69,9 +71,9 @@ def margin(
     normalize: bool = True,
 ) -> float:
     if normalize and scores_arr.max() != 0:
-        scores_arr /= scores_arr.max()
-    max2_fwd_scores = -np.partition(-scores_arr, 1, axis=1)[:, :2]
-    max2_rev_scores = -np.partition(-scores_arr, 1, axis=0)[:2, :]
+        scores_arr = scores_arr / scores_arr.max()
+    max2_fwd_scores = compute_max2(scores_arr, axis=1)
+    max2_rev_scores = compute_max2(scores_arr, axis=0)
     fwd_margins = max2_fwd_scores[:, 0] - max2_fwd_scores[:, 1]
     rev_margins = max2_rev_scores[0, :] - max2_rev_scores[1, :]
     margins = np.concatenate((fwd_margins, rev_margins))
@@ -86,13 +88,12 @@ def entropy(
     normalize: bool = True,
 ) -> float:
     if normalize and scores_arr.max() != 0:
-        scores_arr /= scores_arr.max()
-    fwd_entropies = -np.sum(
-        scores_arr * np.log(scores_arr, where=scores_arr != 0), axis=1
+        scores_arr = scores_arr / scores_arr.max()
+    log_scores_arr = np.log(
+        scores_arr, out=np.zeros_like(scores_arr), where=scores_arr != 0
     )
-    rev_entropies = -np.sum(
-        scores_arr * np.log(scores_arr, where=scores_arr != 0), axis=0
-    )
+    fwd_entropies = -np.sum(scores_arr * log_scores_arr, axis=1)
+    rev_entropies = -np.sum(scores_arr * log_scores_arr, axis=0)
     entropies = np.concatenate((fwd_entropies, rev_entropies))
     return float(aggr_fn(entropies))
 

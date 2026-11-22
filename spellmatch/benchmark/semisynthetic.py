@@ -91,7 +91,7 @@ class SemisyntheticBenchmark:
         batch_index: int = 0,
         n_batches: int = 1,
         n_processes: int | None = None,
-        queue_size: int = None,
+        queue_size: int | None = None,
         worker_timeout: int = 1,
     ) -> Generator[RunConfig, None, pd.DataFrame]:
         run_config_generator = self.generate_run_configs(
@@ -177,7 +177,7 @@ class SemisyntheticBenchmark:
             reverse_scores_arr = None
             reverse_assignment_arr_true = None
             reverse_scores_file = scores_info_row.get("reverse_scores_file")
-            if reverse_scores_file not in (None, np.nan):
+            if not pd.isna(reverse_scores_file):
                 reverse_scores = read_scores(
                     self.benchmark_dir / "scores" / reverse_scores_file
                 )
@@ -233,11 +233,13 @@ class SemisyntheticBenchmark:
 
     @staticmethod
     def load(benchmark_dir: str | PathLike) -> "SemisyntheticBenchmark":
-        config_file = Path(benchmark_dir) / "config.yml"
+        config_file = Path(benchmark_dir) / "config.yaml"
+        if not config_file.exists() and config_file.with_suffix(".yml").exists():
+            config_file = config_file.with_suffix(".yml")  # legacy file name
         with config_file.open("r") as f:
-            config_dict = yaml.load(f, yaml.SafeLoader())
+            config_dict = yaml.safe_load(f)
         config = SemisyntheticBenchmarkConfig.model_validate(config_dict)
-        return SemisyntheticBenchmark(config, benchmark_dir)
+        return SemisyntheticBenchmark(benchmark_dir, config)
 
     def _generate_run_configs_for_batch(
         self,
@@ -293,6 +295,7 @@ class SemisyntheticBenchmark:
                     algorithm_name=run_config.algorithm_name,
                     algorithm_kwargs=run_config.algorithm_kwargs,
                     match_points_kwargs=run_config.match_points_kwargs,
+                    algorithm_is_directed=run_config.algorithm_is_directed,
                 )
 
     def _generate_run_configs_for_file_set(
@@ -360,6 +363,7 @@ class SemisyntheticBenchmark:
                     algorithm_name=run_config.algorithm_name,
                     algorithm_kwargs=run_config.algorithm_kwargs,
                     match_points_kwargs=run_config.match_points_kwargs,
+                    algorithm_is_directed=run_config.algorithm_is_directed,
                 )
 
     def _generate_run_configs_for_simutome_params(
@@ -460,6 +464,7 @@ class SemisyntheticBenchmark:
                         "target_intensities": target_intensities,
                         **run_config.match_points_kwargs,
                     },
+                    algorithm_is_directed=run_config.algorithm_is_directed,
                 )
 
     def _generate_run_configs_for_simutome_sections(
@@ -503,6 +508,7 @@ class SemisyntheticBenchmark:
                             **varying_algorithm_kwargs,
                         },
                         match_points_kwargs={},
+                        algorithm_is_directed=algorithm_config.algorithm_is_directed,
                     )
                 i += 1
 
