@@ -13,6 +13,8 @@ from shapely.geometry import Point, Polygon
 from skimage.measure import regionprops
 from skimage.transform import AffineTransform, ProjectiveTransform
 
+from ._spellmatch import missing_gui_dependency
+
 if TYPE_CHECKING:
     import pyqtgraph as pg
     from qtpy.QtCore import QEventLoop
@@ -238,8 +240,11 @@ def create_graph(
 def show_image(
     img: np.ndarray | None, window_title: str | None = None
 ) -> tuple["pg.ImageView", "QEventLoop"]:
-    import pyqtgraph as pg
-    from qtpy.QtCore import QEventLoop, Qt
+    try:
+        import pyqtgraph as pg
+        from qtpy.QtCore import QEventLoop, Qt
+    except ImportError as e:
+        raise missing_gui_dependency(e) from e
 
     pg.setConfigOption("imageAxisOrder", "row-major")
     pg.mkQApp()

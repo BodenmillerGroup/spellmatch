@@ -16,7 +16,7 @@ from skimage.transform import (
 )
 
 from . import io
-from ._spellmatch import SpellmatchException, logger
+from ._spellmatch import SpellmatchException, logger, missing_gui_dependency
 from .assignment import (
     AssignmentDirection,
     assign,
@@ -105,7 +105,7 @@ def catch_exception(func=None, *, handle=SpellmatchException):
         try:
             return func(*args, **kwargs)
         except handle as e:
-            raise click.ClickException(e)
+            raise click.ClickException(str(e)) from e
 
     return wrapper
 
@@ -415,7 +415,10 @@ def cli_register_interactive(
         if assignment_file.exists():
             assignment = io.read_assignment(assignment_file)
         # imported here, as napari is an optional dependency (spellmatch[gui])
-        from .registration.interactive import register_interactive
+        try:
+            from .registration.interactive import register_interactive
+        except ImportError as e:
+            raise missing_gui_dependency(e) from e
 
         result = register_interactive(
             source_mask,

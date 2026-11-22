@@ -46,7 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scores between iterations (previously absolute, which depended on the number of
   cells); Spellmatch now defaults to `scores_tol=1e-3` (previously `None`, i.e., always
   `max_iter` iterations)
-- Require scikit-image 0.26 or newer (`Transform.from_estimate`)
+- Require scikit-image 0.26 or newer (`Transform.from_estimate`), numpy 2.4.2 or newer
+  except on macOS (the wheels of numpy 2.3.2–2.4.1 bundle OpenBLAS 0.3.30, which
+  deadlocks in linear algebra routines after a fork, e.g. `run_parallel` with the fork
+  start method), and versions with wheels for Python 3.14 (numpy 2.3.2, pandas 2.3.3,
+  pydantic 2.12, PyYAML 6.0.3, scikit-learn 1.7.2, scipy 1.16.1, shapely 2.1.2); the
+  lower bounds are now tested in CI
+
+### Removed
+
+- The `nonfree` extra: the OpenCV packages on PyPI (including
+  `opencv-contrib-python-headless`) do not include patented algorithms such as SURF,
+  which require an OpenCV build with `OPENCV_ENABLE_NONFREE`
 
 ### Fixed
 
@@ -126,6 +137,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   metric failed for a single source or target cell
 - `run_parallel`: deadlock when many results were queued, and indefinite blocking when
   worker processes terminated unexpectedly (now raises a `RuntimeError`)
+- GUI features (`register interactive`, `--show`) now report that the optional `gui`
+  dependencies are missing, instead of failing with a `ModuleNotFoundError`
+- A broken probreg installation (e.g. missing system libraries required by open3d) no
+  longer breaks the entire CLI; the probreg algorithms are skipped with a warning
 
 ## [0.1.0] - 2022-05-19
 
