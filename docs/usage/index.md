@@ -55,8 +55,9 @@ Windows):
       --help     Show this message and exit.
 
     Commands:
-      ...
-    ...
+      register  Align images (obtain spatial alignment prior)
+      match     Match cells (generate continuous cell alignment scores)
+      assign    Assign cells (convert cell alignment scores to cell assignments)
 
 Most spellmatch commands support a `-v` option for enabling more verbose output. In
 addition, many spellmatch commands support a `--show` option for visualizing the current
@@ -64,7 +65,8 @@ operation. At any point, use the `--help` option to display additional informati
 a specific command.
 
 All spellmatch commands can operate on individual file pairs as well as on entire
-directories.
+directories. When operating on directories, cell masks and images are expected to have
+the `.tiff` file extension.
 
 ## Input
 
@@ -106,7 +108,10 @@ Spellmatch produces the following output data:
 - Cell alignment scores (xarray DataArray, stored as netCDF `.nc` files)
   Shape: source labels x target labels, data type: floating point
 - Cell assignments (CSV files holding cell label pairs)
-  Column headers: `Source` (source cell label), `Target` (target cell label)
+  Column headers: source cell mask file name (source cell labels), target cell mask file
+  name (target cell labels)
 
-By default, all files are named `{source}_to_{target}.{suffix}`, where `{source}`
-is the source image/cell mask name and `{target}` is the target image/cell mask name.
+When operating on directories, output files are named
+`{type}_{source}_to_{target}.{suffix}`, where `{type}` is `transform`, `scores`, or
+`assignment`, `{source}` is the source image/cell mask name, and `{target}` is the
+target image/cell mask name (without file extensions).

@@ -50,13 +50,13 @@ classDiagram
         -point_feature
         -intensity_feature
         -intensity_transform
-        +match_points(source_points, target_points, source_bbox, target_bbox, source_intensities, target_intensities, prior_transform)
+        +match_points(source_name, target_name, source_points, target_points, source_bbox, target_bbox, source_intensities, target_intensities, prior_transform)
     }
 
     class GraphMatchingAlgorithm{
         -filter_outliers
         -adj_radius
-        +match_graphs(source_adj, target_adj, source_dists, target_dists,source_intensities, target_intensities)
+        +match_graphs(source_adj, target_adj, source_dists, target_dists, source_intensities, target_intensities)
     }
 ```
 
